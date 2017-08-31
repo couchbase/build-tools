@@ -10,12 +10,93 @@ on their location in the manifest repository (e.g. released/4.6.1.xml).
 """
 
 import argparse
+import io
 import logging
+import os.path
 import pathlib
 import subprocess
 import sys
 
 from distutils.spawn import find_executable
+
+import dulwich.patch
+import dulwich.porcelain
+import dulwich.repo
+import lxml.etree
+
+
+class Manifest:
+    """FILL IN"""
+
+    def __init__(self, product_dir, manifest):
+        """Initialize parameters for metadata storage"""
+
+        self.manifest = str(product_dir / '.repo/manifests' / manifest)
+        self.remotes = None
+        self.projects = None
+
+    def get_remotes(self, tree):
+        """Acquire the Git remotes for the repositories"""
+
+        remotes = dict()
+
+        for remote in tree.findall('remote'):
+            remote_name = remote.get('name')
+            remote_url = remote.get('fetch')
+
+            # Skip incomplete/invalid remotes
+            if remote_name is None or remote_url is None:
+                continue
+
+            remotes[remote_name] = remote_url
+
+        # Get default remote
+        default_remote = tree.find('default')
+        default_remote_name = default_remote.get('remote')
+        remotes['default'] = remotes[default_remote_name]
+
+        self.remotes = remotes
+
+    def get_projects(self, tree):
+        """Acquire information for repositories to be archived"""
+
+        projects = dict()
+
+        for project in tree.findall('project'):
+            project_name = project.get('name')
+            project_remote = project.get('remote')
+            project_revision = project.get('revision')
+            project_path = project.get('path')
+
+            # Skip incomplete/invalid projects
+            if project_name is None:
+                continue
+
+            if project_remote is None:
+                project_remote = self.remotes['default']
+
+            if project_path is None:
+                project_path = project_name
+
+            projects[project_name] = {
+                'remote': project_remote,
+                'revision': project_revision,
+                'path': project_path,
+            }
+
+        self.projects = projects
+
+    def get_metadata(self):
+        """
+        Acquire the manifest, then parse and extract information for
+        the remotes and projects, needed to retrieve the repositories
+        to be archived
+        """
+
+        tree = lxml.etree.parse(self.manifest)
+
+        self.get_remotes(tree)
+        self.get_projects(tree)
 
 
 class MissingCommits:
@@ -41,6 +122,9 @@ class MissingCommits:
         self.safe_projects = ['testrunner']
 
         self.repo_bin = find_executable('repo')
+
+        self.old_mf_data = Manifest(product_dir, old_manifest)
+        self.old_mf_data.get_metadata()
 
     def repo_sync(self):
         """
@@ -118,9 +202,8 @@ class MissingCommits:
             diffs = subprocess.check_output(
                 [self.repo_bin, 'diffmanifests', '--raw',
                  self.old_manifest, new_xml],
-                cwd=self.product_dir, stderr=subprocess.STDOUT,
-                encoding='utf-8', universal_newlines=True
-            )
+                cwd=self.product_dir, stderr=subprocess.STDOUT
+            ).decode()
         except subprocess.CalledProcessError as exc:
             print(f'The "repo diffmanifests" command failed: {exc.output}')
             sys.exit(1)
@@ -130,7 +213,56 @@ class MissingCommits:
             if not line.startswith(' ')
         ]
 
-    def show_needed_commits(self, project_dir, old_commit, new_commit):
+    def clone_removed_repo(self, repo_path):
+        """"""
+
+        repo_name = os.path.basename(repo_path)
+        print(f'Repo name: {repo_name}')
+        repo_remote = self.old_mf_data.projects[repo_path]['remote']
+        print(f'Repo remote: {repo_remote}')
+        target_dir = os.path.join(self.product_dir, repo_path)
+
+        if not os.path.exists(target_dir):
+            dulwich.porcelain.clone(f'{repo_remote}/{repo_name}',
+                                    target=target_dir, checkout=True)
+
+    def generate_diff(self, repo_path, commit_sha):
+        """"""
+
+        return None  # Short-circuit
+
+        project_dir = self.product_dir / repo_path
+        repo = dulwich.repo.Repo(str(project_dir.resolve()))
+
+        commit = repo[bytes(commit_sha, 'utf-8')]
+        prev_commit = repo[commit.parents[0]]
+
+        fh = io.BytesIO()
+        dulwich.patch.write_tree_diff(fh, repo.object_store, prev_commit.tree,
+                                      commit.tree)
+
+        return [line for line in fh.getvalue().decode().split('\n')]
+
+    @staticmethod
+    def compare_summaries(old_summary, new_summary):
+        """"""
+
+        return True if old_summary == new_summary else False
+
+    @staticmethod
+    def compare_diffs(old_diff, new_diff):
+        """"""
+
+        for old_line, new_line in zip(old_diff, new_diff):
+            if old_line.startswith('index') or old_line.startswith('@@ '):
+                continue
+
+            if old_line != new_line:
+                return False
+        else:
+            return True
+
+    def show_needed_commits(self, project_dir, change_info):
         """
         Determine 'missing' commits for a given project based on
         two commit SHAs for the project.  This is done by doing
@@ -146,6 +278,7 @@ class MissingCommits:
         to be merged forward.
         """
 
+        old_commit, new_commit, old_diff, new_diff = change_info
         missing = [
             '/usr/bin/git', 'log', '--oneline', '--cherry-pick',
             '--right-only', '--no-merges'
@@ -154,9 +287,8 @@ class MissingCommits:
         try:
             old_results = subprocess.check_output(
                 missing + [f'{old_commit}...{new_commit}'],
-                cwd=project_dir, stderr=subprocess.STDOUT,
-                encoding='utf-8', universal_newlines=True
-            )
+                cwd=project_dir, stderr=subprocess.STDOUT
+            ).decode()
         except subprocess.CalledProcessError as exc:
             print(f'The "git log" command for project "{project_dir.name}" '
                   f'failed: {exc.stdout}')
@@ -166,14 +298,16 @@ class MissingCommits:
             else:
                 sys.exit(1)
 
-        rev_commits = old_results.strip().split('\n')
+        if old_results:
+            rev_commits = old_results.strip().split('\n')
+        else:
+            rev_commits = list()
 
         try:
             new_results = subprocess.check_output(
                 missing + [f'{new_commit}...{old_commit}'],
-                cwd=project_dir, stderr=subprocess.STDOUT,
-                encoding='utf-8', universal_newlines=True
-            )
+                cwd=project_dir, stderr=subprocess.STDOUT
+            ).decode()
         except subprocess.CalledProcessError as exc:
             print(f'The "git log" command for project "{project_dir.name}" '
                   f'failed: {exc.stdout}')
@@ -188,15 +322,28 @@ class MissingCommits:
 
             for commit in new_results.strip().split('\n'):
                 sha, comment = commit.split(' ', 1)
-                match = [s for s in rev_commits if comment in s]
+
+                match = True
+                for rev_commit in rev_commits:
+                    rev_sha, rev_comment = rev_commit.split(' ', 1)
+
+                    if self.compare_summaries(rev_comment, comment):
+                        break
+
+                    # if self.compare_diffs(old_diff, new_diff):
+                    #     break
+                else:
+                    match = False
 
                 if match:
-                    print(f'    [Possible commit match] {commit}')
-                    print(f'        Check commit: {match[0]}')
+                    print(f'    [Possible commit match] {sha[:7]} {comment}')
+                    print(f'        Check commit: {rev_sha[:7]} '
+                          f'{rev_comment}')
                 else:
                     if not any(c.startswith(sha)
                                for c in self.ignored_commits):
-                        print(f'    [No commit match      ] {commit}')
+                        print(f'    [No commit match      ] {sha[:7]} '
+                              f'{comment}')
 
             print()
 
@@ -223,34 +370,45 @@ class MissingCommits:
                 _, repo_path, current_commit = entry.split()
 
                 if repo_path in self.post_merge:
-                    changes[repo_path] = ('added', current_commit)
+                    changes[repo_path] = (
+                        'added', current_commit,
+                        self.generate_diff(repo_path, current_commit)
+                    )
             elif entry.startswith('R '):
                 _, repo_path, final_commit = entry.split()
 
                 if repo_path in self.pre_merge:
-                    changes[repo_path] = ('removed', final_commit)
+                    # self.clone_removed_repo(repo_path)
+                    changes[repo_path] = (
+                        'removed', final_commit,
+                        self.generate_diff(repo_path, final_commit)
+                    )
             elif entry.startswith('C '):
                 _, repo_path, old_commit, new_commit = entry.split()
-                changes[repo_path] = ('changed', old_commit, new_commit)
+                changes[repo_path] = (
+                    'changed', old_commit, new_commit,
+                    self.generate_diff(repo_path, old_commit),
+                    self.generate_diff(repo_path, new_commit)
+                )
             else:
                 self.log.warning(f'Unhandled entry, skipping: {entry}')
 
         # Perform commit diffs, handling merged projects by diffing
         # the merged project against each of the projects the were
         # merged into it
-        for entry, change_info in changes.items():
+        for repo_path, change_info in changes.items():
             if change_info[0] == 'changed':
-                _, old_commit, new_commit = change_info
-                project_dir = self.product_dir / entry
-                self.show_needed_commits(project_dir, old_commit, new_commit)
+                change_info = change_info[1:]
+                project_dir = self.product_dir / repo_path
+                self.show_needed_commits(project_dir, change_info)
             elif change_info[0] == 'added':
-                _, new_commit = change_info
-                project_dir = self.product_dir / entry
+                _, new_commit, new_diff = change_info
+                project_dir = self.product_dir / repo_path
 
-                for pre in self.merge_map[entry]:
-                    _, old_commit = changes[pre]
-                    self.show_needed_commits(project_dir, old_commit,
-                                             new_commit)
+                for pre in self.merge_map[repo_path]:
+                    _, old_commit, old_diff = changes[pre]
+                    change_info = (old_commit, new_commit, old_diff, new_diff)
+                    self.show_needed_commits(project_dir, change_info)
 
 
 def main():
@@ -293,6 +451,9 @@ def main():
     try:
         with open(args.ignore_file) as fh:
             for entry in fh.readlines():
+                if entry.startswith('#'):
+                    continue   # Skip comments
+
                 try:
                     project, commit = entry.split()
                 except ValueError:
@@ -313,6 +474,9 @@ def main():
     try:
         with open(args.merge_file) as fh:
             for entry in fh.readlines():
+                if entry.startswith('#'):
+                    continue   # Skip comments
+
                 try:
                     post, *pre = entry.split()
                 except ValueError:
