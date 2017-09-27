@@ -14,6 +14,7 @@ import io
 import logging
 import os.path
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -262,6 +263,23 @@ class MissingCommits:
         else:
             return True
 
+    def get_commit_sha(self, project, branch):
+        """
+        Find the latest commit SHA from the given branch
+        """
+
+        try:
+            commit_sha = subprocess.check_output(
+                [self.repo_bin, 'forall', project, '-c',
+                 f'git show-ref --hash $REPO_REMOTE/{branch}'],
+                cwd=self.product_dir, stderr=subprocess.STDOUT
+            ).decode()
+        except subprocess.CalledProcessError as exc:
+            print(f'The "repo forall" command failed: {exc.output}')
+            sys.exit(1)
+
+        return commit_sha.strip()
+
     def show_needed_commits(self, project_dir, change_info):
         """
         Determine 'missing' commits for a given project based on
@@ -283,6 +301,14 @@ class MissingCommits:
             '/usr/bin/git', 'log', '--oneline', '--cherry-pick',
             '--right-only', '--no-merges'
         ]
+
+        sha_regex = re.compile(r'^[0-9a-f]{40}$')
+
+        if sha_regex.match(old_commit) is None:
+            old_commit = self.get_commit_sha(project_dir.name, old_commit)
+
+        if sha_regex.match(new_commit) is None:
+            new_commit = self.get_commit_sha(project_dir.name, new_commit)
 
         try:
             old_results = subprocess.check_output(
