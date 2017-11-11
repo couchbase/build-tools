@@ -1,0 +1,4 @@
+# Ansible playbook to install SGW window binary
+
+% ansible-playbook  -i ./inventory  playbook.yml --extra-vars "couchbase_sync_gateway_package_base_url=http://172.23.120.24/builds/latestbuilds/sync_gateway/1.5.0/373   couchbase_sync_gateway_package=couchbase-sync-gateway-enterprise_1.5.0-373_x86_64.exe"
+

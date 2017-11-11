@@ -1,0 +1,29 @@
+---
+# Install sync_gateway window binary
+- hosts: all
+  any_errors_fatal: true
+
+  vars:
+    couchbase_sync_gateway_package_url: "{{ couchbase_sync_gateway_package_base_url }}/{{ couchbase_sync_gateway_package }}"
+
+  tasks:
+  # Remove sync_gateway package
+  - name: SYNC GATEWAY | Uninstall sync_gateway exe
+    win_command: wmic product where name='Couchbase Sync Gateway' call uninstall
+
+  # Delete sync_gateway binary
+  - name: SYNC GATEWAY | Delete sync_gateway install directory
+    win_file:
+      path: C:\PROGRA~2\Couchbase
+      state: absent
+    ignore_errors: yes
+
+  # Download sync_gateway package
+  - name: SYNC GATEWAY |  Download sync_gateway exe "{{ couchbase_sync_gateway_package_url }}"
+    win_get_url:
+        url={{ couchbase_sync_gateway_package_url }}
+        dest=C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }}
+
+  # Install sync_gateway service
+  - name: SYNC GATEWAY | Install sync_gateway exe "{{ couchbase_sync_gateway_package }}"
+    win_shell: C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }} /S /v /qn
