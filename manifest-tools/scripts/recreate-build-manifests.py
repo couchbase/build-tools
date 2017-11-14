@@ -1,19 +1,26 @@
-#!/usr/bin/env python3
+"""
+Program to migrate manifests from the build-team-manifests repository
+to the build-manifests repository into a more organized and manageable
+format.
+"""
+
+import os
+import re
+import sys
+
+from pathlib import Path
+from subprocess import check_call
+
+import dulwich.porcelain
 
 from dulwich.repo import Repo
 from lxml import etree
-from shutil import rmtree
-from pathlib import Path
 
-import dulwich.porcelain
-import os
-import sys
-import re
-from subprocess import check_call
 
 SHERLOCK_RE = re.compile(r'Sherlock build (\d{3,4}) at ')
 SUBJECT_RE = re.compile(r'build (\d\.\d\.\d)-(\d{1,4}) at ')
 PRIME_RE = re.compile(r'BRANCH set to |[Rr]eset|fake|Stub|Creating|initial')
+
 
 class BuildManifest:
     """
@@ -39,6 +46,7 @@ class BuildManifest:
             return None
 
     def __init__(self, repo, entry):
+        """ """
         self.repo = repo
         self.entry = entry
         # Doc for values that should exist
@@ -67,11 +75,13 @@ class BuildManifest:
             raise BuildManifest.Ignored()
         if len(changes) > 1:
             # "Should never happen"
-            print ("Commit " + str(self.commit.sha().hexdigest()) + " has > 1 changes!")
+            print("Commit " + str(self.commit.sha().hexdigest())
+                  + " has > 1 changes!")
             sys.exit(5)
         change = changes[0]
         self.manifest_path = change.new.path.decode('utf-8')
-        self.manifest_text = self.repo.get_object(change.new.sha).as_pretty_string()
+        self.manifest_text = \
+            self.repo.get_object(change.new.sha).as_pretty_string()
         self.manifest = etree.XML(self.manifest_text)
         self.build_element = self.manifest.find("./project[@name='build']")
 
@@ -82,7 +92,7 @@ class BuildManifest:
         # Commits that exist to "prime the pump" of branch build numbers
         match = PRIME_RE.search(self.commit_msg)
         if match is not None:
-            print ("UNWANTED: {}".format(self.commit_msg))
+            print("UNWANTED: {}".format(self.commit_msg))
             raise BuildManifest.Ignored()
 
     def _annot_value(self, name):
@@ -124,8 +134,11 @@ class BuildManifest:
         # 1. If there's a RELEASE annotation, trust that
         self.release = self._annot_value("RELEASE")
         if self.release is None:
-            # 2. Otherwise, the basename of the manifest filename is the release
-            (self.release, _) = os.path.splitext(os.path.basename(self.manifest_path))
+            # 2. Otherwise, the basename of the manifest filename
+            # is the release
+            self.release = os.path.splitext(
+                os.path.basename(self.manifest_path)
+            )[0]
 
         if self.release.startswith("toy"):
             raise BuildManifest.Ignored()
@@ -171,7 +184,9 @@ class BuildManifest:
         # 3. If neither works, something is quite wrong - fail so someone
         # can investigate
         if self.bld_num is None:
-            print ("Could not find build number for {}!".format(self.commit_msg))
+            print("Could not find build number for {}!".format(
+                self.commit_msg
+            ))
             sys.exit(5)
 
     def _insert_annot(self, name, value):
@@ -185,7 +200,7 @@ class BuildManifest:
         """
         Simple string representation of this build manifest
         """
-        return (self.manifest_path + " -> " + self.new_commit_msg())
+        return self.manifest_path + " -> " + self.new_commit_msg()
 
     def fix_annots(self):
         """
@@ -225,12 +240,14 @@ class BuildManifest:
         with open(output_file, 'wb') as out:
             out.write(self.manifest_text.encode('utf-8'))
         repo.stage(output_file)
-        repo.do_commit(message=self.new_commit_msg().encode('utf-8'),
-            committer = self.commit.committer,
-            author = self.commit.author,
-            commit_timestamp = self.commit.commit_time,
-            commit_timezone = self.commit.commit_timezone
+        repo.do_commit(
+            message=self.new_commit_msg().encode('utf-8'),
+            committer=self.commit.committer,
+            author=self.commit.author,
+            commit_timestamp=self.commit.commit_time,
+            commit_timezone=self.commit.commit_timezone
         )
+
 
 def checkout(path, url, bare=True):
     """
@@ -243,14 +260,15 @@ def checkout(path, url, bare=True):
     cfgpath = abspath / ("config" if bare else ".git/config")
     abspath = str(abspath)
     if cfgpath.exists():
-        print ("Fetching {}".format(url))
+        print("Fetching {}".format(url))
         # QQQ Dulwich fetch() is broken
-        #dulwich.porcelain.fetch(abspath, url)
+        # dulwich.porcelain.fetch(abspath, url)
         check_call(['git', 'fetch', '--all'], cwd=path)
     else:
-        print ("Cloning {}".format(url))
+        print("Cloning {}".format(url))
         dulwich.porcelain.clone(url, target=abspath, bare=bare)
     return Repo(abspath)
+
 
 def main():
     # Paths for old and new repositories
@@ -262,10 +280,10 @@ def main():
     # Walk the new-school repository, forming set of all known builds
     # (for incremental-translation purposes)
     bm_repo = checkout(bm_dir, bm_url, bare=False)
-    print ("Forming list of known builds")
+    print("Forming list of known builds")
     # QQQ Can't figure out how to do this in Dulwich
     check_call(['git', 'reset', '--hard', 'origin/master'], cwd=bm_dir)
-    #dulwich.porcelain.reset(bm_repo, "hard", bm_master)
+    # dulwich.porcelain.reset(bm_repo, "hard", bm_master)
     bm_walker = bm_repo.get_walker()
     bm_builds = {x.commit.message.decode('utf-8') for x in bm_walker}
 
@@ -278,8 +296,10 @@ def main():
     # will if you create a new repository with only a README on GitHub),
     # ignore the timestamp and pull from the beginning of time. This allows
     # this script to bootstrap itself with a new blank repository.
-    bm_master = bm_repo.get_object(bm_repo.refs[b"refs/remotes/origin/master"])
-    if len(bm_master.parents)== 0:
+    bm_master = bm_repo.get_object(
+        bm_repo.refs[b"refs/remotes/origin/master"]
+    )
+    if len(bm_master.parents) == 0:
         sincetime = 0
     else:
         sincetime = bm_master.commit_time - 24*60*60
@@ -287,31 +307,36 @@ def main():
     # Walk the old-school repository
     btm_repo = checkout(btm_dir, btm_url)
     heads = [btm_repo.get_object(btm_repo.refs[x]).id
-            for x in btm_repo.refs.keys()
-            if x.startswith(b"refs")]
-    w = btm_repo.get_walker(include=heads,
-                            exclude=[b"79aaba8ca8700c14709951a1b86ab67b0b12331a"],
-                            reverse=True,
-                            since=sincetime)
+             for x in btm_repo.refs.keys()
+             if x.startswith(b"refs")]
+    w = btm_repo.get_walker(
+        include=heads,
+        exclude=[b"79aaba8ca8700c14709951a1b86ab67b0b12331a"],
+        reverse=True,
+        since=sincetime
+    )
 
     # For each new build, create a new commit in new-school repository
-    print (f"Processing new builds since timestamp {sincetime}...")
+    print(f"Processing new builds since timestamp {sincetime}...")
     os.chdir(bm_dir)
     for entry in w:
         manifest = BuildManifest.create(btm_repo, entry)
         if manifest is not None:
-            sincetime = manifest.commit.commit_time
+            # sincetime = manifest.commit.commit_time
             if manifest.new_commit_msg() in bm_builds:
-                print ("Skipping already-processed build {}".format(manifest.new_commit_msg()))
+                print("Skipping already-processed build {}".format(
+                    manifest.new_commit_msg()
+                ))
                 continue
-            print (str(manifest))
+            print(str(manifest))
             manifest.fix_annots()
             manifest.commit_self(bm_repo)
 
     # Push build-manifests up to GitHub
     dulwich.porcelain.push(bm_repo, bm_url, b"refs/heads/master")
 
-    print ("Done!")
+    print("Done!")
+
 
 if __name__ == "__main__":
     main()
