@@ -66,7 +66,7 @@ def main():
     common_info = upload_config['common']
     common_required_keys = [
         'gpg_file', 'gpg_key', 'releases_url', 'repo_path',
-        's3_base_path', 's3_bucket'
+        's3_base_path', 's3_bucket', 'staging'
     ]
 
     if any(key not in common_info for key in common_required_keys):

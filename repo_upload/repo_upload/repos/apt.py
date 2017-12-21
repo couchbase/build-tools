@@ -14,12 +14,9 @@ import string
 import subprocess
 
 from collections import OrderedDict
-from datetime import datetime
 from pkg_resources import resource_filename
 from pathlib import Path
 
-import boto3
-import botocore.exceptions
 import requests
 
 from repo_upload.repos.base import RepositoryBase
@@ -30,64 +27,18 @@ class AptRepository(RepositoryBase):
     Manages creating and uploading APT package repositories
     """
 
-    editions = ['community', 'enterprise']
-    os_versions = {
-        'wheezy': {
-            'distro': 'debian', 'version': '7.0', 'full': 'debian7',
-        },
-        'jessie': {
-            'distro': 'debian', 'version': '8.0', 'full': 'debian8',
-        },
-        'stretch': {
-            'distro': 'debian', 'version': '9.1', 'full': 'debian9',
-        },
-        'precise': {
-            'distro': 'ubuntu', 'version': '12.04', 'full': 'ubuntu12.04',
-        },
-        'trusty': {
-            'distro': 'ubuntu', 'version': '14.04', 'full': 'ubuntu14.04',
-        },
-        'xenial': {
-            'distro': 'ubuntu', 'version': '16.04', 'full': 'ubuntu16.04',
-        },
-    }
-    distro_info = {
-        'debian': {
-            'security_url': 'http://security.debian.org',
-            'security_path': '{}/updates',
-        },
-        'ubuntu': {
-            'security_url': 'http://security.ubuntu.com/ubuntu',
-            'security_path': '{}-security',
-        },
-    }
-
-    def __init__(self, edition, common_info):
+    def __init__(self, args, common_info):
         """
-        Check edition (maybe not necessary?), initialize various common
-        parameters and generate the Aptly configuration file
+        Load in APT-specific data from JSON file and initialize various
+        common parameters and generate the Aptly configuration file
         """
 
-        if edition not in self.editions:
-            raise RuntimeError(f'Invalid edition: {edition}')
+        super().__init__(args, common_info)
 
-        self.edition = edition
-        self.edition_name = f'{self.edition.capitalize()} Edition'
+        data = self.load_config('apt.json')
 
-        self.local_repo_root = Path.home() / Path(common_info['repo_path'])
-        self.s3_bucket = common_info['s3_bucket']
-        self.s3_package_base = common_info['s3_base_path']
-        self.s3_package_root = f's3://{self.s3_bucket}/{self.s3_package_base}'
-        self.http_package_root = self.s3_package_root.replace('s3', 'http')
-        self.releases_url = common_info['releases_url']
-        self.repo_dir = self.local_repo_root / edition / 'deb'
-        self.gpg_file = common_info['gpg_file']
-        self.pkg_dir = Path('packages')
-        self.key = common_info['gpg_key']
-
-        # The following emulates the 'date' shell command
-        self.curr_date = \
-            datetime.now().astimezone().strftime('%a %b %d %X %Z %Y')
+        self.os_versions = data['os_versions']
+        self.distro_info = data['distro_info']
 
         self.create_aptly_conf()
         self.aptly_api = None
@@ -277,42 +228,13 @@ class AptRepository(RepositoryBase):
             f'Debian repositories ready for import at {self.local_repo_root}'
         )
 
-    def download_file(self, url, pkg_name):
+    def get_s3_path(self, os_version):
         """
-        Download a given package file from a given URL; return success
-        or failure result
-        """
-
-        req = requests.get(f'{url}/{pkg_name}', stream=True)
-
-        if req.status_code != 200:
-            print(f'Unable to download file {pkg_name} from {url}')
-            return False
-
-        with open(self.pkg_dir / pkg_name, 'wb') as fh:
-            shutil.copyfileobj(req.raw, fh)
-
-        return True
-
-    def fetch_package(self, pkg_name, release):
-        """
-        For a given package name and release version, acquire the package
-        from a generated URL but only if the package is not already in
-        the local storage area
+        Determine the path on S3 to the current repository
         """
 
-        release_url = f'{self.releases_url}/{release}'
-        if self.edition == 'community':
-            release_url = f'{release_url}/ce'
-
-        pkg = self.pkg_dir / pkg_name
-
-        if not Path(pkg).exists():
-            print(f'Fetching {pkg_name} from {release_url}...')
-            return self.download_file(release_url, pkg_name)
-        else:
-            print(f'Already have {pkg_name} locally, skipping...')
-            return True
+        return (f'{self.s3_package_base}/{self.edition}/deb/'
+                f'pool/{os_version}/main/c/couchbase-server')
 
     def import_packages(self):
         """
@@ -324,15 +246,22 @@ class AptRepository(RepositoryBase):
         if not self.pkg_dir.exists():
             os.makedirs(self.pkg_dir)
 
-        for release in self.supported_releases[self.edition]:
-            print(f'Importing into local {self.edition} repository '
-                  f'at {self.repo_dir}')
+        print(f'Importing into local {self.edition} repository '
+              f'at {self.repo_dir}')
+
+        for release in self.supported_releases.get_releases():
+            version, in_dev = release
+
+            # If aren't doing a staging run and we have
+            # a development version, skip it
+            if not self.staging and in_dev:
+                continue
 
             for distro in self.os_versions:
-                pkg_name = (f'couchbase-server-{self.edition}_{release}-'
+                pkg_name = (f'couchbase-server-{self.edition}_{version}-'
                             f'{self.os_versions[distro]["full"]}_amd64.deb')
 
-                if self.fetch_package(pkg_name, release):
+                if self.fetch_package(pkg_name, release, distro):
                     print(
                         f'Uploading file {pkg_name} to aptly upload area...'
                     )
@@ -412,68 +341,20 @@ class AptRepository(RepositoryBase):
 
         print(f'Published local Debian repositories ready at {self.repo_dir}')
 
-    def s3_upload(self, s3, base_dir, rel_base_dir):
-        """
-        Upload a given directory tree to S3; uses additional metadata
-        to maintain an MD5 for each file to prevent unnecessary uploads
-        and speed up the synchronization
-        """
-
-        for root, dirs, files in os.walk(base_dir):
-            for filename in files:
-                local_path = os.path.join(root, filename)
-                local_path_md5 = self.get_md5(local_path)
-                relative_path = os.path.relpath(local_path, base_dir)
-                s3_path = os.path.join(
-                    self.s3_package_base, rel_base_dir, relative_path
-                )
-
-                print(f'Searching {s3_path} in {self.s3_bucket}')
-                obj = s3.Object(self.s3_bucket, s3_path)
-
-                # If the loading of the object fails, it doesn't exist
-                # and the file it's connected to needs to be uploaded;
-                # otherwise check the MD5 sum stored in S3 for the file
-                # to the one locally and only upload if it's different
-                # (or the MD5 metadata is missing on S3 for that file)
-                try:
-                    obj.load()
-                except botocore.exceptions.ClientError:
-                    print(f'  Path {s3_path} not found, uploading...')
-                    obj.upload_file(
-                        local_path,
-                        ExtraArgs={'Metadata': {'md5': local_path_md5}}
-                    )
-                else:
-                    print(f'  Path {s3_path} exists, checking MD5...')
-
-                    if ('md5' in obj.metadata and
-                            obj.metadata['md5'] == local_path_md5):
-                        print(f'        It matches, skipping...')
-                    else:
-                        print(f'        It does not exist or differs, '
-                              f'uploading...')
-                        obj.upload_file(
-                            local_path,
-                            ExtraArgs={'Metadata': {'md5': local_path_md5}}
-                        )
-
     def upload_local_repos(self):
         """
         Upload the necessary directories from the local repositories
         into their desired locations on S3
         """
 
-        s3 = boto3.resource('s3')
-
-        self.s3_upload(s3, self.repo_dir, os.path.join(self.edition, 'deb'))
+        self.s3_upload(self.repo_dir, os.path.join(self.edition, 'deb'))
 
         # NOTE: Both community and enterprise sources.list files are
         # copied; maybe not necessary?
         for meta_dir in ['keys', 'sources.list.d']:
             base_dir = self.local_repo_root / meta_dir
 
-            self.s3_upload(s3, base_dir, meta_dir)
+            self.s3_upload(base_dir, meta_dir)
 
     def update_repository(self):
         """

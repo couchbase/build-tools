@@ -1,7 +1,9 @@
 [common]
 gpg_file = GPG-KEY-COUCHBASE-1.0
 gpg_key = D9223EDA
+rpm_gpg_key = CD406E62
 releases_url = http://172.23.120.24/builds/releases
 repo_path = linux_repos/couchbase-server
 s3_base_path = releases/couchbase-server
 s3_bucket = packages.couchbase.com
+staging = False
