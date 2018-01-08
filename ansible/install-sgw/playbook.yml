@@ -27,3 +27,9 @@
   # Install sync_gateway service
   - name: SYNC GATEWAY | Install sync_gateway exe "{{ couchbase_sync_gateway_package }}"
     win_shell: C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }} /S /v /qn
+
+  # Remove sync_gateway download package
+  - name: SYNC GATEWAY | Remove download sync_gateway exe "{{ couchbase_sync_gateway_package }}"
+    win_file:
+        path: C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }}
+        state: absent

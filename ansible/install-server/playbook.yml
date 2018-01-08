@@ -22,7 +22,7 @@
         when: uninstall_output.rc == "0"
 
   # Download server package
-  - name: Couchbase Server |  Download server exe "{{ couchbase_server_package_url }}"
+  - name: Couchbase Server |  Download server msi "{{ couchbase_server_package_url }}"
     win_get_url:
         url: "{{ couchbase_server_package_url }}"
         dest: "C:\\Users\\Administrator\\AppData\\Local\\Temp\\{{ couchbase_server_package }}"
@@ -33,3 +33,9 @@
        path: "C:\\Users\\Administrator\\AppData\\Local\\Temp\\{{ couchbase_server_package }}"
        creates_path: "C:\\Program Files\\Couchbase"
        state: present
+
+  # Remove download server package
+  - name: Couchbase Server |  Remove download server msi "{{ couchbase_server_package }}"
+    win_file:
+        path: "C:\\Users\\Administrator\\AppData\\Local\\Temp\\{{ couchbase_server_package }}"
+        state: absent
