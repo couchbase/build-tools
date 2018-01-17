@@ -42,6 +42,7 @@ wait
 # tree-sitter, gyp, ngyp
 rm -rf breakpad/src/tools/gyp
 rm -rf v8/tools/gyp
+rm -rf v8/build
 rm -rf icu4c/win_binary
 (cd v8 && rm -rf third_party/binutils/ third_party/icu/ third_party/llvm-build/ buildtools/ test)
 
@@ -67,7 +68,10 @@ rm -rf analytics/asterixdb/asterixdb/asterix-examples
 rm -rf analytics/asterixdb/asterixdb/asterix-app/data
 rm -rf analytics/cbas/cbas-test
 find . -type d -name test -print0 | xargs -0 rm -rf
+find . -type d -name gtest -print0 | xargs -0 rm -rf
+find . -type d -name testing -print0 | xargs -0 rm -rf
 find . -type d -name \*tests -print0 | xargs -0 rm -rf
 find . -type d -name data -print0 | xargs -0 rm -rf
 find . -type d -name docs -print0 | xargs -0 rm -rf
 find . -type d -name examples -print0 | xargs -0 rm -rf
+find . -type d -name benchmarks -print0 | xargs -0 rm -rf
