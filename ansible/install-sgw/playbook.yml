@@ -8,7 +8,7 @@
 
   tasks:
   # Remove sync_gateway package
-  - name: SYNC GATEWAY | Uninstall sync_gateway exe
+  - name: SYNC GATEWAY | Uninstall sync_gateway package
     win_command: wmic product where name='Couchbase Sync Gateway' call uninstall
 
   # Delete sync_gateway binary
@@ -19,17 +19,25 @@
     ignore_errors: yes
 
   # Download sync_gateway package
-  - name: SYNC GATEWAY |  Download sync_gateway exe "{{ couchbase_sync_gateway_package_url }}"
+  - name: SYNC GATEWAY |  Download sync_gateway package "{{ couchbase_sync_gateway_package_url }}"
     win_get_url:
         url={{ couchbase_sync_gateway_package_url }}
         dest=C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }}
 
   # Install sync_gateway service
-  - name: SYNC GATEWAY | Install sync_gateway exe "{{ couchbase_sync_gateway_package }}"
+  - name: SYNC GATEWAY | Install sync_gateway exe package "{{ couchbase_sync_gateway_package }}"
     win_shell: C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }} /S /v /qn
+    when: pkg_type == "exe"
+
+  # Install sync_gateway service
+  - name: SYNC GATEWAY | Install sync_gateway msi package "{{ couchbase_sync_gateway_package }}"
+    win_package:
+       path: C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }}
+       state: present
+    when: pkg_type == "msi"
 
   # Remove sync_gateway download package
-  - name: SYNC GATEWAY | Remove download sync_gateway exe "{{ couchbase_sync_gateway_package }}"
+  - name: SYNC GATEWAY | Remove download sync_gateway package "{{ couchbase_sync_gateway_package }}"
     win_file:
         path: C:\Users\Administrator\AppData\Local\Temp\{{ couchbase_sync_gateway_package }}
         state: absent
