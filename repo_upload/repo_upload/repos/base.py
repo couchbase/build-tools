@@ -82,7 +82,6 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         self.s3_package_root = f's3://{self.s3_bucket}/{self.s3_package_base}'
         self.http_package_root = self.s3_package_root.replace('s3', 'http')
         self.releases_url = common_info['releases_url']
-        self.repo_dir = self.local_repo_root / self.edition / 'rpm'
         self.gpg = gnupg.GPG()
         self.gpg_file = Path.home() / '.ssh' / common_info['gpg_file']
         self.gpg_keys = data['gpg_keys']

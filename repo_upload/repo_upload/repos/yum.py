@@ -35,6 +35,7 @@ class YumRepository(RepositoryBase):
         data = self.load_config('yum.json')
 
         self.os_versions = data['os_versions']
+        self.repo_dir = self.local_repo_root / self.edition / 'rpm'
 
     def start_yumapi_server(self):
         """

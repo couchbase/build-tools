@@ -39,6 +39,7 @@ class AptRepository(RepositoryBase):
 
         self.os_versions = data['os_versions']
         self.distro_info = data['distro_info']
+        self.repo_dir = self.local_repo_root / self.edition / 'deb'
 
         self.create_aptly_conf()
         self.aptly_api = None
