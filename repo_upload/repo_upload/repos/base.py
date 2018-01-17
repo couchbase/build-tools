@@ -84,7 +84,7 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         self.releases_url = common_info['releases_url']
         self.repo_dir = self.local_repo_root / self.edition / 'rpm'
         self.gpg = gnupg.GPG()
-        self.gpg_file = common_info['gpg_file']
+        self.gpg_file = Path.home() / '.ssh' / common_info['gpg_file']
         self.gpg_keys = data['gpg_keys']
         self.pkg_dir = Path('packages')
         self.key = common_info['gpg_key']
@@ -136,6 +136,15 @@ class RepositoryBase(metaclass=abc.ABCMeta):
                 hash_md5.update(chunk)
 
         return hash_md5.hexdigest()
+
+    def write_gpg_keys(self):
+        """
+        Write the supplied GPG file out to the local repository area
+        """
+
+        gpg_keys_dir = self.local_repo_root / 'keys'
+        os.makedirs(gpg_keys_dir, exist_ok=True)
+        shutil.copy(self.gpg_file, str(gpg_keys_dir.resolve()))
 
     @abc.abstractmethod
     def handle_repo_server(self):

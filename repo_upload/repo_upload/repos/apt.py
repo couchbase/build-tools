@@ -104,15 +104,6 @@ class AptRepository(RepositoryBase):
         with open(conf_file, 'w') as fh:
             json.dump(conf, fh, indent=2, separators=(',', ': '))
 
-    def write_gpg_keys(self):
-        """
-        Write the supplied GPG file out to the local repository area
-        """
-
-        gpg_keys_dir = self.local_repo_root / 'keys'
-        os.makedirs(gpg_keys_dir, exist_ok=True)
-        shutil.copy(self.gpg_file, str(gpg_keys_dir.resolve()))
-
     def write_source_file(self, os_version, edition):
         """
         Create the sources.list file used for a given version
