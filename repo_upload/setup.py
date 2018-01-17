@@ -47,6 +47,7 @@ setup_args = dict(
     author_email='build-team@couchbase.com',
     license='Apache License, Version 2.0',
     packages=list(discover_packages('repo_upload')),
+    include_package_data=True,
     install_requires=REQUIREMENTS['install'],
     entry_points={
         'console_scripts': [
