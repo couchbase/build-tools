@@ -61,4 +61,5 @@ find . -type d -name \*tests -print0 | xargs -0 rm -rf
 find . -type d -name data -print0 | xargs -0 rm -rf
 find . -type d -name docs -print0 | xargs -0 rm -rf
 find . -type d -name examples -print0 | xargs -0 rm -rf
+find . -type d -name samples -print0 | xargs -0 rm -rf
 find . -type d -name benchmarks -print0 | xargs -0 rm -rf
