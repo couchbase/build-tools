@@ -76,11 +76,6 @@
           "community",
           "enterprise"
         ],
-        "hash": [
-          "",
-          ".md5",
-          ".sha256"
-        ],
         "platform": {
           "centos6": {
             "arch": "x86_64",
@@ -156,22 +151,17 @@
           },
           "windows": {
             "arch": "amd64",
-            "ext": "exe",
+            "ext": "msi",
             "sep1": "_",
             "sep2": "_"
           }
         },
-        "template": "{product}-{edition}{sep1}{VERSION}-{BLD_NUM}-{platform}{sep2}{arch}.{ext}{hash}"
+        "template": "{product}-{edition}{sep1}{VERSION}-{BLD_NUM}-{platform}{sep2}{arch}.{ext}"
       },
       "vulcan": {
         "edition": [
           "community",
           "enterprise"
-        ],
-        "hash": [
-          "",
-          ".md5",
-          ".sha256"
         ],
         "platform": {
           "centos6": {
@@ -242,22 +232,17 @@
           },
           "windows": {
             "arch": "amd64",
-            "ext": "exe",
+            "ext": "msi",
             "sep1": "_",
             "sep2": "_"
           }
         },
-        "template": "{product}-{edition}{sep1}{VERSION}-{BLD_NUM}-{platform}{sep2}{arch}.{ext}{hash}"
+        "template": "{product}-{edition}{sep1}{VERSION}-{BLD_NUM}-{platform}{sep2}{arch}.{ext}"
       },
       "master": {
         "edition": [
           "community",
           "enterprise"
-        ],
-        "hash": [
-          "",
-          ".md5",
-          ".sha256"
         ],
         "platform": {
           "centos6": {
@@ -281,12 +266,6 @@
           "debian9": {
             "arch": "amd64",
             "ext": "deb",
-            "sep1": "_",
-            "sep2": "_"
-          },
-          "macos": {
-            "arch": "x86_64",
-            "ext": "zip",
             "sep1": "_",
             "sep2": "_"
           },
@@ -328,12 +307,12 @@
           },
           "windows": {
             "arch": "amd64",
-            "ext": "exe",
+            "ext": "msi",
             "sep1": "_",
             "sep2": "_"
           }
         },
-        "template": "{product}-{edition}{sep1}{VERSION}-{BLD_NUM}-{platform}{sep2}{arch}.{ext}{hash}"
+        "template": "{product}-{edition}{sep1}{VERSION}-{BLD_NUM}-{platform}{sep2}{arch}.{ext}"
       }
     }
   }

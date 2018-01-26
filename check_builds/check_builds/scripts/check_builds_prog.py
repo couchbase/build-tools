@@ -89,6 +89,17 @@ def generate_filelist(product, release, version, build_num):
     return req_files
 
 
+def generate_mail_body(lb_url, missing):
+    """"""
+
+    body = f'Refer to {lb_url} to view existing files\n\n'
+    body += f'\nMissing files:\n\n'
+    body += f'\n'.join([f'    {file}' for file in sorted(list(missing))])
+    body += f'\n'
+
+    return body
+
+
 def send_email(smtp_server, receivers, message):
     """Simple method to send email"""
 
@@ -221,7 +232,7 @@ def main():
                     f'{build.product}-{build.version}-{build.build_num}'
                 message = {
                     'subject': f'Build {curr_bld} not complete after 2 hours',
-                    'body': f'Refer to {lb_url} to view existing files\n'
+                    'body': generate_mail_body(lb_url, missing_files)
                 }
                 receivers = miss_info['receivers'].split(',')
                 send_email(miss_info['smtp_server'], receivers, message)
