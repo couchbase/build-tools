@@ -1,0 +1,10 @@
+[build_db]
+db_uri = couchbase://build-db-01.build.couchbase.com/build_info
+username = Administrator
+password = couchbase
+
+[missing_builds]
+receivers = wayne@couchbase.com
+lb_base_dir = /latestbuilds
+lb_base_url = http://latestbuilds.service.couchbase.com/builds/latestbuilds
+smtp_server = itweb01.hq.northscale.net
