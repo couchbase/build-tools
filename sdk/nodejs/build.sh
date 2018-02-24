@@ -16,8 +16,8 @@ git clone https://github.com/couchbaselabs/cbsdkbb
 git clone https://github.com/couchbase/couchnode
 
 # Set environment variables to be able to access the proper dependencies
-BBSDK=${HOME}/cbsdkbb
-PATH=${HOME}/deps/node-v${NODE_VER}-linux-${ARCH}/bin:${HOME}/deps/relocatable-python/dist/bin:${PATH}
+BBSDK=${WORKSPACE}/cbsdkbb
+PATH=${WORKSPACE}/deps/node-v${NODE_VER}-linux-${ARCH}/bin:${WORKSPACE}/deps/relocatable-python/dist/bin:${PATH}
 
 # Initialize some more environment variables
 cd couchnode/

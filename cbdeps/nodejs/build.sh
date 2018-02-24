@@ -12,7 +12,10 @@ curl -o node-v${NODE_VER}-linux-${ARCH}.tar.gz https://nodejs.org/dist/v${NODE_V
 tar zxf node-v${NODE_VER}-linux-${ARCH}.tar.gz
 
 # Add unpacked nodeJS to path to install node-gyp
-PATH=${HOME}/deps/node-v${NODE_VER}-linux-${ARCH}/bin:${PATH}
+PATH=${WORKSPACE}/node-v${NODE_VER}-linux-${ARCH}/bin:${PATH}
 
 # Install node-gyp; this will be placed in the nodeJS dependency tree
 npm install -g node-gyp
+
+# Create tarball
+tar zcf node-${NODE_VER}-cb1-${PLATFORM}.tar.gz node-v${NODE_VER}-linux-${ARCH}

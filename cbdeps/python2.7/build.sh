@@ -20,4 +20,8 @@ buildout bootstrap
 bin/buildout
 bin/build
 
+# Generate tarball
+mv dist python2.7
+tar zcf python-2.7-cb1-${PLATFORM}.tar.gz python2.7
+
 deactivate
