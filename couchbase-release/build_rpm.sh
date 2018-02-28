@@ -11,7 +11,7 @@ else
 fi
 
 VERSION=1.0
-RELEASE=5
+RELEASE=6
 REL_NAME="couchbase-release${STAGE_EXT}-${VERSION}-${RELEASE}"
 
 rm -rf ~/rpmbuild
