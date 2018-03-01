@@ -9,6 +9,8 @@
 #
 #  Please ensure this is the case before running
 
+set -e
+
 virtualenv pybuild
 . pybuild/bin/activate
 

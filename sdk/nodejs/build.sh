@@ -9,15 +9,23 @@
 #
 # Please ensure this is the case before running
 
+set -e
+
 NODE_VER=${1:-8.9.4}
 ARCH=${2:-x64}
 
 git clone https://github.com/couchbaselabs/cbsdkbb
 git clone https://github.com/couchbase/couchnode
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    PYTHON_BASEPATH=/Library/Frameworks/Python.framework/Versions/2.7/bin
+else
+    PYTHON_BASEPATH=${WORKSPACE}/deps/relocatable-python/dist/bin
+fi
+
 # Set environment variables to be able to access the proper dependencies
 BBSDK=${WORKSPACE}/cbsdkbb
-PATH=${WORKSPACE}/deps/node-v${NODE_VER}-linux-${ARCH}/bin:${WORKSPACE}/deps/relocatable-python/dist/bin:${PATH}
+PATH=${WORKSPACE}/deps/node-v${NODE_VER}/bin:${PYTHON_BASEPATH}:${PATH}
 
 # Initialize some more environment variables
 cd couchnode/
