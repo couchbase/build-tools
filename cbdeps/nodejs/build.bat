@@ -23,3 +23,6 @@ goto :eof
 :error
 echo Failed with error %ERRORLEVEL%.
 exit /b %ERRORLEVEL%
+
+:eof
+exit /b 0
