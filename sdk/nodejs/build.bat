@@ -6,8 +6,7 @@ setlocal EnableDelayedExpansion
 set HOME=C:\Users\Administrator
 set TEMP=C:\Users\Administrator\AppData\Local\Temp\2
 set TMP=C:\Users\Administrator\AppData\Local\Temp\2
-set PYTHON="C:\Program Files\Python27\python.exe"
-set PATH=C:\node-v%NODE_VER%;%PATH%
+set "PATH=C:\node-v%NODE_VER%;C:\Program Files\Python27;%PATH%"
 
 cd couchnode
 
