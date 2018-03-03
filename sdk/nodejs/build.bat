@@ -9,10 +9,12 @@ set TMP=C:\Users\Administrator\AppData\Local\Temp\2
 set PYTHON="C:\Program Files\Python27\python.exe"
 set PATH=C:\node-v%NODE_VER%;%PATH%
 
+cd couchnode
+
 call npm update || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
 set npm_config_loglevel=silly
-node node_modules/prebuild/bin.js -b %NODE_VER% --verbose --force || goto error
+node .\node_modules\prebuild\bin.js -b %NODE_VER% --verbose --force || goto error
 
 endlocal
 
