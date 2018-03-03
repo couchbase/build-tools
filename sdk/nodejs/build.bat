@@ -7,8 +7,7 @@ set HOME=C:\Users\Administrator
 set TEMP=C:\Users\Administrator\AppData\Local\Temp\2
 set TMP=C:\Users\Administrator\AppData\Local\Temp\2
 set PYTHON="C:\Program Files\Python27\python.exe"
-
-set GYP_MSVS_VERSION=%MSVSYEAR%
+set PATH=C:\node-v%NODE_VER%;%PATH%
 
 call npm update || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
