@@ -1,6 +1,9 @@
 set NODE_VER=%1
 set ARCH=%2
 
+set MSVSARCH=x86
+if "%ARCH%"=="x64" set MSVSARCH=amd64
+
 setlocal EnableDelayedExpansion
 
 set HOME=C:\Users\Administrator
@@ -9,6 +12,10 @@ set TMP=C:\Users\Administrator\AppData\Local\Temp\2
 set "PATH=C:\node-v%NODE_VER%;C:\Program Files\Python27;%PATH%"
 
 cd couchnode
+
+set MSVSYEAR=2017
+set GYP_MSVS_VERSION=%MSVSYEAR%
+call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" %MSVSARCH%
 
 call npm update || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
