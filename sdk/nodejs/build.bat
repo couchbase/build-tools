@@ -13,12 +13,9 @@ set "PATH=C:\node-v%NODE_VER%;%PATH%"
 
 cd couchnode
 
-call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" %MSVSARCH%
+rem call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" %MSVSARCH%
 
-call npm config set python "C:\Program Files\Python27\python.exe" || goto error
-call npm config set msvs_version 2017 || goto error
 call npm update || goto error
-call npm install --global --production windows-build-tools || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
 set npm_config_loglevel=silly
 node .\node_modules\prebuild\bin.js -b %NODE_VER% --verbose --force || goto error
