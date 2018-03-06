@@ -13,9 +13,9 @@ set "PATH=C:\node-v%NODE_VER%;C:\Program Files\Python27;%PATH%"
 
 cd couchnode
 
-set MSVSYEAR=2017
+set MSVSYEAR=2012
 set GYP_MSVS_VERSION=%MSVSYEAR%
-call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" %MSVSARCH%
+call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\vcvarsall.bat" %MSVSARCH%
 
 call npm update || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
