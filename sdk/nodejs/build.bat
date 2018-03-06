@@ -9,13 +9,13 @@ setlocal EnableDelayedExpansion
 set HOME=C:\Users\Administrator
 set TEMP=C:\Users\Administrator\AppData\Local\Temp\2
 set TMP=C:\Users\Administrator\AppData\Local\Temp\2
-set "PATH=C:\node-v%NODE_VER%;C:\Program Files\Python27;%PATH%"
+set "PATH=C:\node-v%NODE_VER%;C:\Program Files\Python27;C:\Program Files\Microsoft\Web Platform Installer\;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;%PATH%"
 
 cd couchnode
 
-set MSVSYEAR=2015
+set MSVSYEAR=2017
 set GYP_MSVS_VERSION=%MSVSYEAR%
-call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %MSVSARCH%
+call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" %MSVSARCH%
 
 call npm update || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
