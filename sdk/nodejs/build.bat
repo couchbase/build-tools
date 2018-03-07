@@ -15,6 +15,7 @@ cd couchnode
 
 rem call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvarsall.bat" %MSVSARCH%
 
+set
 call npm update || goto error
 call npm install --ignore-scripts --unsafe-perm || goto error
 set npm_config_loglevel=silly
