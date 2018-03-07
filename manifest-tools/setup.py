@@ -31,6 +31,7 @@ setup_args = dict(
     entry_points={
         'console_scripts': [
             'recreate_build_manifests = manifest_tools.scripts.recreate_build_manifests:main',
+            'find_missing_commits = manifest_tools.scripts.find_missing_commits:main',
         ]
     },
     classifiers=[

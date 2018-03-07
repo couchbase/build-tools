@@ -104,7 +104,8 @@ class MissingCommits:
     """"""
 
     def __init__(self, logger, product_dir, old_manifest, new_manifest,
-                 ignored_commits, pre_merge, post_merge, merge_map):
+                 reporef_dir, ignored_commits, pre_merge, post_merge,
+                 merge_map):
         """
         Store key information into instance attributes and determine
         path of 'repo' program
@@ -114,18 +115,16 @@ class MissingCommits:
         self.product_dir = product_dir
         self.old_manifest = old_manifest
         self.new_manifest = new_manifest
+        self.reporef_dir = reporef_dir
         self.ignored_commits = ignored_commits
         self.pre_merge = pre_merge
         self.post_merge = post_merge
         self.merge_map = merge_map
 
-        # Projects where git diffs are allowed to fail
-        self.safe_projects = ['testrunner']
+        # Projects we don't care about
+        self.ignore_projects = ['testrunner']
 
         self.repo_bin = find_executable('repo')
-
-        self.old_mf_data = Manifest(product_dir, old_manifest)
-        self.old_mf_data.get_metadata()
 
     def repo_sync(self):
         """
@@ -159,10 +158,12 @@ class MissingCommits:
                 sys.exit(1)
 
         try:
-            subprocess.check_call(
-                [self.repo_bin, 'init', '-u',
+            cmd = [self.repo_bin, 'init', '-u',
                  'http://github.com/couchbase/manifest',
-                 '-g', 'all', '-m', self.new_manifest],
+                 '-g', 'all', '-m', self.new_manifest]
+            if self.reporef_dir is not None:
+                cmd.extend(['--reference', self.reporef_dir])
+            subprocess.check_call(cmd,
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             )
         except subprocess.CalledProcessError as exc:
@@ -213,19 +214,6 @@ class MissingCommits:
             line for line in diffs.strip().split('\n')
             if not line.startswith(' ')
         ]
-
-    def clone_removed_repo(self, repo_path):
-        """"""
-
-        repo_name = os.path.basename(repo_path)
-        print(f'Repo name: {repo_name}')
-        repo_remote = self.old_mf_data.projects[repo_path]['remote']
-        print(f'Repo remote: {repo_remote}')
-        target_dir = os.path.join(self.product_dir, repo_path)
-
-        if not os.path.exists(target_dir):
-            dulwich.porcelain.clone(f'{repo_remote}/{repo_name}',
-                                    target=target_dir, checkout=True)
 
     def generate_diff(self, repo_path, commit_sha):
         """"""
@@ -296,6 +284,9 @@ class MissingCommits:
         to be merged forward.
         """
 
+        if project_dir.name in self.ignore_projects:
+            return
+
         old_commit, new_commit, old_diff, new_diff = change_info
         missing = [
             '/usr/bin/git', 'log', '--oneline', '--cherry-pick',
@@ -318,11 +309,7 @@ class MissingCommits:
         except subprocess.CalledProcessError as exc:
             print(f'The "git log" command for project "{project_dir.name}" '
                   f'failed: {exc.stdout}')
-
-            if project_dir.name in self.safe_projects:
-                return
-            else:
-                sys.exit(1)
+            sys.exit(1)
 
         if old_results:
             rev_commits = old_results.strip().split('\n')
@@ -337,17 +324,16 @@ class MissingCommits:
         except subprocess.CalledProcessError as exc:
             print(f'The "git log" command for project "{project_dir.name}" '
                   f'failed: {exc.stdout}')
-
-            if project_dir in self.safe_projects:
-                return
-            else:
-                sys.exit(1)
+            sys.exit(1)
 
         if new_results:
             print(f'Project {project_dir.name}:')
 
             for commit in new_results.strip().split('\n'):
                 sha, comment = commit.split(' ', 1)
+
+                if any(c.startswith(sha) for c in self.ignored_commits):
+                    continue
 
                 match = True
                 for rev_commit in rev_commits:
@@ -366,10 +352,8 @@ class MissingCommits:
                     print(f'        Check commit: {rev_sha[:7]} '
                           f'{rev_comment}')
                 else:
-                    if not any(c.startswith(sha)
-                               for c in self.ignored_commits):
-                        print(f'    [No commit match      ] {sha[:7]} '
-                              f'{comment}')
+                    print(f'    [No commit match      ] {sha[:7]} '
+                          f'{comment}')
 
             print()
 
@@ -457,7 +441,8 @@ def main():
     parser.add_argument('product', help='Product to check')
     parser.add_argument('old_manifest', help='Base manifest to check against')
     parser.add_argument('new_manifest', help='Current manifest to verify')
-
+    parser.add_argument('--reporef_dir',
+                        help='Path to repo mirror reference directory')
     args = parser.parse_args()
 
     # Set up logging
@@ -524,10 +509,11 @@ def main():
     product_dir = pathlib.Path(args.product)
     old_manifest = pathlib.Path(args.old_manifest)
     new_manifest = pathlib.Path(args.new_manifest)
+    reporef_dir = pathlib.Path(args.reporef_dir)
 
     miss_comm = MissingCommits(
-        logger, product_dir, old_manifest, new_manifest, ignored_commits,
-        pre_merge, post_merge, merge_map
+        logger, product_dir, old_manifest, new_manifest, reporef_dir,
+        ignored_commits, pre_merge, post_merge, merge_map
     )
     miss_comm.determine_diffs()
 
