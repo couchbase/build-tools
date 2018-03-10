@@ -10,8 +10,10 @@ import contextlib
 import json
 import os
 import shutil
+import signal
 import string
 import subprocess
+import time
 
 from collections import OrderedDict
 from pkg_resources import resource_filename
@@ -44,6 +46,12 @@ class AptRepository(RepositoryBase):
         self.create_aptly_conf()
         self.aptly_api = None
 
+    @staticmethod
+    def handler(_signum, _frame):
+        """Timeout handler for Aptly API server"""
+
+        print('Unable to start Aptly API server in specified time')
+
     def start_aptly_api_server(self):
         """
         Start the Aptly API server; used to communicate to Aptly via
@@ -55,22 +63,46 @@ class AptRepository(RepositoryBase):
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
+        # Give the server time to start; if 10 seconds is reached, abort
+        signal.signal(signal.SIGALRM, self.handler)
+        signal.alarm(10)
+
+        while True:
+            try:
+                req = requests.get('http://localhost:8080/api/version')
+            except requests.exceptions.ConnectionError:
+                # Server not started yet, wait a moment then try again
+                time.sleep(.5)
+                continue
+
+            # Once server is up, continue on
+            if req.status_code == 200:
+                break
+
+        # Server now up, safe to continue
+        signal.alarm(0)
+
     def stop_aptly_api_server(self):
         """
         Stop the Aptly API server
         """
 
-        self.aptly_api.terminate()
+        if self.aptly_api is not None:
+            self.aptly_api.terminate()
 
     @contextlib.contextmanager
     def handle_repo_server(self):
         """
-        Simple context manager to handle the Aptly API server
+        Simple context manager to handle the Aptly API server;
+        ensure the stop method runs regardless of success of
+        the application
         """
 
-        self.start_aptly_api_server()
-        yield
-        self.stop_aptly_api_server()
+        try:
+            self.start_aptly_api_server()
+            yield
+        finally:
+            self.stop_aptly_api_server()
 
     def create_aptly_conf(self):
         """
