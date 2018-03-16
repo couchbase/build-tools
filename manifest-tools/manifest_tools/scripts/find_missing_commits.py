@@ -111,6 +111,8 @@ class MissingCommits:
         path of 'repo' program
         """
 
+        self.missing_commits_found = False
+
         self.log = logger
         self.product_dir = product_dir
         self.old_manifest = old_manifest
@@ -238,19 +240,6 @@ class MissingCommits:
 
         return True if old_summary == new_summary else False
 
-    @staticmethod
-    def compare_diffs(old_diff, new_diff):
-        """"""
-
-        for old_line, new_line in zip(old_diff, new_diff):
-            if old_line.startswith('index') or old_line.startswith('@@ '):
-                continue
-
-            if old_line != new_line:
-                return False
-        else:
-            return True
-
     def get_commit_sha(self, project, branch):
         """
         Find the latest commit SHA from the given branch
@@ -326,8 +315,9 @@ class MissingCommits:
                   f'failed: {exc.stdout}')
             sys.exit(1)
 
+        project_has_missing_commits = False
+
         if new_results:
-            print(f'Project {project_dir.name}:')
 
             for commit in new_results.strip().split('\n'):
                 sha, comment = commit.split(' ', 1)
@@ -342,10 +332,14 @@ class MissingCommits:
                     if self.compare_summaries(rev_comment, comment):
                         break
 
-                    # if self.compare_diffs(old_diff, new_diff):
-                    #     break
                 else:
                     match = False
+
+                # At this point we know we have something to report. Set a
+                # flag. If this is the first time, print the project header.
+                if not project_has_missing_commits:
+                    print(f'Project {project_dir.name}:')
+                    project_has_missing_commits = True
 
                 if match:
                     print(f'    [Possible commit match] {sha[:7]} {comment}')
@@ -355,7 +349,9 @@ class MissingCommits:
                     print(f'    [No commit match      ] {sha[:7]} '
                           f'{comment}')
 
-            print()
+            if project_has_missing_commits:
+                print()
+                self.missing_commits_found = True
 
     def determine_diffs(self):
         """
@@ -516,6 +512,11 @@ def main():
         ignored_commits, pre_merge, post_merge, merge_map
     )
     miss_comm.determine_diffs()
+
+    if miss_comm.missing_commits_found:
+        sys.exit(1)
+    else:
+        print ("\n\nNo missing commits discovered!")
 
 
 if __name__ == '__main__':
