@@ -165,7 +165,7 @@ class MissingCommits:
                  '-g', 'all', '-m', self.new_manifest]
             if self.reporef_dir is not None:
                 cmd.extend(['--reference', self.reporef_dir])
-            subprocess.check_call(cmd,
+            subprocess.check_output(cmd,
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             )
         except subprocess.CalledProcessError as exc:
@@ -173,7 +173,7 @@ class MissingCommits:
             sys.exit(1)
 
         try:
-            subprocess.check_call(
+            subprocess.check_output(
                 [self.repo_bin, 'sync', '--jobs=6', '--force-sync'],
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             )
@@ -399,6 +399,9 @@ class MissingCommits:
             else:
                 self.log.warning(f'Unhandled entry, skipping: {entry}')
 
+        self.log.info(f"\n\n* Missing commits from {self.old_manifest} "
+                      f"to {self.new_manifest}...\n")
+
         # Perform commit diffs, handling merged projects by diffing
         # the merged project against each of the projects the were
         # merged into it
@@ -415,6 +418,10 @@ class MissingCommits:
                     _, old_commit, old_diff = changes[pre]
                     change_info = (old_commit, new_commit, old_diff, new_diff)
                     self.show_needed_commits(project_dir, change_info)
+
+        if not self.missing_commits_found:
+            self.log.info("No missing commits discovered!")
+        self.log.info("")
 
 
 def main():
@@ -452,7 +459,7 @@ def main():
     logger.addHandler(ch)
 
     # Read in 'ignored' commits
-    # Form of each line is: '<project> <commit SHA>'
+    # Form of each line is: '<project> <commit SHA> <optional comment>'
     ignored_commits = list()
 
     try:
@@ -462,7 +469,7 @@ def main():
                     continue   # Skip comments
 
                 try:
-                    project, commit = entry.split()
+                    project, commit = entry.split()[0:2]
                 except ValueError:
                     logger.warning(f'Malformed line in ignored commits file, '
                                    f'skipping: {entry}')
@@ -515,8 +522,7 @@ def main():
 
     if miss_comm.missing_commits_found:
         sys.exit(1)
-    else:
-        print ("\n\nNo missing commits discovered!")
+
 
 
 if __name__ == '__main__':
