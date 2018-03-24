@@ -1,5 +1,13 @@
+[unix]
+172.23.108.xxx
+
+[unix:vars]
+ansible_user=root
+ansible_password=xxx
+ansible_connection=ssh
+
 [windows]
-172.23.112.x
+172.23.108.xxx
 
 [windows:vars]
 ansible_user=Administrator

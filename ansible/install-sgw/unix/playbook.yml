@@ -1,0 +1,28 @@
+---
+# Install sync_gateway centos binary
+- hosts: unix
+  any_errors_fatal: true
+
+  vars:
+    couchbase_sync_gateway_package_url: "{{ couchbase_sync_gateway_package_base_url }}/{{ couchbase_sync_gateway_package }}"
+
+  tasks:
+
+    # Stop sync_gateway service
+    - name: SYNC GATEWAY | Stop sync_gateway service
+      systemd: state=stopped name=sync_gateway
+
+    - name: SYNC GATEWAY | Uninstall the sgw package
+      yum:
+        name: couchbase-sync-gateway
+        state: absent
+
+    # Install sync_gateway
+    - name: SYNC GATEWAY | Install sync_gateway package
+      yum:
+        name: "{{ couchbase_sync_gateway_package_base_url }}/{{ couchbase_sync_gateway_package }}"
+        state: present
+
+    # Start sync_gateway service
+    - name:  SYNC GATEWAY | Start sync_gateway service
+      systemd: state=started name=sync_gateway

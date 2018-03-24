@@ -1,6 +1,6 @@
 ---
 # Install sync_gateway window binary
-- hosts: all
+- hosts: windows
   any_errors_fatal: true
 
   vars:
