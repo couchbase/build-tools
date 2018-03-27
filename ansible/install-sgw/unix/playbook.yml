@@ -11,6 +11,7 @@
     # Stop sync_gateway service
     - name: SYNC GATEWAY | Stop sync_gateway service
       systemd: state=stopped name=sync_gateway
+      ignore_errors: yes
 
     - name: SYNC GATEWAY | Uninstall the sgw package
       yum:
