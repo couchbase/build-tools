@@ -19,7 +19,6 @@ import sys
 import time
 
 from email.mime.text import MIMEText
-from pkg_resources import resource_filename
 
 import cbbuild.cbutil.db as cbutil_db
 
@@ -32,25 +31,14 @@ ch = logging.StreamHandler()
 logger.addHandler(ch)
 
 
-def load_config(filename):
-    """
-    Loads data from a JSON file, accessible as a dictionary
-    """
-
-    conf_file = os.path.join(
-        resource_filename('check_builds', 'conf'), filename
-    )
-    return json.load(open(conf_file))
-
-
-def generate_filelist(product, release, version, build_num):
+def generate_filelist(product, release, version, build_num, conf_data):
     """
     Create a set of filenames for the given product, release, version
     and build number from the configuration file data
     """
 
     try:
-        prod_data = load_config('pkg_data.json')[product]
+        prod_data = conf_data[product]
     except KeyError:
         print(f"Product {product} doesn't exist in configuration file")
         sys.exit(1)
@@ -137,6 +125,9 @@ def main():
     parser.add_argument('-c', '--config', dest='check_build_config',
                         help='Configuration file for build database loader',
                         default='check_builds.ini')
+    parser.add_argument('datafiles', nargs='+',
+                        help='One or more data files for determining build '
+                             'information')
 
     args = parser.parse_args()
 
@@ -174,11 +165,14 @@ def main():
         sys.exit(1)
 
     # Load in configuration data
-    try:
-        conf_data = load_config('pkg_data.json')
-    except ModuleNotFoundError:
-        print(f"Configuration file 'pkg_data.json' missing")
-        sys.exit(1)
+    conf_data = dict()
+
+    for datafile in args.datafiles:
+        try:
+            conf_data.update(json.load(open(datafile)))
+        except FileNotFoundError:
+            logger.error(f"Configuration file '{datafile}' missing")
+            sys.exit(1)
 
     # Find builds to check
     db = cbutil_db.CouchbaseDB(db_info)
@@ -217,7 +211,8 @@ def main():
         lb_url = f'{miss_info["lb_base_url"]}/{prodver_path}/'
 
         needed_files = generate_filelist(
-            build.product, build.release, build.version, build.build_num
+            build.product, build.release, build.version, build.build_num,
+            conf_data
         )
         existing_files = set(os.listdir(lb_dir))
         missing_files = list(needed_files.difference(existing_files))
