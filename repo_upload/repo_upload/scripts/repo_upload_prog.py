@@ -62,7 +62,8 @@ def main():
 
     if not config_datadir.exists():
         logger.error(
-            f'Configuration data directory {args.config_data} does not exist'
+            f'Configuration data directory {args.config_datadir} '
+            f'does not exist'
         )
         sys.exit(1)
 
