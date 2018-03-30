@@ -17,6 +17,7 @@ import argparse
 import configparser
 import importlib
 import logging
+import pathlib
 import sys
 
 
@@ -40,6 +41,9 @@ def main():
     parser.add_argument('-c', '--config', dest='upload_config',
                         help='Configuration file for APT/Yum uploader',
                         default='repo_upload.ini')
+    parser.add_argument('-D', '--datadir', dest='config_datadir',
+                        required=True,
+                        help='Directory for JSON configuration files')
     parser.add_argument('-r', '--repo-type', required=True,
                         choices=['apt', 'yum'],
                         help='Type of repository for upload')
@@ -52,6 +56,15 @@ def main():
     # Set logging to debug level on stream handler if --debug was set
     if args.debug:
         logger.setLevel(logging.DEBUG)
+
+    # Verify config data directory exists
+    config_datadir = pathlib.Path(args.config_datadir)
+
+    if not config_datadir.exists():
+        logger.error(
+            f'Configuration data directory {args.config_data} does not exist'
+        )
+        sys.exit(1)
 
     # Check configuration file information
     upload_config = configparser.ConfigParser()
@@ -87,8 +100,14 @@ def main():
         logger.error(f'Module {upload_module} not found')
         sys.exit(1)
 
-    upload = getattr(mod, upload_class)(args.edition, common_info)
-    upload.update_repository()
+    try:
+        upload = getattr(mod, upload_class)(
+            args.edition, common_info, config_datadir
+        )
+        upload.update_repository()
+    except RuntimeError as exc:
+        logger.error(exc)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

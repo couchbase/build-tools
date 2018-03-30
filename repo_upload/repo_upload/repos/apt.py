@@ -29,13 +29,13 @@ class AptRepository(RepositoryBase):
     Manages creating and uploading APT package repositories
     """
 
-    def __init__(self, args, common_info):
+    def __init__(self, args, common_info, config_datadir):
         """
         Load in APT-specific data from JSON file and initialize various
         common parameters and generate the Aptly configuration file
         """
 
-        super().__init__(args, common_info)
+        super().__init__(args, common_info, config_datadir)
 
         data = self.load_config('apt.json')
 

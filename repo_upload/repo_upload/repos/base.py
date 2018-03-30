@@ -60,12 +60,13 @@ class RepositoryBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def __init__(self, edition, common_info):
+    def __init__(self, edition, common_info, config_datadir):
         """
         Load in common data from JSON file and initialize various
         common parameters
         """
 
+        self.config_datadir = config_datadir
         data = self.load_config('base.json')
 
         self.editions = data['editions']
@@ -93,16 +94,19 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         self.curr_date = \
             datetime.now().astimezone().strftime('%a %b %d %X %Z %Y')
 
-    @staticmethod
-    def load_config(filename):
+    def load_config(self, filename):
         """
         Loads data from a JSON file, accessible as a dictionary
         """
 
-        conf_file = os.path.join(
-            resource_filename('repo_upload', 'conf'), filename
-        )
-        return json.load(open(conf_file))
+        try:
+            conf_file = self.config_datadir / filename
+        except FileNotFoundError:
+            raise RuntimeError('Config file {conf_file} not found')
+        except json.decoder.JSONDecodeError:
+            raise RuntimeError('Config file {conf_file} not valid JSON')
+        else:
+            return json.load(open(conf_file))
 
     def import_gpg_keys(self):
         """
