@@ -39,6 +39,8 @@ wait
 
 # cbdeps-specific pruning
 
+rm -rf erlang/lib/*test*
+
 # tree-sitter, gyp, ngyp
 rm -rf breakpad/src/tools/gyp
 rm -rf v8/tools/gyp

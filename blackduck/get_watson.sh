@@ -26,6 +26,8 @@ git clone git://github.com/couchbasedeps/v8 -b 5.2-couchbase
 
 # cbdeps-specific pruning
 
+rm -rf erlang/lib/*test*
+
 # tree-sitter, gyp, ngyp
 rm -rf breakpad/src/tools/gyp
 rm -rf v8/tools/gyp
