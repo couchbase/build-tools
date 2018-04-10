@@ -43,7 +43,7 @@ echo
 echo "Checking for missing commits in release ${RELEASE}...."
 echo
 
-for previous_version in $(cat previous-versions.txt); do
+for previous_manifest in $(cat previous-manifests.txt); do
     docker run --rm -u couchbase \
         -w $(pwd) \
         -v /home/couchbase/check_missing_commits:/home/couchbase/check_missing_commits \
@@ -55,6 +55,6 @@ for previous_version in $(cat previous-versions.txt); do
             -i ok-missing-commits.txt \
             -m merge-projects.txt \
             couchbase-server \
-            released/${previous_version}.xml \
+            ${previous_manifest} \
             couchbase-server/${RELEASE}.xml
 done
