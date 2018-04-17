@@ -257,7 +257,7 @@ class MissingCommits:
 
         return commit_sha.strip()
 
-    def show_needed_commits(self, project_dir, change_info):
+    def show_needed_commits(self, repo_path, change_info):
         """
         Determine 'missing' commits for a given project based on
         two commit SHAs for the project.  This is done by doing
@@ -273,7 +273,7 @@ class MissingCommits:
         to be merged forward.
         """
 
-        if project_dir.name in self.ignore_projects:
+        if repo_path in self.ignore_projects:
             return
 
         old_commit, new_commit, old_diff, new_diff = change_info
@@ -285,10 +285,12 @@ class MissingCommits:
         sha_regex = re.compile(r'^[0-9a-f]{40}$')
 
         if sha_regex.match(old_commit) is None:
-            old_commit = self.get_commit_sha(project_dir.name, old_commit)
+            old_commit = self.get_commit_sha(repo_path, old_commit)
 
         if sha_regex.match(new_commit) is None:
-            new_commit = self.get_commit_sha(project_dir.name, new_commit)
+            new_commit = self.get_commit_sha(repo_path, new_commit)
+
+        project_dir = self.product_dir / repo_path
 
         try:
             old_results = subprocess.check_output(
@@ -296,7 +298,7 @@ class MissingCommits:
                 cwd=project_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
-            print(f'The "git log" command for project "{project_dir.name}" '
+            print(f'The "git log" command for project "{repo_path}" '
                   f'failed: {exc.stdout}')
             sys.exit(1)
 
@@ -311,7 +313,7 @@ class MissingCommits:
                 cwd=project_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
-            print(f'The "git log" command for project "{project_dir.name}" '
+            print(f'The "git log" command for project "{repo_path}" '
                   f'failed: {exc.stdout}')
             sys.exit(1)
 
@@ -338,7 +340,7 @@ class MissingCommits:
                 # At this point we know we have something to report. Set a
                 # flag. If this is the first time, print the project header.
                 if not project_has_missing_commits:
-                    print(f'Project {project_dir.name}:')
+                    print(f'Project {repo_path}:')
                     project_has_missing_commits = True
 
                 if match:
@@ -408,16 +410,14 @@ class MissingCommits:
         for repo_path, change_info in changes.items():
             if change_info[0] == 'changed':
                 change_info = change_info[1:]
-                project_dir = self.product_dir / repo_path
-                self.show_needed_commits(project_dir, change_info)
+                self.show_needed_commits(repo_path, change_info)
             elif change_info[0] == 'added':
                 _, new_commit, new_diff = change_info
-                project_dir = self.product_dir / repo_path
 
                 for pre in self.merge_map[repo_path]:
                     _, old_commit, old_diff = changes[pre]
                     change_info = (old_commit, new_commit, old_diff, new_diff)
-                    self.show_needed_commits(project_dir, change_info)
+                    self.show_needed_commits(repo_path, change_info)
 
         if not self.missing_commits_found:
             self.log.info("No missing commits discovered!")
