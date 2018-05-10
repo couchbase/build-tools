@@ -3,7 +3,7 @@
 MANIFEST=$1
 
 # Check out the main source code
-repo init -u git://github.com/couchbase/manifest -g all -m couchbase-server/${MANIFEST}
+repo init -u git://github.com/couchbase/manifest -g all -m ${MANIFEST}
 repo sync --jobs=6
 
 # Clone cbdeps (really need to clean this up)
