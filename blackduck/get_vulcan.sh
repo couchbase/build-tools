@@ -70,6 +70,7 @@ rm -rf analytics/asterixdb/asterixdb/asterix-examples
 rm -rf analytics/asterixdb/asterixdb/asterix-app/data
 rm -rf analytics/cbas/cbas-test
 find . -type d -name test -print0 | xargs -0 rm -rf
+find . -type d -name testdata -print0 | xargs -0 rm -rf
 find . -type d -name gtest -print0 | xargs -0 rm -rf
 find . -type d -name testing -print0 | xargs -0 rm -rf
 find . -type d -name \*tests -print0 | xargs -0 rm -rf

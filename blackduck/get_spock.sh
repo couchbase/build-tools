@@ -57,6 +57,7 @@ rm -f tlm/cmake/Modules/rebar
 
 # Sample data, testing code, etc
 find . -type d -name test -print0 | xargs -0 rm -rf
+find . -type d -name testdata -print0 | xargs -0 rm -rf
 find . -type d -name gtest -print0 | xargs -0 rm -rf
 find . -type d -name testing -print0 | xargs -0 rm -rf
 find . -type d -name \*tests -print0 | xargs -0 rm -rf
