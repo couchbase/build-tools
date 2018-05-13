@@ -43,36 +43,40 @@ def generate_filelist(product, release, version, build_num, conf_data):
         print(f"Product {product} doesn't exist in configuration file")
         sys.exit(1)
 
-    try:
-        rel_data = prod_data['release'][release]
-    except KeyError:
-        print(f"Release {release} for product {product} doesn't exist "
-              f"in configuration file")
-        sys.exit(1)
-
     req_files = set()
 
-    # Find all the keys with lists as values
-    params = [x for x in rel_data if isinstance(rel_data[x], list)]
+    for pkg_name, pkg_data in prod_data['package'].items():
+        try:
+            rel_data = pkg_data['release'][release]
+        except KeyError:
+            print(f"Release {release} of package {pkg_name} for product "
+                  f"{product} doesn't exist in configuration file")
+            sys.exit(1)
 
-    # For each platform supported for the release, take all the combinations
-    # (product) from the lists and generate a filename from each combination
-    # along with other key information:
-    #   - version and build_num, which are passed in
-    #   - product and platform (retrieved from locals())
-    #   - platform-specific entries (from the platform dictionary)
-    #
-    # The code makes heavy use of dictionary keyword expansion to populate
-    # the filename template with the appropriate information
-    for platform in rel_data['platform']:
-        for comb in itertools.product(*[rel_data[param] for param in params]):
-            req_files.add(
-                rel_data['template'].format(
-                    VERSION=version, BLD_NUM=build_num, **locals(),
-                    **dict(zip(params, comb)),
-                    **rel_data['platform'][platform]
+        # Find all the keys with lists as values
+        params = [x for x in rel_data if isinstance(rel_data[x], list)]
+
+        # For each platform supported for the release, take all the com-
+        # binations (product) from the lists and generate a filename from
+        # each combination along with other key information:
+        #   - pkg_name (locally defined)
+        #   - version and build_num, which are passed in
+        #   - platform (retrieved from locals())
+        #   - platform-specific entries (from the platform dictionary)
+        #
+        # The code makes heavy use of dictionary keyword expansion to populate
+        # the filename template with the appropriate information
+        for platform in rel_data['platform']:
+            param_list = [rel_data[param] for param in params]
+
+            for comb in itertools.product(*param_list):
+                req_files.add(
+                    rel_data['template'].format(
+                        package=pkg_name, VERSION=version, BLD_NUM=build_num,
+                        **locals(), **dict(zip(params, comb)),
+                        **rel_data['platform'][platform]
+                    )
                 )
-            )
 
     return req_files
 
