@@ -23,6 +23,7 @@ git clone git://github.com/couchbasedeps/python-snappy
 (cd python-snappy && git checkout c97d633)
 git clone git://github.com/couchbasedeps/snappy -b 1.1.1
 git clone git://github.com/couchbasedeps/v8 -b 5.2-couchbase
+git clone git://github.com/couchbasedeps/openssl -b OpenSSL_1_0_1h
 
 # cbdeps-specific pruning
 

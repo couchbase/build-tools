@@ -25,6 +25,7 @@ for boost in assert config core detail functional intrusive math move mpl option
 do
    git clone git://github.com/couchbasedeps/boost_${boost} -b boost-1.62.0 &
 done
+git clone git://github.com/couchbasedeps/openssl -b OpenSSL_1_0_2k &
 wait
 
 # cbdeps-specific pruning
