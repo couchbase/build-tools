@@ -181,7 +181,8 @@ def main():
     # Find builds to check
     db = cbutil_db.CouchbaseDB(db_info)
     builds = db.query_documents(
-        'build', where_clause="metadata.builds_complete IS MISSING"
+        'build',
+        where_clause="ifmissingornull(metadata.builds_complete, 'n/a')='n/a'"
     )
 
     # Go through builds and based on age and whether certain metadata
