@@ -104,8 +104,8 @@ class MissingCommits:
     """"""
 
     def __init__(self, logger, product_dir, old_manifest, new_manifest,
-                 reporef_dir, ignored_commits, pre_merge, post_merge,
-                 merge_map):
+                 manifest_repo, reporef_dir, ignored_commits,
+                 pre_merge, post_merge, merge_map):
         """
         Store key information into instance attributes and determine
         path of 'repo' program
@@ -117,6 +117,7 @@ class MissingCommits:
         self.product_dir = product_dir
         self.old_manifest = old_manifest
         self.new_manifest = new_manifest
+        self.manifest_repo = manifest_repo
         self.reporef_dir = reporef_dir
         self.ignored_commits = ignored_commits
         self.pre_merge = pre_merge
@@ -161,7 +162,7 @@ class MissingCommits:
 
         try:
             cmd = [self.repo_bin, 'init', '-u',
-                 'http://github.com/couchbase/manifest',
+                 self.manifest_repo,
                  '-g', 'all', '-m', self.new_manifest]
             if self.reporef_dir is not None:
                 cmd.extend(['--reference', self.reporef_dir])
@@ -446,6 +447,7 @@ def main():
     parser.add_argument('new_manifest', help='Current manifest to verify')
     parser.add_argument('--reporef_dir',
                         help='Path to repo mirror reference directory')
+    parser.add_argument('--manifest_repo', help='Git URL to manifest repo')
     args = parser.parse_args()
 
     # Set up logging
@@ -515,8 +517,8 @@ def main():
     reporef_dir = pathlib.Path(args.reporef_dir)
 
     miss_comm = MissingCommits(
-        logger, product_dir, old_manifest, new_manifest, reporef_dir,
-        ignored_commits, pre_merge, post_merge, merge_map
+        logger, product_dir, old_manifest, new_manifest, args.manifest_repo,
+        reporef_dir, ignored_commits, pre_merge, post_merge, merge_map
     )
     miss_comm.determine_diffs()
 

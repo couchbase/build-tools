@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+PRODUCT=$1
+shift
 RELEASE=$1
 shift
 
@@ -18,6 +20,8 @@ docker pull couchbasebuild/ubuntu-1604-recreate-build-manifest:latest
 # Docker daemon, so the path must exist on the Docker *host*.
 cd /home/couchbase/reporef
 if [ ! -e .repo ]; then
+    # This only pre-populates the reporef for Server git code. Might be able
+    # to do better in future.
     repo init -u git://github.com/couchbase/manifest -g all -m branch-master.xml
 fi
 repo sync --jobs=6 > /dev/null
@@ -32,12 +36,32 @@ cd /home/couchbase/check_missing_commits
 rm -rf product-metadata
 git clone git://github.com/couchbase/product-metadata > /dev/null
 
-metadata_dir=product-metadata/couchbase-server/missing_commits/${RELEASE}
+metadata_dir=product-metadata/${PRODUCT}/missing_commits/${RELEASE}
 if [ ! -e "${metadata_dir}" ]; then
     echo "Cannot run check for unknown release ${RELEASE}!"
     exit 1
 fi
 cd ${metadata_dir}
+
+# Sync Gateway annoyingly has a different layout and repository for manifests
+# compared to the rest of the company. In particular they re-use "default.xml"
+# changing the release name, which is hard for us to track. Therefore we just
+# hard-code default.xml here. It would take more effort to handle checking for
+# missing commits in earlier releases.
+if [ "x${PRODUCT}" = "xsync_gateway" ]; then
+    manifest_repo=git://github.com/couchbase/sync_gateway
+    current_manifest=manifest/default.xml
+    echo
+    echo
+    echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    echo "ALERT: product is sync_gateway, so forcing manifest to default.xml"
+    echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    echo
+else
+    manifest_repo=git://github.com/couchbase/manifest
+    current_manifest=${PRODUCT}/${RELEASE}.xml
+fi
+
 
 echo
 echo "Checking for missing commits in release ${RELEASE}...."
@@ -51,10 +75,11 @@ for previous_manifest in $(cat previous-manifests.txt); do
         -v /home/couchbase/jenkinsdocker-ssh:/home/couchbase/.ssh \
         couchbasebuild/ubuntu-1604-recreate-build-manifest \
             find_missing_commits \
+            --manifest_repo ${manifest_repo} \
             --reporef_dir /home/couchbase/reporef \
             -i ok-missing-commits.txt \
             -m merge-projects.txt \
-            couchbase-server \
+            ${PRODUCT} \
             ${previous_manifest} \
-            couchbase-server/${RELEASE}.xml
+            ${current_manifest}
 done
