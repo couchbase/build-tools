@@ -6,6 +6,9 @@ MANIFEST=$1
 repo init -u git://github.com/couchbase/manifest -g all -m couchbase-server/${MANIFEST}
 repo sync --jobs=6
 
+# Eliminate Analytics Java code - this is scanned via the binary jar repo
+rm -rf analytics
+
 # Clone cbdeps (really need to clean this up)
 mkdir cbdeps
 cd cbdeps
