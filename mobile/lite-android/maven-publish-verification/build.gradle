@@ -12,6 +12,7 @@ task wrapper(type: Wrapper) {
 repositories {
     maven {
             url PUBLISH_URL
+            mavenCentral()
         }
 }
 
