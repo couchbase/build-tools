@@ -5,6 +5,7 @@
 import argparse
 import json
 import sys
+from collections import OrderedDict
 
 
 def parse_json_file(file):
@@ -14,7 +15,7 @@ def parse_json_file(file):
     try:
         with open(file) as content:
             try:
-                data = json.load(content)
+                data = json.load(content, object_pairs_hook=OrderedDict)
             except json.JSONDecodeError:
                 print("Invalid JSON content!")
                 sys.exit(1)
