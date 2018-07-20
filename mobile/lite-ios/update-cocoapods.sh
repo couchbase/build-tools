@@ -10,7 +10,8 @@ pip3 install --user --upgrade virtualenv
 source ./COCOAPODS/bin/activate  || exit 1
 
 # Install required cocoapods
-gem install cocoapods --user-install
+sudo gem install cocoapods
+export GEM_HOME=$HOME/.gem
 gem which cocoapods
 
 # Checkout required repo
