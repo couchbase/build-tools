@@ -1,0 +1,33 @@
+---
+# Install Couchbase Server
+- hosts: localhost
+  any_errors_fatal: true
+  user: ec2-user
+  become: true
+
+  vars:
+    couchbase_server_package: "{{ couchbase_server_package }}"
+    version: "{{ VERSION }}-{{ BLD_NUM }}"
+
+  tasks:
+
+  - name: install couchbase
+    yum: name={{ couchbase_server_package }} state=present
+    become: true
+
+  - name: wait for install done
+    wait_for: port=8091 delay=10
+
+  - name: Check installed version of /opt/couchbase/VERSION.txt
+    shell: " cat /opt/couchbase/VERSION.txt "
+    register: install_version
+
+  - debug: msg="the value of /opt/couchbase/VERSION.txt is {{ install_version.stdout }}"
+
+  - name: Check if install version is correct
+    fail: msg="Installed version \"{{ install_version }}\" is not correct!"
+    when: install_version.stdout != version
+
+  - name: Check if webservices link is live
+    uri:
+        url: http://localhost:8091/ui/index.html

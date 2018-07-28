@@ -1,0 +1,3 @@
+# Ansible playbook to install CB Server binary
+
+% ansible-playbook  -i ./inventory  playbook.yml --extra-vars "couchbase_server_package=couchbase-server-enterprise_5.1.0-1397-windows_amd64.msi"

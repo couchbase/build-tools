@@ -1,0 +1,37 @@
+---
+# Install Couchbase Server
+- hosts: all
+  any_errors_fatal: true
+
+  tasks:
+  # Remove server package
+  - name: Couchbase Server | Uninstall cb server msi
+    win_command: wmic product where "name like 'Couchbase Server%'" call uninstall
+    register: uninstall_output
+
+  - debug: var=uninstall_output.stdout_lines
+
+  # Delete server binary
+  - name: Couchbase Server | Delete server install directory
+    win_file:
+        path: "C:\\Program Files\\Couchbase"
+        state: absent
+        when: uninstall_output.rc == "0"
+
+  - name: Couchbase Server |  Copy server msi "{{ couchbase_server_package }}"
+    win_copy:
+        src: "{{ couchbase_server_package }}"
+        dest: "C:\\Users\\Administrator\\AppData\\Local\\Temp\\{{ couchbase_server_package }}"
+
+  # Install server service msi
+  - name: Couchbase Server | Install server msi "{{ couchbase_server_package }}"
+    win_package:
+       path: "C:\\Users\\Administrator\\AppData\\Local\\Temp\\{{ couchbase_server_package }}"
+       creates_path: "C:\\Program Files\\Couchbase"
+       state: present
+
+  # Remove download server package
+  - name: Couchbase Server |  Remove download server msi "{{ couchbase_server_package }}"
+    win_file:
+        path: "C:\\Users\\Administrator\\AppData\\Local\\Temp\\{{ couchbase_server_package }}"
+        state: absent

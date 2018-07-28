@@ -1,0 +1,4 @@
+Scripts and Tools to build and install CB Server Toy daily
+
+1. Jenkinsfile for build
+2. Ansible playbook for deployment

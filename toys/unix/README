@@ -1,0 +1,18 @@
+# Ansible playbook for CB Server's toy centos7 AWS deployment
+# using AWS ec2 Jenkins plugin
+
+Amazon Centos7 AMI info:
+AMI ID: ami-12989f6d
+AMI Name: aws-centos7-build-team
+Credential: build-team.pem (lastpast)
+Security Group: buildteam-jenkins
+Tags: buildteam:jenkins-toy-deployment
+
+Tools required in the current ami:
+1. curl -O https://bootstrap.pypa.io/get-pip.py
+2. python get-pip.py --user
+3. pip install ansible —user
+4. yum install git
+
+Run the ansible playbook:
+% ansible-playbook  -i ./inventory  playbook.yml  -e VERSION=6.5.0 -e BLD_NUM=1096 -e couchbase_server_package=couchbase-server-enterprise-6.5.0-1096-centos7.x86_64.rpm
