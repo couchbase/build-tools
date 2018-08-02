@@ -241,15 +241,39 @@ class MissingCommits:
 
         return True if old_summary == new_summary else False
 
-    def get_commit_sha(self, project, branch):
+    """
+    Pre-compiled regex for SHA
+    """
+    sha_regex = re.compile(r'[0-9a-f]{40}')
+
+    """
+    Pre-compiled regex for tag reference
+    """
+    tag_regex = re.compile(r'refs/tags/.*')
+
+    def get_commit_sha(self, project, commit):
         """
-        Find the latest commit SHA from the given branch
+        Find the latest commit SHA from the given branch/tag/SHA
         """
+
+        # If 'commit' is already a SHA, just return it
+        if MissingCommits.sha_regex.fullmatch(commit) is not None:
+            # Already a SHA, just return it
+            return commit
+
+        # Not a SHA, so we'll ask git to turn it into a SHA. If 'commit'
+        # looks like a tag reference, use it directly; otherwise, assume
+        # it's a branch name, and prepend the remote name to disambiguate.
+        if MissingCommits.tag_regex.fullmatch(commit) is not None:
+            git_ref = commit
+        else:
+            # $REPO_REMOTE is set by 'repo forall'
+            git_ref = f'$REPO_REMOTE/{commit}'
 
         try:
             commit_sha = subprocess.check_output(
                 [self.repo_bin, 'forall', project, '-c',
-                 f'git show-ref --hash $REPO_REMOTE/{branch}'],
+                 f'git show-ref --hash {git_ref}'],
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
@@ -283,13 +307,8 @@ class MissingCommits:
             '--right-only', '--no-merges'
         ]
 
-        sha_regex = re.compile(r'^[0-9a-f]{40}$')
-
-        if sha_regex.match(old_commit) is None:
-            old_commit = self.get_commit_sha(repo_path, old_commit)
-
-        if sha_regex.match(new_commit) is None:
-            new_commit = self.get_commit_sha(repo_path, new_commit)
+        old_commit = self.get_commit_sha(repo_path, old_commit)
+        new_commit = self.get_commit_sha(repo_path, new_commit)
 
         project_dir = self.product_dir / repo_path
 
