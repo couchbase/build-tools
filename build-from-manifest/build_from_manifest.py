@@ -3,7 +3,7 @@
 """
 Program to generate build information along with a source tarball
 for building when any additional changes have happened for a given
-input build manfiest
+input build manifest
 """
 
 import argparse
@@ -20,7 +20,9 @@ import time
 import xml.etree.ElementTree as EleTree
 
 from datetime import datetime
+from pathlib import Path
 from subprocess import PIPE, run
+from typing import Union
 
 
 # Context manager for handling a given set of code/commands
@@ -287,6 +289,7 @@ class ManifestBuilder:
                 f for f in pathlib.Path().iterdir() if f != '.repo'
             ]
 
+            child: Union[str, Path]
             for child in top_level:
                 shutil.rmtree(child) if child.is_dir() else child.unlink()
 
@@ -294,38 +297,26 @@ class ManifestBuilder:
                  '-m', str(self.manifest)], check=True)
             run(['repo', 'sync', '--jobs=6', '--force-sync'], check=True)
 
-    def update_btm_repo_and_get_build_num(self):
+    def update_bm_repo_and_get_build_num(self):
         """
-        Update the build-team-manifests repository checkout, then
+        Update the build-manifests repository checkout, then
         determine the next build number to use
         """
 
-        btm_dir = pathlib.Path('build-team-manifests')
+        bm_dir = pathlib.Path('build-manifests')
 
-        if not btm_dir.is_dir():
+        if not bm_dir.is_dir():
             run(['git', 'clone', f'ssh://git@github.com/'
-                 f'{self.build_manifests_org}/build-team-manifests'],
+                 f'{self.build_manifests_org}/build-manifests'],
                 check=True)
 
-        with pushd(btm_dir):
+        with pushd(bm_dir):
             run(['git', 'reset', '--hard'], check=True)
-            print('Updating the build-team-manifests repository...')
+            print('Updating the build-manifests repository...')
             run(['git', 'fetch', '--all'], check=True)
 
-            self.branch_exists = \
-                run(['git', 'show-ref', '--verify', '--quiet',
-                     f'refs/remotes/origin/{self.product_branch}']
-                    ).returncode
-
-            if not self.branch_exists:
-                run(['git', 'checkout', '-B', self.product_branch,
-                     f'remotes/origin/{self.product_branch}'], check=True)
-            else:
-                run(['git', 'checkout', '-b', self.product_branch,
-                     self.parent_branch], check=True)
-
             self.build_manifest_filename = pathlib.Path(
-                f'{self.product}/{self.release}.xml'
+                f'{self.product}/{self.release}/{self.version}.xml'
             ).resolve()
 
             if self.build_manifest_filename.exists():
@@ -416,34 +407,35 @@ class ManifestBuilder:
         build_element = last_build_manifest.find('./project[@name="build"]')
         insert_child_annot(build_element, 'BLD_NUM', str(self.build_num))
         insert_child_annot(build_element, 'PRODUCT', self.product)
-        insert_child_annot(build_element, 'PRODUCT_BRANCH',
-                           self.product_branch)
         insert_child_annot(build_element, 'RELEASE', self.release)
+
+        version_annot = last_build_manifest.find(
+            './project[@name="build"]/annotation[@name="VERSION"]'
+        )
+
+        if version_annot is None:
+            insert_child_annot(build_element, 'VERSION', self.version)
 
         last_build_manifest.write(self.build_manifest_filename)
 
-        # Compute commit message for later consumption
-        br_info = '' if not self.branch_exists else ' (first branch build)'
-
-        return (f"{self.product} {self.release} '{self.product_branch}' "
-                f"build {self.version}-{self.build_num}\n\n"
+        return (f"{self.product} {self.release} build {self.version}-"
+                f"{self.build_num}\n\n"
                 f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} "
-                f"{time.tzname[time.localtime().tm_isdst]}{br_info}")
+                f"{time.tzname[time.localtime().tm_isdst]}")
 
     def push_manifest(self, commit_msg):
         """
-        Push the new build manifest to the build-team-manifests
+        Push the new build manifest to the build-manifests
         repository, but only if it hasn't been disallowed
         """
 
-        with pushd('build-team-manifests'):
+        with pushd('build-manifests'):
             run(['git', 'add', self.build_manifest_filename], check=True)
             run(['git', 'commit', '-m', commit_msg], check=True)
 
             if self.push:
-                run(['git', 'push', 'origin',
-                     f'{self.product_branch}:refs/heads/{self.product_branch}'
-                     ], check=True)
+                run(['git', 'push', 'origin', f'HEAD:refs/heads/master'],
+                    check=True)
             else:
                 print('Skipping push of new build manifest due to --no-push')
 
@@ -573,11 +565,11 @@ class ManifestBuilder:
           - If there are submodules, ensure they're updated
           - Set the relevant and necessary paramaters (e.g. version)
           - Do a repo sync based on the given manifest
-          - Update the build-team-manifests repository and determine
+          - Update the build-manifests repository and determine
             the next build number to use
           - Generate the CHANGELOG and update the build manifest
             annotations
-          - Push the generated manifest to build-team-manifests, if
+          - Push the generated manifest to build-manifests, if
             pushing is requested
           - Generate the new build manifest, properties files, and
             source tarball
@@ -594,7 +586,7 @@ class ManifestBuilder:
         self.set_relevant_parameters()
         self.set_build_parameters()
         self.perform_repo_sync()
-        self.update_btm_repo_and_get_build_num()
+        self.update_bm_repo_and_get_build_num()
 
         with pushd(self.product):
             self.generate_changelog()
@@ -615,7 +607,7 @@ def parse_args():
                         help='Alternate Git URL for manifest repository')
     parser.add_argument('--build-manifests-org', default='minddrive',
                         help='Alternate GitHub organization for '
-                             'build-team-manifests')
+                             'build-manifests')
     parser.add_argument('--force', '-f', action='store_true',
                         help='Produce new build manifest even if there '
                              'are no repo changes')
