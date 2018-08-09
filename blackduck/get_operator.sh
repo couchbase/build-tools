@@ -12,6 +12,9 @@ cd src
 repo init -u git://github.com/couchbase/manifest -g all -m couchbase-operator/${MANIFEST}
 repo sync --jobs=6
 
+# Don't care about build
+rm -rf cbbuild
+
 # Download go (brute-force solution for now)
 cd ${WORKSPACE}
 mkdir -p golang
