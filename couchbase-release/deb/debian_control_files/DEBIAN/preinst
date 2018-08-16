@@ -2,8 +2,8 @@
 
 distrib=$(lsb_release -c | awk '{print $2}')
 
-if ! [[ "$distrib" =~ ^(wheezy|jessie|stretch|precise|trusty|xenial)$ ]]; then
-    echo "Supported platforms are: Debian/wheezy,jessie,stretch and Ubuntu/precise,trusty,xenial"
+if ! [[ "$distrib" =~ ^(wheezy|jessie|stretch|precise|trusty|xenial|bionic)$ ]]; then
+    echo "Supported platforms are: Debian/wheezy,jessie,stretch and Ubuntu/precise,trusty,xenial,bionic"
     exit 1
 else
     exit 0
