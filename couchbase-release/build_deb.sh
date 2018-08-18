@@ -28,7 +28,8 @@ sed -e "s/%STAGING%/${STAGE_EXT}/g" deb/tmpl/couchbase.list.in \
 
 cp -pr deb/debian_control_files deb/${REL_NAME}
 mkdir -p deb/${REL_NAME}/etc/apt/trusted.gpg.d
-cp -p GPG-KEY-COUCHBASE-1.0 deb/${REL_NAME}/etc/apt/trusted.gpg.d
+cp -p GPG-KEY-COUCHBASE-1.0 \
+    deb/${REL_NAME}/etc/apt/trusted.gpg.d/couchbase-gpg.asc
 sudo chown -R root:root deb/${REL_NAME}
 dpkg-deb --build deb/${REL_NAME}
 sudo chown -R ${USER}:${USER} deb/${REL_NAME}

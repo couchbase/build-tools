@@ -1,15 +1,24 @@
 #!/bin/bash
 
-gpg --import /etc/apt/trusted.gpg.d/GPG-KEY-COUCHBASE-1.0
-apt-key add /etc/apt/trusted.gpg.d/GPG-KEY-COUCHBASE-1.0
+gpg --import /etc/apt/trusted.gpg.d/couchbase-gpg.asc
+
+apt_version=$(apt --version 2>/dev/null | head -1 | awk '{print $2}')
+[[ ${apt_version} == "" ]] && apt_version="0.0.0"
+
+# Only run apt-key for Debian/Ubuntu versions less than 9/18.04,
+# respectively (both at least 1.4.x); the add is unneeded for later
+# versions
+if dpkg --compare-versions ${apt_version} "lt" "1.4.0"; then
+    apt-key add /etc/apt/trusted.gpg.d/couchbase-gpg.asc
+fi
 
 distrib=$(lsb_release -c | awk '{print $2}')
 
-if ! [[ "$distrib" =~ ^(wheezy|jessie|stretch|precise|trusty|xenial|bionic)$ ]]; then
+if ! [[ ${distrib} =~ ^(wheezy|jessie|stretch|precise|trusty|xenial|bionic)$ ]]; then
     echo "Supported platforms are: Debian/wheezy,jessie,stretch and Ubuntu/precise,trusty,xenial,bionic"
     exit 1
 else
-    sed -e "s/%DCODE_SERVER%/$distrib/g" -e "s/%DCODE_SDK%/$distrib/g" \
+    sed -e "s/%DCODE_SERVER%/${distrib}/g" -e "s/%DCODE_SDK%/${distrib}/g" \
         -i /etc/apt/sources.list.d/couchbase.list
     exit 0
 fi
