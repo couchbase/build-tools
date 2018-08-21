@@ -15,6 +15,9 @@ repo sync --jobs=6
 # Don't care about build
 rm -rf cbbuild
 
+# Don't care about code-generator - build-time tool only
+rm -rf goproj/src/k8s.io/code-generator
+
 # Download go (brute-force solution for now)
 cd ${WORKSPACE}
 mkdir -p golang
