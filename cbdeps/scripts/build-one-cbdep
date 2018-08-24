@@ -20,8 +20,11 @@ if [[ $OS == "Darwin" ]]; then
     plat="macos"
     osver=""
 else  # Linux
-    plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
+    plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
     osver=$(lsb_release -sr)
+    if [[ $plat != "ubuntu" ]]; then
+        osver=${osver%%.*}
+    fi
 fi
 
 TARBALL_NAME=${PROD_NAME}-${plat}${osver}-${arch}-${VERSION}-${BLD_NUM}.tgz
