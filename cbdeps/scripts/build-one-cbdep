@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+set -e
+
+PROD_NAME=${PRODUCT#"cbdeps/"}
+cd ${WORKSPACE}
+
+env
+echo "Downloading source..."
+curl --retry 5 -LO http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/${PROD_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
+
+echo "Extracting source..."
+tar xzf ${PROD_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
+
+echo "Determine package name information..."
+OS=$(uname -s)
+arch=$(uname -m)
+
+if [[ $OS == "Darwin" ]]; then
+    plat="macos"
+    osver=""
+else  # Linux
+    plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
+    osver=$(lsb_release -sr)
+fi
+
+TARBALL_NAME=${PROD_NAME}-${plat}${osver}-${arch}-${VERSION}-${BLD_NUM}.tgz
+MD5_NAME=${PROD_NAME}-${plat}${osver}-${arch}-${VERSION}-${BLD_NUM}.md5
+
+echo "Performing build..."
+BASE_DIR=${WORKSPACE}/build-tools/cbdeps
+INSTALL_DIR=${BASE_DIR}/build/${PROD_NAME}/install
+
+mkdir -p ${INSTALL_DIR}
+cd ${PROD_NAME}
+${BASE_DIR}/${PROD_NAME}/${PROD_NAME}_unix.sh ${INSTALL_DIR}
+
+echo "Preparing for package..."
+cd ${WORKSPACE}
+cp -pr ${BASE_DIR}/${PROD_NAME}/package/* ${INSTALL_DIR}
+
+echo "Create package..."
+PKG_DIR=${WORKSPACE}/packages/${PROD_NAME}/${VERSION}/${BLD_NUM}
+mkdir -p ${PKG_DIR}
+cd ${INSTALL_DIR}
+tar zcf ${PKG_DIR}/${TARBALL_NAME} .
+md5sum ${PKG_DIR}/${TARBALL_NAME} > ${PKG_DIR}/${MD5_NAME}
