@@ -16,6 +16,7 @@ import os
 import os.path
 import subprocess
 import sys
+import xml.etree.ElementTree as EleTree
 
 import requests.exceptions
 
@@ -298,10 +299,16 @@ def main():
     # Now patch the repo sync with the list of patch commands
     try:
         with cd(args.repo_source):
+            mf = EleTree.parse('.repo/manifest.xml')
+
             for review_id in sorted(reviews.keys()):
                 review = reviews[review_id]
+                proj_info = mf.find(
+                    './/project[@name="{}"]'.format(review.project)
+                )
+
                 try:
-                    with cd(review.project):
+                    with cd(proj_info.attrib.get('path', review.project)):
                         subprocess.check_call(review.patch_command,
                                               shell=True)
                 except subprocess.CalledProcessError:
