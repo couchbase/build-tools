@@ -40,13 +40,15 @@ def cd(path):
     try:
         os.chdir(path)
     except OSError:
-        raise RuntimeError('Can not change directory')
+        raise RuntimeError('Can not change directory to {}'.format(path))
 
     try:
         yield
     except Exception:
-        logger.error('Exception caught: %s', sys.exc_info()[0])
-        raise RuntimeError('Failed code in new directory')
+        logger.error(
+            'Exception caught: {}'.format(' - '.join(sys.exc_info()[:2]))
+        )
+        raise RuntimeError('Failed code in new directory {}'.format(path))
     finally:
         os.chdir(cwd)
 
@@ -116,7 +118,9 @@ class GerritPatches(object):
         data = dict()
 
         try:
-            results = self.rest.get(query_string + opt_string)
+            q_string = query_string + opt_string
+            logger.debug('Query string is: {}'.format(q_string))
+            results = self.rest.get(q_string)
         except requests.exceptions.HTTPError as exc:
             raise RuntimeError(exc)
         else:
@@ -124,22 +128,30 @@ class GerritPatches(object):
                 num_id = result['_number']
                 data[num_id] = GerritChange(result)
 
+        logger.debug('Review IDs from query: {}'.format(data.keys()))
+
         return data
 
     def get_changes_via_review_id(self, review_id):
         """Find all reviews for a given review ID"""
 
-        return self.query('/changes/?q={}'.format(review_id))
+        logger.debug('Querying on review ID {}'.format(review_id))
+
+        return self.query('/changes/?q=status:open+{}'.format(review_id))
 
     def get_changes_via_change_id(self, change_id):
         """Find all reviews for a given change ID"""
 
-        return self.query('/changes/?q=change:{}'.format(change_id))
+        logger.debug('Querying on change ID {}'.format(change_id))
+
+        return self.query('/changes/?q=status:open+change:{}'.format(change_id))
 
     def get_changes_via_topic_id(self, topic):
         """Find all reviews for a given topic"""
 
-        return self.query('/changes/?q=topic:{}'.format(topic))
+        logger.debug('Querying on topic {}'.format(topic))
+
+        return self.query('/changes/?q=status:open+topic:{}'.format(topic))
 
     def get_open_parents(self, review):
         """Find all open parent reviews for a given review"""
@@ -152,6 +164,7 @@ class GerritPatches(object):
         # Search recursively up via the parents until no more
         # open reviews are found
         for parent in review.parents:
+            logger.debug('Querying on parent review ID: {}'.format(parent))
             p_review = self.query(
                 '/changes/?q=status:open+commit:{}'.format(parent)
             )
@@ -162,6 +175,10 @@ class GerritPatches(object):
             p_review_id = p_review.keys()[0]
             reviews.update(p_review)
             reviews.update(self.get_open_parents(p_review[p_review_id]))
+
+        logger.debug('Found parents: {}'.format(
+            ', '.join([r.keys()[0] for r in reviews]))
+        )
 
         return reviews
 
@@ -183,7 +200,11 @@ class GerritPatches(object):
                 self, 'get_changes_via_{}_id'.format(id_type)
             )(initial_arg)
 
-            stack.extend([r_id for r_id in reviews.keys()])
+            review_ids = [r_id for r_id in reviews.keys()]
+            logger.debug('Initial review IDs: {}'.format(
+                ', '.join([str(r_id) for r_id in review_ids])
+            ))
+            stack.extend(review_ids)
 
         # From the stack, check each entry and add to the final set
         # of reviews if not already there, keeping track of which
@@ -224,6 +245,10 @@ class GerritPatches(object):
                      if r_id not in self.seen_reviews]
                 )
 
+        logger.debug('List of review IDs to apply: {}'.format(
+            ', '.join([str(r_id) for r_id in all_reviews.keys()])
+        ))
+
         return all_reviews
 
 
@@ -237,6 +262,8 @@ def main():
     parser = argparse.ArgumentParser(
         description='Patch repo sync with requested Gerrit reviews'
     )
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Enable debugging output')
     parser.add_argument('-c', '--config', dest='gerrit_config',
                         help='Configuration file for patching via Gerrit',
                         default='patch_via_gerrit.ini')
@@ -251,6 +278,10 @@ def main():
                         help='Location of the repo sync checkout')
 
     args = parser.parse_args()
+
+    # Set logging to debug level on stream handler if --debug was set
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
 
     if not os.path.isdir(args.repo_source):
         logger.error(
@@ -294,6 +325,8 @@ def main():
         id_type = 'topic'
         review_ids = args.topics
 
+    logger.debug('Review IDs: {}'.format(', '.join(review_ids)))
+    logger.debug('Review type: {}'.format(id_type))
     reviews = gerrit_patches.get_reviews(review_ids, id_type)
 
     # Now patch the repo sync with the list of patch commands
@@ -303,6 +336,7 @@ def main():
 
             for review_id in sorted(reviews.keys()):
                 review = reviews[review_id]
+                logger.debug('Project to patch: {}'.format(review.project))
                 proj_info = mf.find(
                     './/project[@name="{}"]'.format(review.project)
                 )
@@ -311,9 +345,11 @@ def main():
                     with cd(proj_info.attrib.get('path', review.project)):
                         subprocess.check_call(review.patch_command,
                                               shell=True)
-                except subprocess.CalledProcessError:
+                except subprocess.CalledProcessError as exc:
                     raise RuntimeError(
-                        'Patch for review %d failed' % (review_id,)
+                        'Patch for review {} failed: {}'.format(
+                            review_id, exc.output
+                        )
                     )
     except RuntimeError as exc:
         logger.error(exc)
