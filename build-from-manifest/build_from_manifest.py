@@ -48,7 +48,7 @@ class ManifestBuilder:
     along with other files needed for a new build
     """
 
-    # Files to be generated
+    # Files to be generated in the top-level workspace directory
     output_filenames = [
         'build.properties',
         'build-properties.json',
@@ -99,7 +99,7 @@ class ManifestBuilder:
         """
 
         for name in self.output_filenames:
-            output_file = pathlib.Path(name)
+            output_file = pathlib.Path(name).resolve()
 
             if output_file.exists():
                 output_file.unlink()
@@ -311,9 +311,9 @@ class ManifestBuilder:
                 check=True)
 
         with pushd(bm_dir):
-            run(['git', 'reset', '--hard'], check=True)
             print('Updating the build-manifests repository...')
             run(['git', 'fetch', '--all'], check=True)
+            run(['git', 'reset', '--hard', 'origin/master'], check=True)
 
             self.build_manifest_filename = pathlib.Path(
                 f'{self.product}/{self.release}/{self.version}.xml'
@@ -356,10 +356,10 @@ class ManifestBuilder:
                     json_file = self.output_files['build-properties.json']
                     prop_file = self.output_files['build.properties']
 
-                    with open(json_file) as fh:
+                    with open(json_file, "w") as fh:
                         json.dump({}, fh)
 
-                    with open(prop_file) as fh:
+                    with open(prop_file, "w") as fh:
                         fh.write('')
 
                     sys.exit(0)
@@ -533,13 +533,13 @@ class ManifestBuilder:
                                     tar.add(os.path.join(root, name)[2:],
                                             recursive=False)
 
-            print(f'Compressing {tarball_filename}')
+        print(f'Compressing {tarball_filename}')
 
-            with open(tarball_filename, 'rb') as f_in, \
-                    gzip.open(targz_filename, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
+        with open(tarball_filename, 'rb') as f_in, \
+                gzip.open(targz_filename, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
-            os.unlink(tarball_filename)
+        os.unlink(tarball_filename)
 
     def generate_final_files(self):
         """
