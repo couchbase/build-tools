@@ -195,7 +195,7 @@ class ManifestBuilder:
         Update all existing submodules for given repo sync
         """
 
-        module_projects_dir = pathlib.Path('module_projects')
+        module_projects_dir = pathlib.Path('module_projects').resolve()
 
         if not module_projects_dir.exists():
             module_projects_dir.mkdir()
@@ -204,7 +204,8 @@ class ManifestBuilder:
             print('"module_projects" is set, updating manifest...')
             # The following really should be importable as a module
             run(
-                [f'{script_dir}/update_manifest_from_modules']
+                [f'{script_dir}/update_manifest_from_submodules',
+                 f'../manifest/{self.manifest}']
                 + module_projects, check=True
             )
 
