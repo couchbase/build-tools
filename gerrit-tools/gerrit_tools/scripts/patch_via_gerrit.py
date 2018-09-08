@@ -53,6 +53,25 @@ def cd(path):
         os.chdir(cwd)
 
 
+class ParseCSVs(argparse.Action):
+    """Parse comma separated lists"""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        """
+        Ensure all values separated by commas are parsed out; note that
+        while quoted strings with spaces are preserved, a comma within
+        quoted strings does NOT preserve
+        """
+
+        results = list()
+
+        for value in values:
+            value = value.strip(',').split(',')
+            results.extend(value)
+
+        setattr(namespace, self.dest, results)
+
+
 class GerritChange(object):
     """Encapsulation of relevant information for a given Gerrit review"""
 
@@ -268,12 +287,12 @@ def main():
                         help='Configuration file for patching via Gerrit',
                         default='patch_via_gerrit.ini')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-r', '--review-id', dest='review_ids', default=[],
-                       type=int, action='append', help='review ID to apply')
-    group.add_argument('-g', '--change-id', dest='change_ids', default=[],
-                       action='append', help='change ID to apply')
-    group.add_argument('-t', '--topic', dest='topics', default=[],
-                       action='append', help='topic to apply')
+    group.add_argument('-r', '--review-id', dest='review_ids', nargs='+',
+                       action=ParseCSVs, help='review ID to apply')
+    group.add_argument('-g', '--change-id', dest='change_ids', nargs='+',
+                       action=ParseCSVs, help='change ID to apply')
+    group.add_argument('-t', '--topic', dest='topics', nargs='+',
+                       action=ParseCSVs, help='topic to apply')
     parser.add_argument('-s', '--source', dest='repo_source', required=True,
                         help='Location of the repo sync checkout')
 
