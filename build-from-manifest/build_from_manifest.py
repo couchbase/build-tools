@@ -83,6 +83,7 @@ class ManifestBuilder:
         self.type = None
         self.parent = None
         self.parent_branch = None
+        self.go_version = None
         self.build_job = None
         self.build_manifest_filename = None
         self.branch_exists = 0
@@ -244,6 +245,7 @@ class ManifestBuilder:
         self.parent = self.manifest_config.get('parent')
         self.parent_branch = \
             self.manifests.get(self.parent, {}).get('branch', 'master')
+        self.go_version = self.manifest_config.get('go_version')
 
         # Individual manifests are allowed to have a different
         # product setting as well
@@ -410,6 +412,9 @@ class ManifestBuilder:
         insert_child_annot(build_element, 'PRODUCT', self.product)
         insert_child_annot(build_element, 'RELEASE', self.release)
 
+        if self.go_version is not None:
+            insert_child_annot(build_element, 'GO_VERSION', self.go_version)
+
         version_annot = last_build_manifest.find(
             './project[@name="build"]/annotation[@name="VERSION"]'
         )
@@ -470,6 +475,7 @@ class ManifestBuilder:
             'PARENT': self.parent,
             'TYPE': self.type,
             'BUILD_JOB': self.build_job,
+            'GO_VERSION': self.go_version,
             'FORCE': self.force
         }
 
@@ -482,7 +488,7 @@ class ManifestBuilder:
                      f'VERSION={self.version}\nBLD_NUM={self.build_num}\n'
                      f'MANIFEST={self.manifest}\nPARENT={self.parent}\n'
                      f'TYPE={self.type}\nBUILD_JOB={self.build_job}\n'
-                     f'FORCE={self.force}\n')
+                     f'GO_VERSION={self.go_version}\nFORCE={self.force}\n')
 
     def create_tarball(self):
         """
