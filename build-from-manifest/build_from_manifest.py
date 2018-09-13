@@ -182,6 +182,19 @@ class ManifestBuilder:
 
         manifest_dir = pathlib.Path('manifest')
 
+        # If we've been requested to use a different manifest repository,
+        # delete the manifest directory so that the next block will
+        # re-clone it
+        if manifest_dir.exists():
+            with pushd(manifest_dir):
+                url = run(
+                    ['git', 'ls-remote', '--get-url', 'origin'],
+                    check=True, stdout=PIPE
+                ).stdout.decode().strip()
+            if url != self.manifest_project:
+                print('"manifest" dir pointing to different remote, removing..')
+                shutil.rmtree(manifest_dir)
+
         if not manifest_dir.exists():
             run(['git', 'clone', self.manifest_project, 'manifest'],
                 check=True)
@@ -289,7 +302,7 @@ class ManifestBuilder:
 
         with pushd(product_dir):
             top_level = [
-                f for f in pathlib.Path().iterdir() if f != '.repo'
+                f for f in pathlib.Path().iterdir() if str(f) != '.repo'
             ]
 
             child: Union[str, Path]
