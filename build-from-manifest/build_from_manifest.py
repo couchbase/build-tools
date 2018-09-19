@@ -623,9 +623,9 @@ def parse_args():
         description='Create new build manifest from input manifest'
     )
     parser.add_argument('--manifest-project', '-p',
-                        default='git://github.com/minddrive/manifest.git',
+                        default='ssh://review.couchbase.org:29418/manifest.git',
                         help='Alternate Git URL for manifest repository')
-    parser.add_argument('--build-manifests-org', default='minddrive',
+    parser.add_argument('--build-manifests-org', default='couchbase',
                         help='Alternate GitHub organization for '
                              'build-manifests')
     parser.add_argument('--force', '-f', action='store_true',
