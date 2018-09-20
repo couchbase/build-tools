@@ -287,11 +287,10 @@ def main():
     bm_walker = bm_repo.get_walker()
     bm_builds = {x.commit.message.decode('utf-8') for x in bm_walker}
 
-    # Find timestamp of last loaded build - optimization.
-    # Since we also prevent duplicate manifests for the same build with the
-    # bm_builds index, we subtract one day from this timestamp. That should
-    # be more than enough to account for any oddly mis-ordered entries in
-    # build-team-manifests.
+    # Since we prevent duplicate manifests for the same build with the
+    # bm_builds index, we can safely process all changes since 2018-09-19
+    # when the main builds stopped using build-team-manifests. We only
+    # want to pick up the sync_gateway builds that happened since then.
     # Note: as a special case, if the commit has no parents (as it
     # will if you create a new repository with only a README on GitHub),
     # ignore the timestamp and pull from the beginning of time. This allows
@@ -302,7 +301,8 @@ def main():
     if len(bm_master.parents) == 0:
         sincetime = 0
     else:
-        sincetime = bm_master.commit_time - 24*60*60
+        # Hard-coded timestamp from a bit before the build-manifests cutover
+        sincetime = 1537015029
 
     # Walk the old-school repository
     btm_repo = checkout(btm_dir, btm_url)
@@ -316,13 +316,18 @@ def main():
         since=sincetime
     )
 
-    # For each new build, create a new commit in new-school repository
+    # For each new sync_gateway build, create a new commit in
+    # new-school repository
     print(f"Processing new builds since timestamp {sincetime}...")
     os.chdir(bm_dir)
     for entry in w:
         manifest = BuildManifest.create(btm_repo, entry)
         if manifest is not None:
-            # sincetime = manifest.commit.commit_time
+            if manifest.product != "sync_gateway":
+                print("Skipping non-sync_gateway build {}".format(
+                    manifest.new_commit_msg()
+                ))
+                continue
             if manifest.new_commit_msg() in bm_builds:
                 print("Skipping already-processed build {}".format(
                     manifest.new_commit_msg()
