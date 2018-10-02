@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 
 """
 Basic program to apply a set of patches from various Gerrit reviews
@@ -9,7 +9,7 @@ IDs (e.g. 94172) once all relevant reviews have been determined
 """
 
 import argparse
-import ConfigParser
+import configparser
 import contextlib
 import logging
 import os
@@ -72,7 +72,7 @@ class ParseCSVs(argparse.Action):
         setattr(namespace, self.dest, results)
 
 
-class GerritChange(object):
+class GerritChange:
     """Encapsulation of relevant information for a given Gerrit review"""
 
     def __init__(self, data):
@@ -99,7 +99,7 @@ class GerritChange(object):
             self.patch_command = fetch_info['ssh']['commands']['Cherry Pick']
 
 
-class GerritPatches(object):
+class GerritPatches:
     """
     Determine all relevant patches to apply to a repo sync based on
     a given set of initial parameters, which can be a set of one of
@@ -163,7 +163,9 @@ class GerritPatches(object):
 
         logger.debug('Querying on change ID {}'.format(change_id))
 
-        return self.query('/changes/?q=status:open+change:{}'.format(change_id))
+        return self.query(
+            '/changes/?q=status:open+change:{}'.format(change_id)
+        )
 
     def get_changes_via_topic_id(self, topic):
         """Find all reviews for a given topic"""
@@ -191,7 +193,7 @@ class GerritPatches(object):
             if not p_review:
                 continue
 
-            p_review_id = p_review.keys()[0]
+            p_review_id = list(p_review.keys())[0]  # Always single element
             reviews.update(p_review)
             reviews.update(self.get_open_parents(p_review[p_review_id]))
 
@@ -235,7 +237,7 @@ class GerritPatches(object):
             review_id = stack.pop()
             reviews = self.get_changes_via_review_id(review_id)
 
-            for new_id, review in reviews.iteritems():
+            for new_id, review in reviews.items():
                 if new_id in self.seen_reviews:
                     continue
 
@@ -308,7 +310,7 @@ def main():
         )
         sys.exit(1)
 
-    gerrit_config = ConfigParser.ConfigParser()
+    gerrit_config = configparser.ConfigParser()
     gerrit_config.read(args.gerrit_config)
 
     if 'main' not in gerrit_config.sections():
@@ -323,7 +325,7 @@ def main():
         gerrit_url = gerrit_config.get('main', 'gerrit_url')
         user = gerrit_config.get('main', 'username')
         passwd = gerrit_config.get('main', 'password')
-    except ConfigParser.NoOptionError:
+    except configparser.NoOptionError:
         logger.error(
             'One of the options is missing from the config file: '
             'gerrit_url, username, password.  Aborting...'
