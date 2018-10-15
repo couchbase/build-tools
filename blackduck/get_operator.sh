@@ -41,3 +41,6 @@ export PATH=${PATH}:${GOPATH}/bin
 echo "Downloading operator dependencies..."
 cd ${WORKSPACE}/src/goproj/src/github.com/couchbase/couchbase-operator
 glide install --strip-vendor
+
+# Ignore couchbase's own source
+rm -rf ${WORKSPACE}/src/goproj/src/github.com/couchbase/couchbase-operator/vendor/github.com/couchbase/gocbmgr
