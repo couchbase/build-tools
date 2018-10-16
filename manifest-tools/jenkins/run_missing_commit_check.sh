@@ -62,7 +62,6 @@ else
     current_manifest=${PRODUCT}/${RELEASE}.xml
 fi
 
-
 echo
 echo "Checking for missing commits in release ${RELEASE}...."
 echo
@@ -81,5 +80,8 @@ for previous_manifest in $(cat previous-manifests.txt); do
             -m merge-projects.txt \
             ${PRODUCT} \
             ${previous_manifest} \
-            ${current_manifest}
+            ${current_manifest} \
+    || failed=1
 done
+
+exit $failed
