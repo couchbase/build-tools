@@ -66,6 +66,7 @@ class ManifestBuilder:
 
         self.manifest = pathlib.Path(args.manifest)
         self.manifest_project = args.manifest_project
+        self.push_manifest_project = args.push_manifest_project
         self.build_manifests_org = args.build_manifests_org
         self.force = args.force
         self.push = not args.no_push
@@ -226,7 +227,7 @@ class ManifestBuilder:
             with pushd(module_projects_dir.parent / 'manifest'):
                 # I have no idea why this call is required, but
                 # 'git diff-index' behaves erratically without it
-                print(run(['git', 'status'], check=True, stdout=PIPE).stdout)
+                run(['git', 'status'], check=True, stdout=PIPE)
 
                 rc = run(['git', 'diff-index', '--quiet', 'HEAD']).returncode
 
@@ -238,7 +239,11 @@ class ManifestBuilder:
                             'git', 'commit', '-am', f'Automated update of '
                             f'{self.product} from submodules'
                         ], check=True)
-                        run(['git', 'push'], check=True)
+                        run([
+                            'git', 'push',
+                             self.push_manifest_project,
+                             'refs/heads/master:refs/heads/master'
+                        ], check=True)
                     else:
                         print('Skipping push of updated input manifest '
                               'due to --no-push')
@@ -623,8 +628,11 @@ def parse_args():
         description='Create new build manifest from input manifest'
     )
     parser.add_argument('--manifest-project', '-p',
-                        default='ssh://review.couchbase.org:29418/manifest.git',
+                        default='git://github.com/couchbase/manifest',
                         help='Alternate Git URL for manifest repository')
+    parser.add_argument('--push-manifest-project',
+                        help='Git repository to push updated input manifests '
+                             '(defaults to same as --manifest-project)')
     parser.add_argument('--build-manifests-org', default='couchbase',
                         help='Alternate GitHub organization for '
                              'build-manifests')
@@ -635,7 +643,11 @@ def parse_args():
                         help='Do not push final build manifest')
     parser.add_argument('manifest', help='Path to input manifest')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.push_manifest_project is None:
+        args.push_manifest_project = args.manifest_project
+
+    return args
 
 
 def main():
