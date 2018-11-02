@@ -114,16 +114,22 @@ class ManifestBuilder:
         input manifest
         """
 
-        for parent in self.manifest.parents:
-            if (parent / 'product-config.json').exists():
-                self.product = parent
-                self.manifest_path = self.manifest.relative_to(parent)
-                break
-        else:
+        path_parts = self.manifest.parts
+        base, rest = path_parts[0], self.manifest.relative_to(path_parts[0])
+
+        if len(path_parts) == 1:
             # For legacy reasons, 'top-level' manifests
             # are couchbase-server
             self.product = 'couchbase-server'
-            self.manifest_path = self.manifest
+            self.manifest_path = base
+        elif base == 'cbdeps':
+            # Handle cbdeps projects specially
+            path_parts = rest.parts
+            self.product = f'cbdeps/{path_parts[0]}'
+            self.manifest_path = rest.relative_to(path_parts[0])
+        else:
+            self.product = base
+            self.manifest_path = rest
 
     @staticmethod
     def update_manifest_repo():
