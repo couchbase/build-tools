@@ -73,7 +73,6 @@ class ManifestBuilder:
 
         self.output_files = dict()
         self.product = None
-        self.manifest_path = None
         self.input_manifest = None
         self.manifests = None
         self.product_config = None
@@ -108,29 +107,6 @@ class ManifestBuilder:
 
             self.output_files[name] = output_file
 
-    def determine_product_info(self):
-        """
-        Determine the product and manifest path from the given
-        input manifest
-        """
-
-        path_parts = self.manifest.parts
-        base, rest = path_parts[0], self.manifest.relative_to(path_parts[0])
-
-        if len(path_parts) == 1:
-            # For legacy reasons, 'top-level' manifests
-            # are couchbase-server
-            self.product = 'couchbase-server'
-            self.manifest_path = base
-        elif base == 'cbdeps':
-            # Handle cbdeps projects specially
-            path_parts = rest.parts
-            self.product = f'cbdeps/{path_parts[0]}'
-            self.manifest_path = rest.relative_to(path_parts[0])
-        else:
-            self.product = base
-            self.manifest_path = rest
-
     @staticmethod
     def update_manifest_repo():
         """
@@ -151,6 +127,20 @@ class ManifestBuilder:
             sys.exit(3)
 
         self.input_manifest = EleTree.parse(self.manifest)
+
+    def determine_product_info(self):
+        """
+        Determine the product from the given input manifest
+        """
+
+        for parent in self.manifest.parents:
+            if (parent / 'product-config.json').exists():
+                self.product = parent
+                break
+        else:
+            # For legacy reasons, 'top-level' manifests
+            # are couchbase-server
+            self.product = 'couchbase-server'
 
     def get_product_and_manifest_config(self):
         """
@@ -203,6 +193,7 @@ class ManifestBuilder:
         with pushd(manifest_dir):
             self.update_manifest_repo()
             self.parse_manifest()
+            self.determine_product_info()
             self.get_product_and_manifest_config()
 
     def update_submodules(self, module_projects):
@@ -601,7 +592,6 @@ class ManifestBuilder:
         """
 
         self.prepare_files()
-        self.determine_product_info()
         self.do_manifest_stuff()
 
         module_projects = self.manifest_config.get('module_projects')
