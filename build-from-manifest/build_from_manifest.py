@@ -135,7 +135,7 @@ class ManifestBuilder:
 
         for parent in self.manifest.parents:
             if (parent / 'product-config.json').exists():
-                self.product = parent
+                self.product = str(parent)
                 break
         else:
             # For legacy reasons, 'top-level' manifests
