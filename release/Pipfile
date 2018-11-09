@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+dulwich = "*"
+pip = "*"
+"cbbuild-0-4-5" = {editable = true, ref = "v0.4.5", subdirectory = "cbbuild", git = "https://github.com/couchbase/python-couchbase-commons"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.6"
