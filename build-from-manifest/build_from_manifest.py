@@ -73,6 +73,7 @@ class ManifestBuilder:
 
         self.output_files = dict()
         self.product = None
+        self.manifest_path = None
         self.input_manifest = None
         self.manifests = None
         self.product_config = None
@@ -135,11 +136,13 @@ class ManifestBuilder:
 
         for parent in self.manifest.parents:
             if (parent / 'product-config.json').exists():
-                self.product = str(parent)
+                self.manifest_path = str(parent)
+                self.product = self.manifest_path.replace('/', '::')
                 break
         else:
             # For legacy reasons, 'top-level' manifests
             # are couchbase-server
+            self.manifest_path = 'couchbase-server'
             self.product = 'couchbase-server'
 
     def get_product_and_manifest_config(self):
@@ -148,7 +151,7 @@ class ManifestBuilder:
         along with the specific manifest information as well
         """
 
-        config_name = pathlib.Path(self.product) / 'product-config.json'
+        config_name = pathlib.Path(self.manifest_path) / 'product-config.json'
 
         try:
             with open(config_name) as fh:
@@ -232,8 +235,8 @@ class ManifestBuilder:
                         ], check=True)
                         run([
                             'git', 'push',
-                             self.push_manifest_project,
-                             'refs/heads/master:refs/heads/master'
+                            self.push_manifest_project,
+                            'refs/heads/master:refs/heads/master'
                         ], check=True)
                     else:
                         print('Skipping push of updated input manifest '
@@ -290,7 +293,7 @@ class ManifestBuilder:
         Perform a repo sync based on the input manifest
         """
 
-        product_dir = pathlib.Path(self.product)
+        product_dir = pathlib.Path(self.manifest_path)
         top_dir = pathlib.Path.cwd()
 
         if not product_dir.is_dir():
@@ -328,7 +331,7 @@ class ManifestBuilder:
             run(['git', 'reset', '--hard', 'origin/master'], check=True)
 
             self.build_manifest_filename = pathlib.Path(
-                f'{self.product}/{self.release}/{self.version}.xml'
+                f'{self.manifest_path}/{self.release}/{self.version}.xml'
             ).resolve()
 
             if self.build_manifest_filename.exists():
@@ -465,7 +468,7 @@ class ManifestBuilder:
                     self.output_files['build-manifest.xml'])
         # Also keep a copy of the build manifest in the tarball
         shutil.copy(self.build_manifest_filename,
-                    pathlib.Path(self.product) / 'manifest.xml')
+                    pathlib.Path(self.manifest_path) / 'manifest.xml')
 
     def create_properties_files(self):
         """
@@ -510,7 +513,7 @@ class ManifestBuilder:
         targz_filename = self.output_files['source.tar.gz']
 
         print(f'Creating {tarball_filename}')
-        product_dir = pathlib.Path(self.product)
+        product_dir = pathlib.Path(self.manifest_path)
 
         with pushd(product_dir):
             with tarfile.open(tarball_filename, 'w') as tar_fh:
@@ -603,7 +606,7 @@ class ManifestBuilder:
         self.perform_repo_sync()
         self.update_bm_repo_and_get_build_num()
 
-        with pushd(self.product):
+        with pushd(self.manifest_path):
             self.generate_changelog()
             commit_msg = self.update_build_manifest_annotations()
 
