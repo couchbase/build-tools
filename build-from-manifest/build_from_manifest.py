@@ -73,7 +73,8 @@ class ManifestBuilder:
 
         self.output_files = dict()
         self.product = None
-        self.manifest_path = None
+        self.product_path = None
+        self.prod_name = None
         self.input_manifest = None
         self.manifests = None
         self.product_config = None
@@ -136,14 +137,16 @@ class ManifestBuilder:
 
         for parent in self.manifest.parents:
             if (parent / 'product-config.json').exists():
-                self.manifest_path = str(parent)
-                self.product = self.manifest_path.replace('/', '::')
+                self.product_path = str(parent)
+                self.product = self.product_path.replace('/', '::')
                 break
         else:
             # For legacy reasons, 'top-level' manifests
             # are couchbase-server
-            self.manifest_path = 'couchbase-server'
+            self.product_path = 'couchbase-server'
             self.product = 'couchbase-server'
+
+        self.prod_name = self.product.split('::')[-1]
 
     def get_product_and_manifest_config(self):
         """
@@ -151,7 +154,7 @@ class ManifestBuilder:
         along with the specific manifest information as well
         """
 
-        config_name = pathlib.Path(self.manifest_path) / 'product-config.json'
+        config_name = pathlib.Path(self.product_path) / 'product-config.json'
 
         try:
             with open(config_name) as fh:
@@ -293,7 +296,7 @@ class ManifestBuilder:
         Perform a repo sync based on the input manifest
         """
 
-        product_dir = pathlib.Path(self.manifest_path)
+        product_dir = pathlib.Path(self.product_path)
         top_dir = pathlib.Path.cwd()
 
         if not product_dir.is_dir():
@@ -331,7 +334,7 @@ class ManifestBuilder:
             run(['git', 'reset', '--hard', 'origin/master'], check=True)
 
             self.build_manifest_filename = pathlib.Path(
-                f'{self.manifest_path}/{self.release}/{self.version}.xml'
+                f'{self.product_path}/{self.release}/{self.version}.xml'
             ).resolve()
 
             if self.build_manifest_filename.exists():
@@ -468,7 +471,7 @@ class ManifestBuilder:
                     self.output_files['build-manifest.xml'])
         # Also keep a copy of the build manifest in the tarball
         shutil.copy(self.build_manifest_filename,
-                    pathlib.Path(self.manifest_path) / 'manifest.xml')
+                    pathlib.Path(self.product_path) / 'manifest.xml')
 
     def create_properties_files(self):
         """
@@ -483,6 +486,8 @@ class ManifestBuilder:
             'PRODUCT_BRANCH': self.product_branch,
             'VERSION': self.version,
             'BLD_NUM': self.build_num,
+            'PROD_NAME': self.prod_name,
+            'PRODUCT_PATH': self.product_path,
             'MANIFEST': str(self.manifest),
             'PARENT': self.parent,
             'TYPE': self.type,
@@ -495,12 +500,19 @@ class ManifestBuilder:
             json.dump(properties, fh, indent=2, separators=(',', ': '))
 
         with open(self.output_files['build.properties'], 'w') as fh:
-            fh.write(f'PRODUCT={self.product}\nRELEASE={self.release}\n'
+            fh.write(f'PRODUCT={self.product}\n'
+                     f'RELEASE={self.release}\n'
                      f'PRODUCT_BRANCH={self.product_branch}\n'
-                     f'VERSION={self.version}\nBLD_NUM={self.build_num}\n'
-                     f'MANIFEST={self.manifest}\nPARENT={self.parent}\n'
-                     f'TYPE={self.type}\nBUILD_JOB={self.build_job}\n'
-                     f'GO_VERSION={self.go_version}\nFORCE={self.force}\n')
+                     f'VERSION={self.version}\n'
+                     f'BLD_NUM={self.build_num}\n'
+                     f'PROD_NAME={self.prod_name}\n'
+                     f'PRODUCT_PATH={self.product_path}\n'
+                     f'MANIFEST={self.manifest}\n'
+                     f'PARENT={self.parent}\n'
+                     f'TYPE={self.type}\n'
+                     f'BUILD_JOB={self.build_job}\n'
+                     f'GO_VERSION={self.go_version}\n'
+                     f'FORCE={self.force}\n')
 
     def create_tarball(self):
         """
@@ -513,7 +525,7 @@ class ManifestBuilder:
         targz_filename = self.output_files['source.tar.gz']
 
         print(f'Creating {tarball_filename}')
-        product_dir = pathlib.Path(self.manifest_path)
+        product_dir = pathlib.Path(self.product_path)
 
         with pushd(product_dir):
             with tarfile.open(tarball_filename, 'w') as tar_fh:
@@ -606,7 +618,7 @@ class ManifestBuilder:
         self.perform_repo_sync()
         self.update_bm_repo_and_get_build_num()
 
-        with pushd(self.manifest_path):
+        with pushd(self.product_path):
             self.generate_changelog()
             commit_msg = self.update_build_manifest_annotations()
 
