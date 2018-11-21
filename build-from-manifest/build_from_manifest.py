@@ -87,6 +87,7 @@ class ManifestBuilder:
         self.parent_branch = None
         self.go_version = None
         self.build_job = None
+        self.platforms = None
         self.build_manifest_filename = None
         self.branch_exists = 0
         self.version = None
@@ -267,6 +268,7 @@ class ManifestBuilder:
         self.product = self.manifest_config.get('product', self.product)
         self.build_job = \
             self.manifest_config.get('jenkins_job', f'{self.product}-build')
+        self.platforms = self.manifest_config.get('platforms', [])
 
     def set_build_parameters(self):
         """
@@ -492,6 +494,7 @@ class ManifestBuilder:
             'PARENT': self.parent,
             'TYPE': self.type,
             'BUILD_JOB': self.build_job,
+            'PLATFORMS': self.platforms,
             'GO_VERSION': self.go_version,
             'FORCE': self.force
         }
@@ -511,6 +514,7 @@ class ManifestBuilder:
                      f'PARENT={self.parent}\n'
                      f'TYPE={self.type}\n'
                      f'BUILD_JOB={self.build_job}\n'
+                     f'PLATFORMS={' '.join(self.platforms)}\n'
                      f'GO_VERSION={self.go_version}\n'
                      f'FORCE={self.force}\n')
 
