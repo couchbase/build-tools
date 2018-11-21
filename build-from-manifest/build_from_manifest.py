@@ -503,6 +503,7 @@ class ManifestBuilder:
             json.dump(properties, fh, indent=2, separators=(',', ': '))
 
         with open(self.output_files['build.properties'], 'w') as fh:
+            plats = ' '.join(self.platforms)
             fh.write(f'PRODUCT={self.product}\n'
                      f'RELEASE={self.release}\n'
                      f'PRODUCT_BRANCH={self.product_branch}\n'
@@ -514,7 +515,7 @@ class ManifestBuilder:
                      f'PARENT={self.parent}\n'
                      f'TYPE={self.type}\n'
                      f'BUILD_JOB={self.build_job}\n'
-                     f'PLATFORMS={' '.join(self.platforms)}\n'
+                     f'PLATFORMS={plats}\n'
                      f'GO_VERSION={self.go_version}\n'
                      f'FORCE={self.force}\n')
 
