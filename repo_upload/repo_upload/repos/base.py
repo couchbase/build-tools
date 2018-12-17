@@ -208,9 +208,6 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         """
 
         release_url = f'{self.releases_url}/{version}'
-        if self.edition == 'community':
-            release_url = f'{release_url}/ce'
-
         print(f'    Fetching {pkg_name} from {release_url}...')
         req = requests.get(f'{release_url}/{pkg_name}', stream=True)
 
