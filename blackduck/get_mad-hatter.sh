@@ -14,8 +14,8 @@ mkdir cbdeps
 cd cbdeps
 git clone git://github.com/couchbasedeps/breakpad -b 20160926-couchbase &
 git clone git://github.com/couchbasedeps/curl -b curl-7_60_0 &
-git clone git://github.com/couchbasedeps/erlang -b OTP-20.3.8.8 &
-git clone git://github.com/couchbasedeps/flatbuffers -b v1.4.0 &
+git clone git://github.com/couchbasedeps/erlang -b OTP-20.3.8.11 &
+git clone git://github.com/couchbasedeps/flatbuffers -b v1.10.0 &
 git clone git://github.com/couchbasedeps/icu4c -b r59.1 &
 git clone git://github.com/couchbasedeps/jemalloc -b stable-4 &
 git clone git://github.com/couchbasedeps/json -b v3.1.2 &
@@ -32,17 +32,17 @@ git clone git://github.com/couchbasedeps/numactl -b v2.0.11 &
 git clone git://github.com/couchbasedeps/rocksdb -b v5.12.5 &
 git clone git://github.com/couchbasedeps/openssl -b OpenSSL_1_0_2k &
 git clone git://github.com/couchbasedeps/zlib -b v1.2.11 &
-wait
-
-for boost in assert config core detail functional intrusive math move mpl optional preprocessor static_assert throw_exception type_index type_traits utility variant
-do
-   git clone git://github.com/couchbasedeps/boost_${boost} -b boost-1.62.0 &
-done
+git clone git://github.com/boostorg/boost -b boost-1.67.0
 wait
 
 # cbdeps-specific pruning
 
 rm -rf erlang/lib/*test*
+
+# extra libs in boost-1.67.0
+for i in asio fusion geometry hana phoenix spirit typeof; do
+    rm -rf boost/libs/$i
+done
 
 # tree-sitter, gyp, ngyp
 rm -rf breakpad/src/tools/gyp
