@@ -29,6 +29,7 @@ else  # Linux
         if [[ $plat =~ .*suse.* ]]; then
             plat="suse"
             osver=${osver/#leap}
+            osver=${osver%%.*}
         fi
     fi
     if [[ -z plat || -z $osver ]]; then
