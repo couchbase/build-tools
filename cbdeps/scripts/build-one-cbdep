@@ -3,11 +3,12 @@
 set -e
 
 PROD_NAME=${PRODUCT#"cbdeps::"}
+PROD_PATH=${PRODUCT//::/\/}
 cd ${WORKSPACE}
 
 env
 echo "Downloading source..."
-curl --retry 5 -LO http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/${PROD_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
+curl --retry 5 -LO http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PROD_PATH}/${VERSION}/${BLD_NUM}/${PROD_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
 
 echo "Extracting source..."
 tar xzf ${PROD_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz

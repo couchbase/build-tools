@@ -1,11 +1,13 @@
 rem Need to extract final part of PRODUCT to get actual product name
 powershell -command "& { ('%PRODUCT%' -split '::')[-1] }" > temp.txt
 set /p PROD_NAME=<temp.txt
+powershell -command "& { '%PRODUCT%' -replace '::','/' }" > temp2.txt
+set /p PROD_PATH=<temp2.txt
 cd %WORKSPACE%
 
 echo "Downloading source..."
 set FILENAME=%PROD_NAME%-%VERSION%-%BLD_NUM%-source.tar.gz
-set SITE=http://latestbuilds.service.couchbase.com/builds/latestbuilds/%PRODUCT%/%VERSION%/%BLD_NUM%/%FILENAME%
+set SITE=http://latestbuilds.service.couchbase.com/builds/latestbuilds/%PROD_PATH%/%VERSION%/%BLD_NUM%/%FILENAME%
 powershell -command "& { (New-Object Net.WebClient).DownloadFile('%SITE%', '%FILENAME%') }" || goto error
 
 echo "Extracting source..."
