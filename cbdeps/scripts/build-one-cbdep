@@ -21,10 +21,18 @@ if [[ $OS == "Darwin" ]]; then
     plat="macos"
     osver=""
 else  # Linux
-    plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
-    osver=$(lsb_release -sr)
-    if [[ $plat != "ubuntu" ]]; then
-        osver=${osver%%.*}
+    plat=""
+    osver=""
+    if [[ -e /etc/os-release ]]; then
+        plat=$(grep "^ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
+        osver=$(grep "^VERSION_ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
+    fi
+    if [[ -z plat || -z $osver ]]; then
+        plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
+        osver=$(lsb_release -sr)
+        if [[ $plat != "ubuntu" ]]; then
+            osver=${osver%%.*}
+        fi
     fi
 fi
 
