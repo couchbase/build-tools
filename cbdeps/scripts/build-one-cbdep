@@ -26,6 +26,10 @@ else  # Linux
     if [[ -e /etc/os-release ]]; then
         plat=$(grep "^ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
         osver=$(grep "^VERSION_ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
+        if [[ $plat =~ .*suse.* ]]; then
+            plat="suse"
+            osver=${osver/#leap}
+        fi
     fi
     if [[ -z plat || -z $osver ]]; then
         plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
