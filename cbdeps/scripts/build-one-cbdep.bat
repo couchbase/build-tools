@@ -1,5 +1,5 @@
 rem Need to extract final part of PRODUCT to get actual product name
-powershell -command "& { ('%PRODUCT%' -split '/')[-1] }" > temp.txt
+powershell -command "& { ('%PRODUCT%' -split '::')[-1] }" > temp.txt
 set /p PROD_NAME=<temp.txt
 cd %WORKSPACE%
 

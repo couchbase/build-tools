@@ -2,7 +2,7 @@
 
 set -e
 
-PROD_NAME=${PRODUCT#"cbdeps/"}
+PROD_NAME=${PRODUCT#"cbdeps::"}
 cd ${WORKSPACE}
 
 env
