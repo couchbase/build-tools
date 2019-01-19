@@ -18,7 +18,7 @@ OS=$(uname -s)
 arch=$(uname -m)
 
 if [[ $OS == "Darwin" ]]; then
-    plat="macos"
+    plat="macosx"
     osver=""
 else  # Linux
     plat=""
