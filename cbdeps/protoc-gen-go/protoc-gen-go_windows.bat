@@ -9,7 +9,7 @@ powershell -command "& { (New-Object Net.WebClient).DownloadFile('%SITE%', '%FIL
 %WORKSPACE%\cbdep.exe install -d "%DEPS%" golang 1.11.5
 
 set GOPATH=%WORKSPACE%
-set PATH=%GOPATH%\go1.11.5\bin;%PATH%
+set PATH=%GOPATH%\deps\go1.11.5\bin;%PATH%
 
 cd protoc-gen-go || goto error
 go build || goto error
