@@ -16,7 +16,7 @@ go build || goto error
 
 rem Copy right stuff to output directory.
 mkdir %INSTALL_DIR%\bin || goto error
-copy protoc-gen-go %INSTALL_DIR%\bin || goto error
+copy protoc-gen-go.exe %INSTALL_DIR%\bin || goto error
 
 goto :eof
 
