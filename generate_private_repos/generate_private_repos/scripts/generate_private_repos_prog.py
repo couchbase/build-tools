@@ -94,7 +94,7 @@ class PrivateReposGen:
         if found_missing_products:
             print(f'\n\n=== Found private repos missing in {self.conf}! ===')
             print(f'    Please add the missing repo(s) in {self.conf} file!')
-            print('\n{)'.format('\n'.join(found_missing_products)))
+            print('\n{}'.format('\n'.join(found_missing_products)))
             print()
             sys.exit(1)
 

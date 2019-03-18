@@ -56,7 +56,7 @@ REQUIREMENTS['install'] = load_requirements('requirements.txt')
 
 setup_args = dict(
     name='generate_private_repos',
-    version='1.0.0',
+    version='1.0.1',
     description='Generate list of private GitHub repos for a given release',
     # long_description = long_description,
     author='Couchbase Build and Release Team',
