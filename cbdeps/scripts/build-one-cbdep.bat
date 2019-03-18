@@ -1,3 +1,5 @@
+setlocal EnableDelayedExpansion
+
 rem Need to extract final part of PRODUCT to get actual product name
 powershell -command "& { ('%PRODUCT%' -split '::')[-1] }" > temp.txt
 set /p PROD_NAME=<temp.txt
@@ -19,7 +21,9 @@ set TARBALL_NAME=%PROD_NAME%-%DISTRO%-%ARCH%-%VERSION%-%BLD_NUM%.tgz
 set MD5_NAME=%PROD_NAME%-%DISTRO%-%ARCH%-%VERSION%-%BLD_NUM%.md5
 
 echo "Performing build..."
-set BASE_DIR=%WORKSPACE%\build-tools\cbdeps
+set "SCRIPT_DIR=%~dp0"
+call :normalizepath "!SCRIPT_DIR!.."
+set "BASE_DIR=!RETVAL!"
 set INSTALL_DIR=%BASE_DIR%\build\%PROD_NAME%\install
 
 mkdir %INSTALL_DIR% || goto error
@@ -53,25 +57,31 @@ if "%DISTRO%" == "windows_msvc2012" (
 
 :do_build
 set target_arch=%ARCH%
-call %WORKSPACE%\cbbuild-tools\cbdeps\win32\environment.bat %tools_version% || goto error
-cd %PROD_NAME%
+call %BASE_DIR%\win32\environment.bat %tools_version% || goto error
+@echo on
+cd %PROD_NAME% || goto error
 call %BASE_DIR%\%PROD_NAME%\%PROD_NAME%_windows.bat %INSTALL_DIR% || goto error
 
 echo "Preparing for packages..."
-cd %WORKSPACE%
+cd %WORKSPACE% || goto error
 xcopy %BASE_DIR%\%PROD_NAME%\package\* %INSTALL_DIR% /s /e /y || goto error
 
 echo "Create package..."
 set PKG_DIR=%WORKSPACE%\packages\%PROD_NAME%\%VERSION%\%BLD_NUM%
 mkdir %PKG_DIR% || goto error
-cd %INSTALL_DIR%
+cd %INSTALL_DIR% || goto error
 cmake -E tar czf %PKG_DIR%\%TARBALL_NAME% . || goto error
-cmake -E md5sum %PKG_DIR%\%TARBALL_NAME% > %PKG_DIR%\%MD5_NAME%
+cmake -E md5sum %PKG_DIR%\%TARBALL_NAME% > %PKG_DIR%\%MD5_NAME% || goto error
 
 goto eof
+
+:normalizepath
+set "RETVAL=%~f1"
+exit /b
 
 :error
 echo Failed with error %ERRORLEVEL%.
 exit /b %ERRORLEVEL%
 
 :eof
+exit /b 0

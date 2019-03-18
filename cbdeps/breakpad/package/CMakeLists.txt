@@ -1,0 +1,3 @@
+IF (NOT WIN32)
+    COPY (bin/minidump-2-core DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+ENDIF (NOT WIN32)
