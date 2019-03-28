@@ -109,6 +109,10 @@ case "$PRODUCT" in
         REL_DIRNAME=couchbase-lite-log
         S3_REL_DIRNAME=couchbase-lite-log
         ;;
+    *cblite)
+        REL_DIRNAME=couchbase-lite-cblite
+        S3_REL_DIRNAME=couchbase-lite-cblite
+        ;;
     couchbase-lite-phonegap)
         S3_REL_DIRNAME=couchbase-lite-phonegap
         ;;
@@ -176,7 +180,7 @@ get_s3_upload_link()
 }
 
 cd ${SRC_DIR}
-FILES=$(ls * | egrep -v 'source|\.xml|\.json|\.properties|\.md5*|\.sha*|test_coverage*|CHANGELOG|changes\.log|unsigned|CBLTestServer|debug|logtest')
+FILES=$(ls * | egrep -v 'source|\.xml|\.json|\.properties|\.md5*|\.sha*|test_coverage*|CHANGELOG|changes\.log|unsigned|CBLTestServer|debug|logtest|litetest')
 TARGET_TMP_DIR=/tmp/${RELEASE}-${BLD_NUM}
 rm -rf ${TARGET_TMP_DIR} && mkdir -p ${TARGET_TMP_DIR}
 
