@@ -38,9 +38,9 @@ else  # Linux
     if [[ -z plat || -z $osver ]]; then
         plat=$(lsb_release -si | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
         osver=$(lsb_release -sr)
-        if [[ $plat != "ubuntu" ]]; then
-            osver=${osver%%.*}
-        fi
+    fi
+    if [[ $plat != "ubuntu" ]]; then
+        osver=${osver%%.*}
     fi
 fi
 
