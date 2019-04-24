@@ -78,8 +78,9 @@ done
 build_cbdep() {
   dep=$1
   tlmsha=$2
+  ver=$3
 
-  if [ -e ${CACHE}/${dep}*.tgz ]
+  if [ -e ${CACHE}/${dep}*${ver}*.tgz ]
   then
     echo "Dependency ${dep} already built..."
     return
@@ -128,21 +129,22 @@ build_cbdep_v2() {
   dep=$1
   ver=$2
 
-  if [ -e ${CACHE}/${dep}*.tgz ]
+  if [ -e ${CACHE}/${dep}*${ver}*.tgz ]
   then
-    echo "Dependency ${dep} already built..."
+    echo "Dependency ${dep}*${ver}*.tgz already built..."
     return
   fi
 
-  heading "Building dependency ${dep}...."
+  heading "Building dependency v2 ${dep} - ${ver} ...."
   cd ${TLMDIR}
+  rm -rf ${TLMDIR}/deps/packages/${dep}
   cp -rf /escrow/deps/${dep} ${TLMDIR}/deps/packages/
 
   # Invoke the actual build script
   pushd ${TLMDIR}/deps/packages/${dep} && \
   export WORKSPACE=`pwd` && \
   export PRODUCT=${dep} && \
-  export VERSION=$(egrep VERSION /home/couchbase/escrow/deps/${dep}/.repo/manifest.xml  | awk '{ for ( n=1; n<=NF; n++ ) if($n ~ "value=") print $n }'  | cut -d'=' -f2  | cut -d'"' -f2) && \
+  export VERSION=$(echo $ver | awk -F'-' '{print $1}') && \
   export BLD_NUM=$(echo $ver | awk -F'-' '{print $2}') && \
   export LOCAL_BUILD=true && \
   build-tools/cbdeps/scripts/build-one-cbdep
@@ -166,9 +168,9 @@ done
 # Build all dependencies. The manifest is named after DOCKER_PLATFORM.
 for dep in $( cat ${ROOT}/deps/dep_manifest_${DOCKER_PLATFORM}.txt )
 do
-  DEPS=$(echo ${dep} | sed 's/:/ /')
+  DEPS=$(echo ${dep} | sed 's/:/ /g')
   heading "Building dependency: ${DEPS}"
-  build_cbdep $(echo ${dep} | sed 's/:/ /')  || exit 1
+  build_cbdep $(echo ${dep} | sed 's/:/ /g')  || exit 1
 done
 
 # Pre-populate openjdk-rt, without this dep will cause apache-hyrack build failure

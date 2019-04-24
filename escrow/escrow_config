@@ -6,15 +6,14 @@ PRODUCT=couchbase-server
 MANIFEST_FILE=couchbase-server/mad-hatter.xml
 
 # Docker images
-IMAGES="couchbasebuild/server-centos7-build:20181228"
-#IMAGES="couchbasebuild/server-amzn2-build:20181228
-#couchbasebuild/server-centos7-build:20181228
-#couchbasebuild/server-debian8-build:20181228
-#couchbasebuild/server-debian9-build:20181228
-#couchbasebuild/server-suse11-build:20180713
-#couchbasebuild/server-suse15-build:20181228
-#couchbasebuild/server-ubuntu16-build:20181228
-#couchbasebuild/server-ubuntu18-build:20181228"
+IMAGES="couchbasebuild/server-amzn2-build:20190310
+couchbasebuild/server-centos7-build:20190310
+couchbasebuild/server-debian8-build:20190310
+couchbasebuild/server-debian9-build:20190310
+couchbasebuild/server-rhel8-build:20190410
+couchbasebuild/server-suse15-build:20190320
+couchbasebuild/server-ubuntu16-build:20190310
+couchbasebuild/server-ubuntu18-build:20190310"
 
 # Go versions
 GOVERS="1.7.6 1.8.3 1.8.5 1.9.6 1.10.3 1.11.4 1.11.5"

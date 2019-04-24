@@ -77,17 +77,27 @@ get_cbdep_git() {
   fi
 }
 
+get_build_manifests_repo() {
+  cd ${ESCROW}
+  rm -rf build-manifests
+  heading "Downloading build-manifests ..."
+  git clone git://github.com/couchbase/build-manifests.git
+
+}
+
 get_cbddeps2_src() {
   local dep=$1
-  local manifest=$2
+  local ver=$2
+  local manifest=$3
+  local sha=$4
 
   cd ${ESCROW}/deps
   if [ ! -d ${dep} ]
   then
     mkdir ${dep}
     cd ${dep}
-    heading "Downloading cbdep2 ${dep} ..."
-    repo init -u git://github.com/couchbase/manifest -g all -m cbdeps/${dep}/${manifest}
+    heading "Downloading cbdep2 ${manifest} at ${sha} ..."
+    repo init -u git://github.com/couchbase/build-manifests -g all -m cbdeps/${manifest} -b ${sha}
     repo sync --jobs=6
   fi
 }
@@ -117,53 +127,64 @@ download_cbdep() {
       -- deps/packages/CMakeLists.txt \
     | awk -F: '{ print $1 }' | head -1
   )
-  echo "tlmsha: cd ${ESCROW}/src/tlm && git grep -c \"_ADD_DEP_PACKAGE(${dep} ${version} .* ${cbnum})\" \
-		git grep -c \"_ADD_DEP_PACKAGE(${dep} ${version} .* ${cbnum})\" \
-		-- deps/packages/CMakeLists.txt \
-		| awk -F: '{ print $1 }' | head -1"
-
   if [ -z "${tlmsha}" ]; then
     echo "ERROR: couldn't find tlm SHA for ${dep} ${version} @${cbnum}@"
     exit 1
   fi
-  echo "${dep}:${tlmsha}" >> ${dep_manifest}
+  echo "${dep}:${tlmsha}:${ver}" >> ${dep_manifest}
 }
 
 # Determine set of cbdeps used by this build, per platform.
 for platform in ${PLATFORMS}
 do
   add_packs=$(
+    grep ${platform} ${ESCROW}/src/tlm/deps/packages/folly/CMakeLists.txt  |grep -v V2 \
+    | awk '{sub(/\(/, "", $2); print $2 ":" $4}';
     grep ${platform} ${ESCROW}/src/tlm/deps/manifest.cmake |grep -v V2 \
     | awk '{sub(/\(/, "", $2); print $2 ":" $4}'
   )
   add_packs_v2=$(
+    grep ${platform} ${ESCROW}/src/tlm/deps/packages/folly/CMakeLists.txt  | grep V2 \
+    | awk '{sub(/\(/, "", $2); print $2 ":" $5 "-" $7}';
     grep ${platform} ${ESCROW}/src/tlm/deps/manifest.cmake | grep V2 \
     | awk '{sub(/\(/, "", $2); print $2 ":" $5 "-" $7}'
   )
-  #folly_extra_deps="gflags glog"
-  gflags_extra_deps="gflags:2.2.1-cb2"
-  add_packs+=$(echo -e "\n${gflags_extra_deps}")
   echo "add_packs: $add_packs"
   echo "add_packs_v2: $add_packs_v2"
 
   # Download and keep a record of all third-party deps
   dep_manifest=${ESCROW}/deps/dep_manifest_${platform}.txt
   dep_v2_manifest=${ESCROW}/deps/dep_v2_manifest_${platform}.txt
+  rm -f ${dep_manifest} ${dep_v2_manifest}
   echo "$add_packs_v2" > ${dep_v2_manifest}
-  rm -f ${dep_manifest}
+
+  # Get cbdeps V2 source first
+  get_build_manifests_repo
+  for add_pack in ${add_packs_v2}
+  do
+    dep=$(echo ${add_pack} | sed 's/:/ /g' | awk '{print $1}') # zlib
+    ver=$(echo ${add_pack} | sed 's/:/ /g' | awk '{print $2}' | sed 's/-/ /' | awk '{print $1}') # 1.2.11
+    bldnum=$(echo ${add_pack} | sed 's/:/ /g' | awk '{print $2}' | sed 's/-/ /' | awk '{print $2}')
+    pushd ${ESCROW}/build-manifests/cbdeps
+    sha=$(git log --pretty=oneline ${dep}/${ver}/${ver}.xml  |grep ${ver}-${bldnum} | awk '{print $1}')
+    get_cbddeps2_src ${dep} ${ver} ${dep}/${ver}/${ver}.xml ${sha}
+  done
+
+  # Get cbdep after V2 source
   for add_pack in ${add_packs}
   do
     download_cbdep $(echo ${add_pack} | sed 's/:/ /g') ${dep_manifest}
   done
 
-  # Get cbdeps V2 source
-  for add_pack in ${add_packs_v2}
-  do
-    get_cbddeps2_src $(echo ${add_pack} | sed 's/:.*/ /g') master.xml
-  done
+  # sort -u to remove redundant cbdeps
+  cat ${dep_manifest} | sort -u > dep_manifest.tmp
+  mv dep_manifest.tmp ${dep_manifest}
+  cat ${dep_v2_manifest} | sort -u > dep_v2_manifest.tmp
+  mv dep_v2_manifest.tmp ${dep_v2_manifest}
 
-  ### Ensure rocksdb and folly built last
-  egrep -v "^rocksdb|^folly" ${dep_manifest} > ${ESCROW}/deps/dep2.txt
+  ### Ensure openssl build first, then rocksdb and folly built last
+  egrep openssl ${dep_manifest} > ${ESCROW}/deps/dep2.txt
+  egrep -v "^rocksdb|^folly" ${dep_manifest} >> ${ESCROW}/deps/dep2.txt
   egrep "^rocksdb|^folly" ${dep_manifest} >> ${ESCROW}/deps/dep2.txt
   mv ${ESCROW}/deps/dep2.txt ${dep_manifest}
 done
