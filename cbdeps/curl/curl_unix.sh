@@ -4,6 +4,7 @@ INSTALL_DIR=$1
 
 # Openssl dependency
 OPENSSL_VER='1.1.1b-cb2'
+CBDEP_TOOL_VERS=0.9.4
 
 # Download openssl via cbdeps tool
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
