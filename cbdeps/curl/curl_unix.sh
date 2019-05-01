@@ -2,6 +2,31 @@
 
 INSTALL_DIR=$1
 
+# Openssl dependency
+OPENSSL_VER='1.1.1b-cb2'
+
+# Download openssl via cbdeps tool
+CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
+DEPS=${WORKSPACE}/deps
+WITH_OPENSSL_OPTION="--with-ssl=${DEPS}/openssl-${OPENSSL_VER}"
+
+CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
+
+if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
+    if [ $(uname -s) = "Darwin" ]; then
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-darwin
+    else
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
+    fi
+    curl -o /tmp/cbdep ${CBDEP_URL}
+else
+   cp ${CBDEP_BIN_CACHE} /tmp/cbdep
+fi
+
+chmod +x /tmp/cbdep
+/tmp/cbdep install -d "${DEPS}" openssl ${OPENSSL_VERS}
+
+# Build
 if [[ $(uname -s) != "Darwin" ]]; then
     export LDFLAGS="-Wl,-rpath,'\$\$ORIGIN/../lib'"
 fi
@@ -15,7 +40,8 @@ autoreconf -i
             --disable-curldebug \
             --enable-shared \
             --disable-static \
-            --without-libssh2
+            --without-libssh2 \
+            ${WITH_SSL_OPTION}
 make all
 make install
 
