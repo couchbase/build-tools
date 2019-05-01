@@ -9,7 +9,7 @@ CBDEP_TOOL_VERS=0.9.5
 # Download openssl via cbdeps tool
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
 DEPS=${WORKSPACE}/deps
-WITH_SSL_OPTION="--with-ssl=${DEPS}/openssl-${OPENSSL_VER}"
+WITH_SSL_OPTION="--with-ssl=${DEPS}/openssl-${OPENSSL_VERS}"
 
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
 
