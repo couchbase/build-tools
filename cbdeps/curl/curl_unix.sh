@@ -11,8 +11,6 @@ CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CB
 DEPS=${WORKSPACE}/deps
 WITH_SSL_OPTION="--with-ssl=${DEPS}/openssl-${OPENSSL_VERS}"
 
-CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
-
 if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
     if [ $(uname -s) = "Darwin" ]; then
         CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-darwin
@@ -24,8 +22,15 @@ else
    cp ${CBDEP_BIN_CACHE} /tmp/cbdep
 fi
 
-chmod +x /tmp/cbdep
-/tmp/cbdep install -d "${DEPS}" openssl ${OPENSSL_VERS}
+# Support escrow automation
+CBDEP_OPENSSL_CACHE=/home/couchbase/.cbdepscache/openssl*-${OPENSSL_VERS}.tgz
+if [[ ${LOCAL_BUILD} && "-f ${CBDEP_OPENSSL_CACHE}" ]]; then
+    mkdir -p ${DEPS}/openssl-${OPENSSL_VERS}
+    tar xzf ${HOME}/.cbdepscache/openssl*-${OPENSSL_VERS}.tgz -C ${DEPS}/openssl-${OPENSSL_VERS}
+else
+    chmod +x /tmp/cbdep
+    /tmp/cbdep install -d "${DEPS}" openssl ${OPENSSL_VERS}
+fi
 
 # Build
 if [[ $(uname -s) != "Darwin" ]]; then
