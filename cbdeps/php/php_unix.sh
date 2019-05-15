@@ -7,7 +7,7 @@ INSTALL_DIR=$1
 PHPVER=$2
 BLD_NUM=$3
 
-IGBINARY_VER=2.0.1
+IGBINARY_VER=2.0.8
 
 DLDIR=build/dl
 mkdir -p $DLDIR
@@ -30,20 +30,16 @@ build_php() {
     if [ "$VARIANT" = 'zts' ]; then
       ZTSARG='--enable-maintainer-zts'
     fi
-    case "$PHPVER" in
-      5.6*)
-        patch < $MYDIR/patches/php-5.6-fix-config-nice-generator.patch
-      ;;
-    esac
 
     PREFIX=$INSTALL_DIR/$OUTDIR
     mkdir -p $PREFIX
-    ./configure --disable-all --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3 $CFLAGS" && make -j8 && make install
+    ./configure --disable-all --enable-sockets --enable-pcntl --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3
+    $CFLAGS" && make -j8 && make install install-sapi install-headers
     (
       cd igbinary-${IGBINARY_VER}
       $PREFIX/bin/phpize
       ./configure --with-php-config=$PREFIX/bin/php-config $($PREFIX/bin/php-config --configure-options) --enable-igbinary CFLAGS="-ggdb3 $CFLAGS"
-      make -j4 && make install
+      make -j4 && make install install-sapi install-headers
     )
 
     popd
@@ -53,7 +49,7 @@ build_php_variant() {
 
     PHPVER=$1
     VARIANT=$2
-    OUTDIR=php-$PHPVER-$VARIANT-x64
+    OUTDIR=php-$VARIANT-$PHPVER-cb$BLD_NUM
 
     echo "Installing $VARIANT"
     if [ ! -e $SRCDIR/$OUTDIR ]; then
@@ -74,6 +70,12 @@ build_php_variant() {
     if [ ! -e $INSTALL_DIR/$OUTDIR/phpunit.phar ]; then
       cp $DLDIR/php-phpunit.phar $INSTALL_DIR/$OUTDIR/phpunit.phar
     fi
+
+    # QQQ This step should be removed when this is integrated with cbdeps 2.0 system
+    echo "Creating cbdep archive"
+    FILEROOT=php-$VARIANT-linux-x86_64-$PHPVER-cb$BLD_NUM
+    tar czf $FILEROOT.tgz -C $INSTALL_DIR $OUTDIR
+    md5sum $FILEROOT.tgz | cut -c -32 > $FILEROOT.md5
 }
 
 echo "Downloading PHP $PHPVER"
@@ -83,10 +85,3 @@ echo "Downloading PHP $PHPVER"
 
 build_php_variant $PHPVER zts
 build_php_variant $PHPVER nts
-
-# QQQ This step should be removed when this is integrated with cbdeps 2.0 system
-echo "Creating cbdep archive"
-cd $INSTALL_DIR
-FILEROOT=php-linux-x86_64-$PHPVER-cb$BLD_NUM
-tar czf $FILEROOT.tgz *
-md5sum $FILEROOT.tgz | cut -c -32 > $FILEROOT.md5

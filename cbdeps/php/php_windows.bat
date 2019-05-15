@@ -9,7 +9,7 @@ set BLD_NUM=%3
 
 rem Check out the PHP Windows SDK from our fork
 rem php-sdk-2.1.9 was the newest tag as of Dec. 13 2018
-git clone git://github.com/couchbasedeps/php-sdk-binary-tools -b php-sdk-2.1.9 || goto :error
+git clone git://github.com/couchbasedeps/php-sdk-binary-tools -b php-sdk-2.1.10 || goto :error
 
 mkdir work
 
@@ -28,7 +28,7 @@ echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @echo on
 call %CURDIR%\php-sdk-binary-tools\phpsdk-starter.bat -c %VC% -a x64 ^
   -t %SCRIPTDIR%\windows_php_build_variant.bat ^
-  --task-args "%PHPVER% zts 1 %CURDIR%\work %INSTALL_DIR%" || goto :error
+  --task-args "%PHPVER% %BLD_NUM% zts 1 %CURDIR%\work %INSTALL_DIR%" || goto :error
 
 echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 echo Building PHP %PHPVER% zts without igbinary
@@ -36,7 +36,7 @@ echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @echo on
 call %CURDIR%\php-sdk-binary-tools\phpsdk-starter.bat -c %VC% -a x64 ^
   -t %SCRIPTDIR%\windows_php_build_variant.bat ^
-  --task-args "%PHPVER% zts 0 %CURDIR%\work %INSTALL_DIR%" || goto :error
+  --task-args "%PHPVER% %BLD_NUM% zts 0 %CURDIR%\work %INSTALL_DIR%" || goto :error
 
 echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 echo Building PHP %PHPVER% nts with igbinary
@@ -44,7 +44,7 @@ echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @echo on
 call %CURDIR%\php-sdk-binary-tools\phpsdk-starter.bat -c %VC% -a x64 ^
   -t %SCRIPTDIR%\windows_php_build_variant.bat ^
-  --task-args "%PHPVER% nts 1 %CURDIR%\work %INSTALL_DIR%" || goto :error
+  --task-args "%PHPVER% %BLD_NUM% nts 1 %CURDIR%\work %INSTALL_DIR%" || goto :error
 
 echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 echo Building PHP %PHPVER% zts without igbinary
@@ -52,14 +52,9 @@ echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @echo on
 call %CURDIR%\php-sdk-binary-tools\phpsdk-starter.bat -c %VC% -a x64 ^
   -t %SCRIPTDIR%\windows_php_build_variant.bat ^
-  --task-args "%PHPVER% nts 0 %CURDIR%\work %INSTALL_DIR%" || goto :error
+  --task-args "%PHPVER% %BLD_NUM% nts 0 %CURDIR%\work %INSTALL_DIR%" || goto :error
 
-echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-echo Packaging
-echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@echo on
-cd %INSTALL_DIR%
-cmake -E tar czf %CURDIR%\php-windows-x86_64-%PHPVER%-cb%BLD_NUM%.tgz . || goto :error
+move %INSTALL_DIR%\*.tgz %CURDIR%
 
 :eof
 exit /b 0
