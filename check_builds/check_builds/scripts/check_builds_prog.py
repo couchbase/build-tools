@@ -49,9 +49,9 @@ def generate_filelist(product, release, version, build_num, conf_data):
         try:
             rel_data = pkg_data['release'][release]
         except KeyError:
-            print(f"Release {release} of package {pkg_name} for product "
-                  f"{product} doesn't exist in configuration file")
-            sys.exit(1)
+            print(f"Package '{pkg_name}' doesn't exist in configuration file "
+                  f"for release '{release}'' of product '{product}'; ignoring...")
+            continue
 
         # Find all the keys with lists as values
         params = [x for x in rel_data if isinstance(rel_data[x], list)]
