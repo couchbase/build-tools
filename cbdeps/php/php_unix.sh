@@ -33,7 +33,8 @@ build_php() {
 
     PREFIX=$INSTALL_DIR/$OUTDIR
     mkdir -p $PREFIX
-    ./configure --disable-all --enable-sockets --enable-pcntl --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3
+    # depends on zlib, libxml2
+    ./configure --disable-all --with-zlib --enable-libxml --enable-xml --with-pear --enable-sockets --enable-pcntl --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3
     $CFLAGS" && make -j8 && make install install-sapi install-headers
     (
       cd igbinary-${IGBINARY_VER}
