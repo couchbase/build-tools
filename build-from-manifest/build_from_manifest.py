@@ -366,7 +366,8 @@ class ManifestBuilder:
             # Strip out non-project lines as well as testrunner project
             lines = [x for x in output.splitlines()
                      if not (x.startswith(b' ')
-                             or x.startswith(b'C testrunner'))]
+                         or x.startswith(b'C testrunner')
+                         or x.startswith(b'C mobile-testkit'))]
 
             if not lines:
                 if not self.force:
