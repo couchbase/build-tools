@@ -97,9 +97,6 @@ case "$PRODUCT" in
     *java)
         S3_REL_DIRNAME=couchbase-lite/java
         ;;
-    couchbase-lite-phonegap)
-        S3_REL_DIRNAME=couchbase-lite-phonegap
-        ;;
     *net)
         REL_DIRNAME=couchbase-lite-net
         if [[ ${RELEASE} == 1.* ]]; then
@@ -107,6 +104,17 @@ case "$PRODUCT" in
         else
             S3_REL_DIRNAME=couchbase-lite-net
         fi
+        ;;
+    *log)
+        REL_DIRNAME=couchbase-lite-log
+        S3_REL_DIRNAME=couchbase-lite-log
+        ;;
+    *cblite)
+        REL_DIRNAME=couchbase-lite-cblite
+        S3_REL_DIRNAME=couchbase-lite-cblite
+        ;;
+    couchbase-lite-phonegap)
+        S3_REL_DIRNAME=couchbase-lite-phonegap
         ;;
     *)
         echo "Unsupported Product!"
@@ -168,11 +176,11 @@ trap finish EXIT
 
 get_s3_upload_link()
 {
-    s3cmd ls -c $S3CONFIG ${S3_DIR}/ | egrep -v  'TestServer' | cut -c 30- | sed -e 's/s3:/https:/'
+    s3cmd ls -c $S3CONFIG ${S3_DIR}/  | cut -c 30- | sed -e 's/s3:/https:/'
 }
 
 cd ${SRC_DIR}
-FILES=$(find * -maxdepth 0 -type f | egrep -v 'source|\.xml|\.json|\.properties|\.md5*|\.sha*|test_coverage*|CHANGELOG|changes\.log|unsigned|debug|NEW')
+FILES=$(ls * | egrep -v 'source|\.xml|\.json|\.properties|\.md5*|\.sha*|test_coverage*|CHANGELOG|changes\.log|unsigned|CBLTestServer|debug|logtest|litetest')
 TARGET_TMP_DIR=/tmp/${RELEASE}-${BLD_NUM}
 rm -rf ${TARGET_TMP_DIR} && mkdir -p ${TARGET_TMP_DIR}
 
