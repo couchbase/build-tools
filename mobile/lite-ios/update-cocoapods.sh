@@ -17,6 +17,8 @@ gem which cocoapods
 # Checkout required repo
 cd ${WORKSPACE} && git clone git@github.com:couchbaselabs/couchbase-lite-ios-ee.git couchbase-lite-ios-ee
 
+pod install
+
 cd ${WORKSPACE}/couchbase-lite-ios-ee/Podspecs
 declare -a JSON_FILES=( $(ls) )
 for fl in "${JSON_FILES[@]}"; do
