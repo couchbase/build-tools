@@ -17,6 +17,7 @@ gem which cocoapods
 # Checkout required repo
 cd ${WORKSPACE} && git clone git@github.com:couchbaselabs/couchbase-lite-ios-ee.git couchbase-lite-ios-ee
 
+# to create/initialize the CDN repo
 pod install
 
 cd ${WORKSPACE}/couchbase-lite-ios-ee/Podspecs
