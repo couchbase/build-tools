@@ -3,7 +3,7 @@
 INSTALL_DIR=$1
 
 # Openssl dependency
-OPENSSL_VERS=1.1.1b-cb2
+OPENSSL_VERS=1.1.1d-cb1
 CBDEP_TOOL_VERS=0.9.5
 
 # Download openssl via cbdeps tool
