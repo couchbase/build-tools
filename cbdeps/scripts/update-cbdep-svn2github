@@ -1,0 +1,30 @@
+#!/bin/bash -xe
+
+# This is a pretty hacky script to update a repository originally
+# hosted in svn and ported to github using svn2github - primarily
+# pcre. It is intended primarily for this Jenkins job:
+# http://server.jenkins.couchbase.com/job/update-couchbasedep
+# It depends on svn and git-svn being installed, and will attempt
+# to install them itself if necessary (presumed Ubuntu).
+
+PROJECT=$1
+
+# Check for our prerequisites, install if necessary
+type -P svn > /dev/null 2>&1 || {
+    sudo apt-get update
+    sudo apt-get install -y subversion
+}
+git --help svn > /dev/null 2>&1 || {
+    sudo apt-get update
+    sudo apt-get install -y git-svn
+}
+
+if [ ! -e svn2github ]; then
+    git clone git://github.com/gabrys/svn2github
+fi
+
+python3 svn2github/svn2github.py update couchbasedeps/${PROJECT}
+
+echo "Done"
+echo "Note: svn2github does not seem to create tags, so"
+echo "check to see if you need to create any new ones."
