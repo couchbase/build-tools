@@ -1,15 +1,16 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 INSTALL_DIR=$1
 
 # Openssl dependency
-OPENSSL_VERS=1.1.1d-cb1
-CBDEP_TOOL_VERS=0.9.5
+OPENSSL_VER=1.1.1d-cb1
+CBDEP_TOOL_VERS=0.9.9
 
 # Download openssl via cbdeps tool
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
-DEPS=${WORKSPACE}/deps
-WITH_SSL_OPTION="--with-ssl=${DEPS}/openssl-${OPENSSL_VERS}"
+DEPSDIR=${WORKSPACE}/deps
+rm -rf ${DEPSDIR}
+OPENSSLDIR=${DEPSDIR}/openssl-${OPENSSL_VER}
 
 if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
     if [ $(uname -s) = "Darwin" ]; then
@@ -23,19 +24,25 @@ else
 fi
 
 # Support escrow automation
-CBDEP_OPENSSL_CACHE=/home/couchbase/.cbdepscache/openssl*-${OPENSSL_VERS}.tgz
-if [[ ${LOCAL_BUILD} && "-f ${CBDEP_OPENSSL_CACHE}" ]]; then
-    mkdir -p ${DEPS}/openssl-${OPENSSL_VERS}
-    tar xzf ${HOME}/.cbdepscache/openssl*-${OPENSSL_VERS}.tgz -C ${DEPS}/openssl-${OPENSSL_VERS}
+CBDEP_OPENSSL_CACHE=/home/couchbase/.cbdepscache/openssl*-${OPENSSL_VER}.tgz
+if [[ ! -z "${LOCAL_BUILD}" && -f ${CBDEP_OPENSSL_CACHE} ]]; then
+    mkdir -p ${OPENSSLDIR}
+    tar xzf ${HOME}/.cbdepscache/openssl*-${OPENSSL_VER}.tgz -C ${OPENSSLDIR}
 else
     chmod +x /tmp/cbdep
-    /tmp/cbdep install -d "${DEPS}" openssl ${OPENSSL_VERS}
+    /tmp/cbdep install -d "${DEPSDIR}" openssl ${OPENSSL_VER}
 fi
+
+rm -rf ${OPENSSLDIR}/lib/pkgconfig
 
 # Build
 if [[ $(uname -s) != "Darwin" ]]; then
     export LDFLAGS="-Wl,-rpath,'\$\$ORIGIN/../lib'"
+    export LD_LIBRARY_PATH="${OPENSSLDIR}"/lib
+    export CPPFLAGS="-I${OPENSSLDIR}/include"
 fi
+export LDFLAGS="${LDFLAGS} -L${OPENSSLDIR}/lib"
+export CPPFLAGS="-I${OPENSSLDIR}/include"
 
 autoreconf -i
 ./configure --prefix=${INSTALL_DIR} \
@@ -47,7 +54,7 @@ autoreconf -i
             --enable-shared \
             --disable-static \
             --without-libssh2 \
-            ${WITH_SSL_OPTION}
+            --with-ssl
 make all
 make install
 
