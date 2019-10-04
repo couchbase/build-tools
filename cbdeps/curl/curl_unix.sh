@@ -54,7 +54,7 @@ autoreconf -i
             --enable-shared \
             --disable-static \
             --without-libssh2 \
-            --with-ssl
+            --with-ssl=${OPENSSLDIR}
 make all
 make install
 

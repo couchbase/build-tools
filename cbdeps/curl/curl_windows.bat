@@ -1,10 +1,10 @@
 set INSTALL_DIR=%1
 
 set OUTPUT_DIR=builds\libcurl-vc15-x64-release-dll-ipv6-sspi-winssl
-set OBJLIB_DIR=%OUTPUT_DIR%-obj-lib
 
-mkdir %OBJLIB_DIR%\vauth
-mkdir %OBJLIB_DIR%\vtls
+rem Fix that wasn't in 7.66.0 - probably needs to be removed
+rem when building later versions
+git cherry-pick a765a305
 
 call .\buildconf.bat || goto error
 cd winbuild
