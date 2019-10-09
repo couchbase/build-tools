@@ -173,6 +173,12 @@ class MissingCommits:
             print(f'The "repo init" command failed: {exc.output}')
             sys.exit(1)
 
+        # From now on, use the "repo" wrapper from the .repo directory,
+        # to prevent "A new version is available" warning messages.
+        # This assumes that all "repo" commands will be invoked with
+        # cwd=self.product_dir, so this relative path will work.
+        self.repo_bin = os.path.join(".repo", "repo", "repo")
+
         try:
             subprocess.check_output(
                 [self.repo_bin, 'sync', '--jobs=6', '--force-sync'],
