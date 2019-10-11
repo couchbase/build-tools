@@ -108,7 +108,7 @@ git commit --allow-empty -m "${VERB} branch ${BRANCH} for Docker Hub autobuild"
 git push origin ${BRANCH}:refs/heads/${BRANCH}
 if [ "${UPDATE_EDITION}" = "true" ]; then
     git push --force origin ${BRANCH}:refs/heads/${PRODUCT}-${EDITION}
-    if [ "$EDITION" = "enterprise"; then
+    if [ "$EDITION" = "enterprise" ]; then
         git push --force origin ${BRANCH}:refs/heads/${PRODUCT}-latest
     fi
 fi
