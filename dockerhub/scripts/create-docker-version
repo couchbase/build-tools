@@ -31,7 +31,7 @@ while getopts ":p:v:e:ur:" opt; do
       EDITION=${OPTARG}
       ;;
     u)
-      UPDATE_EDITION=1
+      UPDATE_EDITION=true
       ;;
     \?)
       usage
