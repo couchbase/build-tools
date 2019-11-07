@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import string
+import urllib.request
+
+from subprocess import check_call
+
+# Parse command line
+parser = argparse.ArgumentParser(
+    description='Run Synopsis Detect scanner for Black Duck'
+)
+parser.add_argument('--config', '-c',
+                    help='Config JSON file containing Detect options')
+parser.add_argument('--token', '-t', required=True,
+                    help='File containing Hub API token')
+parser.add_argument('--pdf', action='store_true',
+                    help='Generate PDF of results')
+parser.add_argument('--dry-run', '-n', action='store_true',
+                    help="Dry run (do not upload scan to Hub)")
+args = parser.parse_args()
+
+# Read input config files
+with open(args.token, "r") as t:
+    token = t.read().rstrip()
+if args.config is not None:
+    with open(args.config, "r") as c:
+        config = json.load(c)
+else:
+    config = { "detect_opts": {} }
+
+# Download latest detect script
+url = 'https://detect.synopsys.com/detect.sh'
+urllib.request.urlretrieve(url, '/tmp/detect.sh')
+os.chmod('/tmp/detect.sh', 0o755)
+
+# Start with default properties, then update with config-file-provided
+# ones; this allows config file to override defaults
+properties = {
+    "blackduck.api.token": token,
+    "blackduck.url": "https://blackduck.build.couchbase.com/",
+    "blackduck.trust.cert": "true",
+    "detect.project.name": "${PRODUCT}",
+    "detect.project.version.name": "${VERSION}",
+    "detect.code.location.name": "${PRODUCT}/${VERSION}",
+    "detect.source.path": "${WORKSPACE}/src/",
+    "detect.blackduck.signature.scanner.memory": 10240,
+    "detect.report.timeout": 3600,
+}
+if args.dry_run:
+    properties["detect.blackduck.signature.scanner.dry.run"] = "true"
+if args.pdf:
+    properties["detect.risk.report.pdf"] = "true"
+
+properties.update(config["detect_opts"])
+
+# Construct command line by translating properties to args
+detect_args = [
+    "/tmp/detect.sh"
+]
+for prop, value in properties.items():
+    detect_args.append(
+        "--" + prop + "=" + string.Template(str(value)).safe_substitute(os.environ)
+    )
+
+check_call(detect_args)
