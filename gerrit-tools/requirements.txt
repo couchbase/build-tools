@@ -1,2 +1,2 @@
 pygerrit2==2.0.6
-requests==2.20.0
+requests==2.22.0
