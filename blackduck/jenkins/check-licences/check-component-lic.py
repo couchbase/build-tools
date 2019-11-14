@@ -19,6 +19,8 @@ logger = logging.getLogger('blackduck/check-component-lic')
 logger.setLevel(logging.DEBUG)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
+ch = logging.StreamHandler()
+logger.addHandler(ch)
 
 class ComponentLicenseChecker:
     def __init__(self, product, version, cred_file, report_dir):
