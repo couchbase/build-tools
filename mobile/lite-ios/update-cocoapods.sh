@@ -11,7 +11,7 @@ source ./COCOAPODS/bin/activate  || exit 1
 
 # Install required cocoapods
 sudo gem uninstall --all cocoapods
-sudo gem install cocoapods -v 1.7.5
+sudo gem install cocoapods -v 1.8.4
 export GEM_HOME=$HOME/.gem
 gem which cocoapods
 
