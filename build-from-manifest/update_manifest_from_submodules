@@ -34,8 +34,15 @@ class UpdateManifest:
         self.root = None
         self.remotes = None
         self.projects = None
+        self.default_revision = "master"
 
         self.sha_re = re.compile(r"[a-f0-9]{40}")
+
+    def get_default(self):
+        """Acquires the default value for revision"""
+
+        for default in self.tree.findall('default'):
+            self.default_revision = default.get('revision')
 
     def get_remotes(self):
         """Acquire the Git remotes for the repositories"""
@@ -99,6 +106,7 @@ class UpdateManifest:
         self.tree = etree.ElementTree(self.data)
         self.root = self.tree.getroot()
 
+        self.get_default()
         self.get_remotes()
         self.get_projects()
 
@@ -141,6 +149,8 @@ class UpdateManifest:
             )
 
             revision = self.projects[repo_name]['revision']
+            if revision is None:
+                revision = self.default_revision
             print(
                 'Checking out revision {} in {}'.format(revision, repo_name)
             )
@@ -220,10 +230,13 @@ class UpdateManifest:
                       'aborting...'.format(self.repos[0], path))
                 sys.exit(1)
             project = project[0]
+
             # Only update manifest elements that are currently locked to SHAs
-            if self.sha_re.match(project.get('revision')) is not None:
-                curr_rev = project.get('revision')
-                if curr_rev != revision:
+            project_revision = project.get('revision')
+            if project_revision is None:
+                project_revision = self.default_revision
+            if self.sha_re.match(project_revision) is not None:
+                if project_revision != revision:
                     print('UPDATING {} from {} to {}!'.format(
                         project.get('name'), curr_rev, revision
                     ))
