@@ -238,7 +238,7 @@ class UpdateManifest:
             if self.sha_re.match(project_revision) is not None:
                 if project_revision != revision:
                     print('UPDATING {} from {} to {}!'.format(
-                        project.get('name'), curr_rev, revision
+                        project.get('name'), project_revision, revision
                     ))
                 project.set('revision', revision)
             elif project.get('name') not in self.repos:
