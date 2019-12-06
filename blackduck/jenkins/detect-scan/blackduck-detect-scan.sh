@@ -61,15 +61,22 @@ if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/get_additional_source.sh"
   "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/get_additional_source.sh" ${RELEASE}
 fi
 
+# Product-specific script for pruning unwanted sources
 if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ]; then
   "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ${RELEASE}
+fi
+
+# Product-specific config for Synopsis Detect
+if [ -e "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json" ]; then
+  CONFIG_ARG="-c ${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json"
 fi
 
 # Invoke scan script
 if [ "x${DRY_RUN}" = "xtrue" ]; then
   export DRY_RUN_ARG="-n"
 fi
-"${WORKSPACE}/build-tools/blackduck/jenkins/run-scanner" \
+"${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan/run-scanner" \
   ${DRY_RUN_ARG} \
+  ${CONFIG_ARG} \
   --token ~/.ssh/blackduck-token.txt \
   --pdf

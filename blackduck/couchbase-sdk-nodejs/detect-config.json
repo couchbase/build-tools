@@ -1,0 +1,7 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.npm.include.dev.dependencies": "false"
+    }
+}

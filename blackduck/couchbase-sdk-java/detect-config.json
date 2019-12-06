@@ -1,0 +1,9 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.maven.excluded.modules": "test-utils,java-examples",
+        "detect.maven.included.scopes": "compile,runtime"
+    }
+}
