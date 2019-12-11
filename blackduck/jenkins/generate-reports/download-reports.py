@@ -65,8 +65,8 @@ class ReportsDownloader:
             logger.debug(f"Writing {report_name} to {self.tmp_zip}")
             with self.tmp_zip.open("wb") as f:
                 f.write(response.content)
-                self.unpack_report(report_name)
-                return
+            self.unpack_report(report_name)
+            return
 
         raise Exception(f"Failed to retrieve {report_name} {report_id} after many retries!")
 
