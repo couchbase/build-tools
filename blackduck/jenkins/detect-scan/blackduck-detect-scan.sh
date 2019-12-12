@@ -52,14 +52,14 @@ if [ "${status}" = "200" ]; then
         http://dbapi.build.couchbase.com:8000/v1/${DBAPI_PATH}/metadata
 fi
 
-# May need to override this per-product?
-find . -name .git -print0 | xargs -0 rm -rf
-find . -name .repo -print0 | xargs -0 rm -rf
-
 # Product-specific script for getting additional sources
 if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/get_additional_source.sh" ]; then
   "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/get_additional_source.sh" ${RELEASE}
 fi
+
+# May need to override this per-product?
+find . -name .git -print0 | xargs -0 rm -rf
+find . -name .repo -print0 | xargs -0 rm -rf
 
 # Product-specific script for pruning unwanted sources
 if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ]; then

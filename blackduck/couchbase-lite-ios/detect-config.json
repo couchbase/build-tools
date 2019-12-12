@@ -1,0 +1,7 @@
+{
+    "detect_opts": {
+        "detect.source.path":"${WORKSPACE}/src/couchbase-lite-ios-ee",
+	"logging.level.com.synopsys.integration": "DEBUG",
+        "detect.detector.search.depth": 9
+    }
+}
