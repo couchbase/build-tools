@@ -1,0 +1,8 @@
+{
+    "detect_opts": {
+        "detect.excluded.detector.types": "MAVEN,NUGET",
+        "detect.detector.search.depth": 9,
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN"
+    }
+}
