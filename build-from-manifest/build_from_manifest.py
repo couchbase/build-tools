@@ -23,6 +23,8 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import PIPE, run
 from typing import Union
+from Manifest import Manifest
+from Git import Git
 
 
 # Context manager for handling a given set of code/commands
@@ -203,51 +205,56 @@ class ManifestBuilder:
             self.determine_product_info()
             self.get_product_and_manifest_config()
 
-    def update_submodules(self, module_projects):
+    def get_project_path(self, project):
+        """
+        Returns the full path to the given project in the repo sync
+        """
+
+        project_element = self.input_manifest.find(
+            f'./project[@name="{project}"]'
+        )
+        project_path = project_element.attrib.get('path', project)
+        return f'{self.product_path}/{project_path}'
+
+    def update_submodules(self):
         """
         Update all existing submodules for given repo sync
         """
 
-        module_projects_dir = pathlib.Path('module_projects').resolve()
-
-        if not module_projects_dir.exists():
-            module_projects_dir.mkdir()
-
-        with pushd(module_projects_dir):
-            print('"module_projects" is set, updating manifest...')
-            # The following really should be importable as a module
-            run(
-                [f'{script_dir}/update_manifest_from_submodules',
-                 f'../manifest/{self.manifest}']
-                + module_projects, check=True
+        module_projects = self.manifest_config.get('module_projects', [])
+        module_project_shas = {}
+        for project in module_projects:
+            # Need to remember the SHA as specified in the input
+            # manifest, just in case the project is itself the submodule
+            # of another project.
+            # Note: This will potentially fail if there's more than one
+            # project with the same name, so don't do that.
+            print(f"Remembering module project {project}")
+            module_project_shas[project] = Git.get_sha(
+                self.get_project_path(project)
             )
 
-            with pushd(module_projects_dir.parent / 'manifest'):
-                # I have no idea why this call is required, but
-                # 'git diff-index' behaves erratically without it
-                run(['git', 'status'], check=True, stdout=PIPE)
+        for project in module_projects:
+            full_project_path = self.get_project_path(project)
+            print(f"Resetting module project {project}")
+            Git.checkout_branch(
+                full_project_path,
+                module_project_shas[project]
+            )
+            Git.update_submodules(full_project_path)
 
-                rc = run(['git', 'diff-index', '--quiet', 'HEAD']).returncode
+    def update_build_manifest(self):
+        """
+        Walks the source directory tree and finds any git directories
+        that are not mentioned in the build manifest, and adds new
+        entries to the build manifes for each (possibly adding new
+        remote entries as well)
+        """
 
-                if rc:
-                    if self.push:
-                        print(f'Pushing updated input manifest upstream... '
-                              f'return code was {rc}')
-                        run([
-                            'git', 'commit', '-am', f'Automated update of '
-                            f'{self.product} from submodules'
-                        ], check=True)
-                        run([
-                            'git', 'push',
-                            self.push_manifest_project,
-                            'refs/heads/master:refs/heads/master'
-                        ], check=True)
-                    else:
-                        print('Skipping push of updated input manifest '
-                              'due to --no-push')
-                else:
-                    print('Input manifest left unchanged after updating '
-                          'submodules')
+        manifest = Manifest(os.path.realpath(self.build_manifest_filename))
+        manifest.add_missing_remotes_and_projects(
+            pathlib.Path(f'./{self.product_path}'))
+        manifest.save_build_manifest(f'{self.build_manifest_filename}')
 
     def set_relevant_parameters(self):
         """
@@ -352,6 +359,18 @@ class ManifestBuilder:
 
             self.build_num = max(self.last_build_num + 1, self.start_build)
 
+    def initialize_build_manifest(self):
+        """
+        Creates the initial (and possibly final) build manifest by
+        calling "repo manifest -r"
+        """
+
+        with pushd(self.product_path):
+            print(f'Updating build manifest {self.build_manifest_filename}')
+
+            with open(self.build_manifest_filename, 'w') as fh:
+                run(['repo', 'manifest', '-r'], check=True, stdout=fh)
+
     def generate_changelog(self):
         """
         Generate the CHANGELOG file from any changes that have been
@@ -366,8 +385,8 @@ class ManifestBuilder:
             # Strip out non-project lines as well as testrunner project
             lines = [x for x in output.splitlines()
                      if not (x.startswith(b' ')
-                         or x.startswith(b'C testrunner')
-                         or x.startswith(b'C mobile-testkit'))]
+                             or x.startswith(b'C testrunner')
+                             or x.startswith(b'C mobile-testkit'))]
 
             if not lines:
                 if not self.force:
@@ -417,11 +436,6 @@ class ManifestBuilder:
             annot.set('value', value)
             annot.tail = '\n    '
             parent.insert(0, annot)
-
-        print(f'Updating build manifest {self.build_manifest_filename}')
-
-        with open(self.build_manifest_filename, 'w') as fh:
-            run(['repo', 'manifest', '-r'], check=True, stdout=fh)
 
         last_build_manifest = EleTree.parse(self.build_manifest_filename)
 
@@ -615,14 +629,13 @@ class ManifestBuilder:
         self.prepare_files()
         self.do_manifest_stuff()
 
-        module_projects = self.manifest_config.get('module_projects')
-        if module_projects is not None:
-            self.update_submodules(module_projects)
-
         self.set_relevant_parameters()
         self.set_build_parameters()
         self.perform_repo_sync()
         self.update_bm_repo_and_get_build_num()
+        self.initialize_build_manifest()
+        self.update_submodules()
+        self.update_build_manifest()
 
         with pushd(self.product_path):
             self.generate_changelog()
