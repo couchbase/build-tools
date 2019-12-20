@@ -379,6 +379,11 @@ class ManifestBuilder:
         calling "repo manifest -r"
         """
 
+        build_manifest_dir = self.build_manifest_filename.parent
+
+        if not build_manifest_dir.is_dir():
+            build_manifest_dir.mkdir(parents=True)
+
         with pushd(self.product_path):
             print(f'Updating build manifest {self.build_manifest_filename}')
 
@@ -438,11 +443,6 @@ class ManifestBuilder:
         based on the gathered information, also generating a
         commit message for later use
         """
-
-        build_manifest_dir = self.build_manifest_filename.parent
-
-        if not build_manifest_dir.is_dir():
-            build_manifest_dir.mkdir(parents=True)
 
         def insert_child_annot(parent, name, value):
             annot = EleTree.Element('annotation')

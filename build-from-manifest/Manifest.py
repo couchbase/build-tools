@@ -158,9 +158,12 @@ class Manifest:
                 # First lookup / create the remote name.
                 url = values['url']
                 [remote_name, _] = self.get_maybe_missing_remote(url)
+                project_name = os.path.basename(url)
+                if project_name.endswith('.git'):
+                    project_name = project_name[:-4]
                 l = etree.Element(
                     "project",
-                    name=os.path.basename(url),
+                    name=project_name,
                     path=values['directory'],
                     remote=remote_name,
                     revision=values['SHA']
