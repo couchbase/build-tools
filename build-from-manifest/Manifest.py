@@ -28,7 +28,7 @@ class Manifest:
 
     def __init__(self, source_manifest):
         self.tree = None
-        self.remotes = None
+        self.remotes = {}
         self.projects = None
         self.manifest_data = None
         self.build_manifest = None
@@ -59,7 +59,7 @@ class Manifest:
             # Skip incomplete/invalid remotes
             if None in [name, url]:
                 continue
-            remotes[name] = url
+            remotes[url] = name
         self.remotes = remotes
 
     def get_projects(self):
@@ -96,38 +96,46 @@ class Manifest:
         self.get_projects()
         return True
 
-    def find_missing_remotes(self, gits):
+    def get_maybe_missing_remote(self, url):
         """
-        Identify and adds remotes absent from source manifest
+        If URL is not a known remote URL, create a new <remote> element
+        with a heuristically-generated "name".
+        Whether it was known or not, return both the name and repo remote URL.
+        """
 
-        Parameters
-        ----------
-        gits : `dict`, mandatory
-            A dict of dicts, with key 'directory' and value:
-            {
-                SHA,
-                directory,
-                remote,
-                url
-            }
-        """
-        for _, v in gits.items():
-            remote = v['remote']
-            if remote not in self.remotes:
-                # Couchbase manifests use ssh://git@github.com/ rather than
-                # https://github.com/, for the most part
-                url = v['url'].replace(
-                    'https://github.com/', 'ssh://git@github.com/'
-                )
-                l = etree.Element(
-                    "remote",
-                    fetch=url,
-                    name=remote
-                )
-                l.tail = "\n  "
-                self.root.insert(0, l)
-                self.remotes[remote] = url
-                logging.debug(f'Missing remote: {remote} -> {url}')
+        # Compute repo's idea of "remote URL" by chopping off the tailing
+        # directory name, and give it a name based on the preceding directory
+        # component and the URL scheme. We append the scheme so that we can't
+        # accidentally collide with a <remote> element from the input manifest.
+        parts = url.rsplit('/', 2)
+        remote_url = f"{parts[0]}/{parts[1]}/"
+        scheme = url.split(':')[0]
+        remote_name = f"{parts[1]}-{scheme}"
+
+        # Ensure we haven't already added this repo remote URL
+        if remote_url in self.remotes:
+            return [ self.remotes[remote_url], remote_url ]
+
+        # Remember this generated remote name for next time
+        logging.debug(f'Adding missing remote: {remote_name} -> {remote_url}')
+        self.remotes[remote_url] = remote_name
+
+        # Couchbase manifests use ssh://git@github.com/ rather than
+        # https://github.com/, for the most part
+        couch_url = remote_url.replace(
+            'https://github.com/', 'ssh://git@github.com/'
+        )
+
+        # Add new <remote> element
+        l = etree.Element(
+            "remote",
+            fetch=couch_url,
+            name=remote_name
+        )
+        l.tail = "\n  "
+        self.root.insert(0, l)
+
+        return [ remote_name, remote_url ]
 
     def find_missing_projects(self, gits):
         """
@@ -140,30 +148,32 @@ class Manifest:
             {
                 SHA,
                 directory,
-                remote,
                 url
             }
         """
         first_project = self.root.find('./project')
-        for k, v in gits.items():
-            if k and k not in self.projects:
+        for directory, values in gits.items():
+            if directory and directory not in self.projects:
+                # This path is unknown - add a new project element.
+                # First lookup / create the remote name.
+                url = values['url']
+                [remote_name, _] = self.get_maybe_missing_remote(url)
                 l = etree.Element(
                     "project",
-                    name=os.path.basename(v['directory']),
-                    path=v['directory'],
-                    remote=v['remote'],
-                    revision=v['SHA']
+                    name=os.path.basename(url),
+                    path=values['directory'],
+                    remote=remote_name,
+                    revision=values['SHA']
                 )
                 l.tail = "\n  "
                 first_project.addprevious(l)
-                self.projects[k] = v
-                logging.info(f"Missing project: {k}")
+                self.projects[directory] = values
+                logging.info(f"Added missing project: {directory}")
 
     def add_missing_remotes_and_projects(self, path):
-        """ Walk project directory tree and identify missing remotes/projects """
+        """ Walk project directory tree and identify missing projects """
         g = Git()
         g.walk_tree(path)
-        self.find_missing_remotes(g.gits)
         self.find_missing_projects(g.gits)
 
     def save_build_manifest(self, filename):

@@ -312,6 +312,19 @@ class ManifestBuilder:
             product_dir.mkdir(parents=True)
 
         with pushd(product_dir):
+            # Sadly we need to force repo to forget any existing
+            # git remotes, just in case different manifests reference
+            # different URLs for the same project
+            if os.path.exists('.repo'):
+                run([
+                    'repo', 'forall', '-c',
+                    'git remote | xargs -n1 git remote remove'
+                ])
+
+            # Next delete everything except the .repo directory, to ensure
+            # our local state is clean. We keep the .repo directory as all the
+            # git information is in there, which makes later syncs much
+            # faster.
             top_level = [
                 f for f in pathlib.Path().iterdir() if str(f) != '.repo'
             ]
@@ -320,6 +333,7 @@ class ManifestBuilder:
             for child in top_level:
                 shutil.rmtree(child) if child.is_dir() else child.unlink()
 
+            # Finally, (re-)init and sync
             run(['repo', 'init', '-u', str(top_dir / 'manifest'), '-g', 'all',
                  '-m', str(self.manifest)], check=True)
             run(['repo', 'sync', '--jobs=6', '--force-sync'], check=True)
