@@ -54,6 +54,7 @@ class ManifestBuilder:
     output_filenames = [
         'build.properties',
         'build-properties.json',
+        'previous-build-manifest.xml',
         'build-manifest.xml',
         'source.tar',
         'source.tar.gz',
@@ -361,6 +362,11 @@ class ManifestBuilder:
             ).resolve()
 
             if self.build_manifest_filename.exists():
+                # Save copy of current build manifest
+                shutil.copy(self.build_manifest_filename,
+                            self.output_files['previous-build-manifest.xml'])
+
+                # Parse current build manifest to get build number
                 last_build_manifest = EleTree.parse(
                     self.build_manifest_filename
                 )
@@ -399,6 +405,7 @@ class ManifestBuilder:
 
         if self.build_manifest_filename.exists():
             output = run(['repo', 'diffmanifests', '--raw',
+                          self.output_files['previous-build-manifest.xml'],
                           self.build_manifest_filename],
                          check=True, stdout=PIPE).stdout
             # Strip out non-project lines as well as testrunner project
