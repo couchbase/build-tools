@@ -33,8 +33,10 @@ build_php() {
 
     PREFIX=$INSTALL_DIR/$OUTDIR
     mkdir -p $PREFIX
-    # depends on zlib, libxml2
-    ./configure --disable-all --with-zlib --enable-libxml --enable-xml --with-pear --enable-sockets --enable-pcntl --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3
+    # figure out which option enables libxml
+    LIBXML_OPT=--with-libxml
+    ./configure --help | grep disable-libxml && LIBXML_OPT=--enable-libxml
+    ./configure --disable-all --with-zlib ${LIBXML_OPT} --enable-xml --with-pear --enable-sockets --enable-pcntl --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3
     $CFLAGS" && make -j8 && make install install-sapi install-headers
     (
       cd igbinary-${IGBINARY_VER}
@@ -54,12 +56,12 @@ build_php_variant() {
 
     echo "Installing $VARIANT"
     if [ ! -e $SRCDIR/$OUTDIR ]; then
-      tar -xjvf $DLDIR/php-src-$PHPVER.tar.bz2 -C $TMPDIR
+      tar -xjf $DLDIR/php-src-$PHPVER.tar.bz2 -C $TMPDIR
       mv $TMPDIR/php-$PHPVER $SRCDIR/$OUTDIR
     fi
     echo "Extracting IGBINARY extension sources for $VARIANT"
     if [ ! -e $SRCDIR/$OUTDIR/igbinary-${IGBINARY_VER} ]; then
-      tar -xzvf $DLDIR/igbinary-${IGBINARY_VER}.tgz -C $TMPDIR
+      tar -xzf $DLDIR/igbinary-${IGBINARY_VER}.tgz -C $TMPDIR
       mv $TMPDIR/igbinary-${IGBINARY_VER} $SRCDIR/$OUTDIR/igbinary-${IGBINARY_VER}
     fi
     echo "Building $VARIANT"
