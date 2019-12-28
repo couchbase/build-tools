@@ -46,6 +46,7 @@ properties = {
     "detect.project.version.name": "${VERSION}",
     "detect.code.location.name": "${PRODUCT}/${VERSION}",
     "detect.source.path": "${WORKSPACE}/src/",
+    "detect.project.codelocation.unmap": "true",
     "detect.blackduck.signature.scanner.memory": 10240,
     "detect.report.timeout": 3600,
 }
