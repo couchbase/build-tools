@@ -202,4 +202,5 @@ if __name__ == "__main__":
 
     checker = ComponentLicenseChecker(args.product, args.version, args.credentials, args.report_directory)
     if not checker.check_licenses():
-        sys.exit(1)
+        logger.warning(f"WARNING: Suspect licenses found!")
+    sys.exit(0)

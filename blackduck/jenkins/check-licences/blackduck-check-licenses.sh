@@ -2,7 +2,9 @@
 
 git clone ssh://git@github.com/couchbase/license-reviews
 
-python3 -m venv .venv
+if [ ! -d .venv ]; then
+    python3 -m venv .venv
+fi
 source .venv/bin/activate
 
 cd ${WORKSPACE}/build-tools/blackduck/jenkins/check-licences
