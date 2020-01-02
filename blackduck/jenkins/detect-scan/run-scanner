@@ -52,7 +52,13 @@ properties = {
 }
 if args.dry_run:
     properties["detect.blackduck.signature.scanner.dry.run"] = "true"
-if args.pdf:
+    properties["detect.cleanup"] = "false"
+elif args.pdf:
+    # This argument makes the job wait until the scan is fully uploaded
+    # to Black Duck Hub. But if "dry.run" is true, it doesn't upload
+    # the signature scan results, therefore the scan will never be
+    # fully uploaded. So we won't enable the .pdf generation if dry.run
+    # is selected.
     properties["detect.risk.report.pdf"] = "true"
 
 properties.update(config["detect_opts"])
