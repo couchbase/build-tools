@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+"""
+Script to trigger regular runs of blackduck-detect-scan for SDKs
+"""
+
+import argparse
+import contextlib
+import inspect
+import json
+import os
+import shutil
+from subprocess import run, PIPE
+import time
+import pathlib
+
+@contextlib.contextmanager
+def pushd(new_dir):
+    old_dir = os.getcwd()
+    os.chdir(new_dir)
+
+    try:
+        yield
+    finally:
+        os.chdir(old_dir)
+
+# Initialize results file
+trigger_filename = os.path.abspath("trigger.properties")
+if os.path.exists(trigger_filename):
+    os.remove(trigger_filename)
+
+# Initialize previous-check state file
+state_filename = os.path.abspath("last-check.json")
+if os.path.exists(state_filename):
+    with open(state_filename, "r") as state:
+        check_states = json.load(state)
+else:
+    check_states = {}
+
+# Get path to build-tools/blackduck, relative to current script.
+# https://stackoverflow.com/a/18489147
+blackduck_dir = os.path.abspath(
+    os.path.join(inspect.getsourcefile(lambda:0), "..", "..", "..")
+)
+
+# Iterate through the products and versions, and find the first one that
+# hasn't been checked in at least 'interval' minutes.
+now = time.time()
+result = None
+for root, dirs, files in os.walk(blackduck_dir):
+    # Load manifest metadata where specified
+    if "scan-config.json" in files:
+        product_name = pathlib.Path(root).name
+        with open(os.path.join(root, "scan-config.json")) as conffile:
+            config = json.load(conffile)
+
+        for version, values in config["versions"].items():
+            prod_version = f"{product_name}-{version}"
+            interval = values["interval"]
+
+            if prod_version not in check_states:
+                check_states[prod_version] = 0
+
+            if (now - check_states[prod_version] > interval):
+                result = (product_name, version)
+                check_states[prod_version] = now
+                break
+        else:
+            continue
+        break
+
+# Save updated check-states
+print("\n----------------------------------\n")
+if result is not None:
+    print(f"Triggering manifest {result}")
+    with open(trigger_filename, "w") as trigger:
+        trigger.write(f"PRODUCT={result[0]}\n")
+        trigger.write(f"RELEASE={result[1]}\n")
+        trigger.write(f"VERSION={result[1]}\n")
+        trigger.write(f"BLD_NUM=9999\n")
+else:
+    print("No products need scanning yet; not triggering scan job")
+with open(state_filename, "w") as state:
+    json.dump(check_states, state)
+print("\n----------------------------------\n")
+
