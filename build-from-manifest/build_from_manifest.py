@@ -131,23 +131,20 @@ class ManifestBuilder:
 
         self.input_manifest = EleTree.parse(self.manifest)
 
-    def determine_product_info(self):
+    def determine_product_path(self):
         """
-        Determine the product from the given input manifest
+        Determine the product path from the given input manifest
         """
 
         for parent in self.manifest.parents:
             if (parent / 'product-config.json').exists():
                 self.product_path = str(parent)
-                self.product = self.product_path.replace('/', '::')
                 break
         else:
             # For legacy reasons, 'top-level' manifests
             # are couchbase-server
             self.product_path = 'couchbase-server'
-            self.product = 'couchbase-server'
 
-        self.prod_name = self.product.split('::')[-1]
 
     def get_product_and_manifest_config(self):
         """
@@ -163,8 +160,17 @@ class ManifestBuilder:
         except FileNotFoundError:
             self.product_config = dict()
 
-        # Override product if set in product-config.json
-        self.product = self.product_config.get('product', self.product)
+        override_product = self.product_config.get('product')
+        if override_product is not None:
+            # Override product (and product_path) if set in product-config.json
+            self.product = override_product
+            self.product_path = override_product.replace('::', '/')
+        else:
+            # Otherwise, product name is derived from product path
+            self.product = self.product_path.replace('/', '::')
+
+        # Save the "basename" of the product name as prod_name
+        self.prod_name = self.product.split('::')[-1]
 
         self.manifests = self.product_config.get('manifests', dict())
         self.manifest_config = self.manifests.get(str(self.manifest), dict())
@@ -200,7 +206,7 @@ class ManifestBuilder:
         with pushd(manifest_dir):
             self.update_manifest_repo()
             self.parse_manifest()
-            self.determine_product_info()
+            self.determine_product_path()
             self.get_product_and_manifest_config()
 
     def update_submodules(self, module_projects):

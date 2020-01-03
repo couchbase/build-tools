@@ -5,8 +5,9 @@ import contextlib
 import json
 import os
 import pprint
+import shutil
 
-from subprocess import check_call
+from subprocess import check_call, check_output
 
 
 @contextlib.contextmanager
@@ -24,12 +25,16 @@ def scan_manifests(manifest_repo="git://github.com/couchbase/manifest"):
     returns a list of metadata about all discovered manifests
     """
     # Sync manifest project
-    # QQQ Probably should create different manifest directories based
-    # on the manifest_repo URL here, so we can support multiple manifest
-    # repositories.  Doing so will require returning the directory
-    # containing the manifest repo as part of the return value of this
-    # function, and updating other scripts to reference that if they want
-    # to read the actual manifest files.
+    if os.path.isdir("manifest"):
+        with remember_cwd():
+            os.chdir("manifest")
+            url = check_output(
+                ['git', 'ls-remote', '--get-url', 'origin']
+            ).decode().strip()
+        if url != manifest_repo:
+            print('"manifest" dir pointing to different remote, removing..')
+            shutil.rmtree("manifest")
+
     if not os.path.isdir("manifest"):
         check_call(["git", "clone", manifest_repo, "manifest"])
 
