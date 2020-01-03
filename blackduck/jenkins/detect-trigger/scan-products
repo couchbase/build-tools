@@ -61,7 +61,7 @@ for root, dirs, files in os.walk(blackduck_dir):
             if prod_version not in check_states:
                 check_states[prod_version] = 0
 
-            if (now - check_states[prod_version] > interval):
+            if (now - check_states[prod_version] > interval * 60):
                 result = (product_name, version)
                 check_states[prod_version] = now
                 break
