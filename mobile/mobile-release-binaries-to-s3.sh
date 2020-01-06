@@ -95,7 +95,11 @@ case "$PRODUCT" in
         S3_REL_DIRNAME=couchbase-lite-android-ee
         ;;
     *java)
-        S3_REL_DIRNAME=couchbase-lite/java
+        if [[ ${RELEASE} == 1.* ]]; then
+            S3_REL_DIRNAME=couchbase-lite/java
+        else
+            S3_REL_DIRNAME=couchbase-lite-java
+        fi
         ;;
     *net)
         REL_DIRNAME=couchbase-lite-net

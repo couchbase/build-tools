@@ -16,6 +16,8 @@ if [[ ${PRODUCT} == 'couchbase-lite-ios' ]]; then
     PACKAGE_NAME_ARRAY=("couchbase-lite-objc-documentation_enterprise_${VERSION}.zip" "couchbase-lite-swift-documentation_enterprise_${VERSION}.zip")
 elif [[ ${PRODUCT} == 'couchbase-lite-android-ee' ]]; then
     PACKAGE_NAME_ARRAY=("${PRODUCT}-${VERSION}-javadoc.jar")
+elif [[ ${PRODUCT} == 'couchbase-lite-java' ]]; then
+    PACKAGE_NAME_ARRAY=("${PRODUCT}-ee-${VERSION}-javadoc.jar")
 fi
 
 echo "Publish to S3 ..."
@@ -23,11 +25,25 @@ echo "Publish to S3 ..."
 for PKG in ${PACKAGE_NAME_ARRAY[@]}; do
     echo "Publish ${PKG} to S3 ..."
     PKG_NAME=${PKG%.*} # remove file extentions as directory name
-    S3_URL_couchbase_lite_java="s3://docs.couchbase.com/mobile/${VERSION}/couchbase-lite-java"
+    #S3_URL_couchbase_lite_java="s3://docs.couchbase.com/mobile/${VERSION}/couchbase-lite-java"
     if [[ ${PRODUCT} == 'couchbase-lite-android-ee' ]]; then
+        S3_URL_couchbase_lite_android="s3://docs.couchbase.com/mobile/${VERSION}/couchbase-lite-android"
         curl ${S3_URL}/${PKG} -o CouchbaseLite-${VERSION}-javadoc.zip || exit 1
         unzip CouchbaseLite-${VERSION}-javadoc.zip -d CouchbaseLite-${VERSION}-javadoc || exit 1
         #Android:
+        s3cmd -c $S3CONFIG --acl-public -r put CouchbaseLite-${VERSION}-javadoc/ ${S3_URL_couchbase_lite_android}/ || exit 1
+        s3cmd -c $S3CONFIG ls ${S3_URL_couchbase_lite_android}/
+        echo "Re-uploading css file ..."
+        pushd CouchbaseLite-${VERSION}-javadoc/
+        CSS_FILES=$(find . -type f -name *.css |sed 's|^./||')
+        for fl in ${CSS_FILES}; do
+            s3cmd -c $S3CONFIG --acl-public put -m "text/css" $fl ${S3_URL_couchbase_lite_android}/$fl
+        done
+        popd
+    elif [[ ${PRODUCT} == 'couchbase-lite-java' ]]; then
+        S3_URL_couchbase_lite_java="s3://docs.couchbase.com/mobile/${VERSION}/couchbase-lite-java"
+        curl ${S3_URL}/${PKG} -o CouchbaseLite-${VERSION}-javadoc.zip || exit 1
+        unzip CouchbaseLite-${VERSION}-javadoc.zip -d CouchbaseLite-${VERSION}-javadoc || exit 1
         s3cmd -c $S3CONFIG --acl-public -r put CouchbaseLite-${VERSION}-javadoc/ ${S3_URL_couchbase_lite_java}/ || exit 1
         s3cmd -c $S3CONFIG ls ${S3_URL_couchbase_lite_java}/
         echo "Re-uploading css file ..."
