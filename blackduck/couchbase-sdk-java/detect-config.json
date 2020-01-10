@@ -5,5 +5,8 @@
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.maven.excluded.modules": "test-utils,java-examples",
         "detect.maven.included.scopes": "compile,runtime"
-    }
+    },
+    "source_paths": [
+        ".", "./couchbase-jvm-clients/core-io-deps"
+    ]
 }

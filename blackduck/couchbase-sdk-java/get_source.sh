@@ -35,11 +35,13 @@ else
 
     # And now we actually need to build stuff for it to be found
     # by the detector
-    for project in core-io-deps test-utils . ; do
-        pushd $project
-        mvn -Dmaven.test.skip=true install
-        popd
-    done
+    mvn --batch-mode dependency:resolve || {
+        for project in core-io-deps test-utils . ; do
+            pushd $project
+            mvn --batch-mode -Dmaven.test.skip=true install
+            popd
+        done
+    }
 
     popd
 fi

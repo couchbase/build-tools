@@ -44,9 +44,6 @@ properties = {
     "blackduck.trust.cert": "true",
     "detect.project.name": "${PRODUCT}",
     "detect.project.version.name": "${VERSION}",
-    "detect.code.location.name": "${PRODUCT}/${VERSION}",
-    "detect.source.path": "${WORKSPACE}/src/",
-    "detect.project.codelocation.unmap": "true",
     "detect.blackduck.signature.scanner.memory": 10240,
     "detect.report.timeout": 3600,
 }
@@ -67,9 +64,25 @@ properties.update(config["detect_opts"])
 detect_args = [
     "/tmp/detect.sh"
 ]
+if args.dry_run:
+    # Suggested by Black Duck support
+    detect_args.append("-d")
 for prop, value in properties.items():
     detect_args.append(
         "--" + prop + "=" + string.Template(str(value)).safe_substitute(os.environ)
     )
 
-check_call(detect_args)
+# Iterate through code paths, calling scanner
+source_root = os.path.join(os.environ.get("WORKSPACE", "."), "src")
+first_path = True
+for i, path in enumerate(config.get("source_paths", ['.']), start=1):
+    suffix = f"-{i}" if i > 1 else ""
+    path_args = [
+        "--detect.source.path=" + os.path.join(source_root, path),
+        "--detect.code.location.name=" + "${PRODUCT}/${VERSION}" + suffix,
+        "--detect.project.codelocation.unmap=" + f"{first_path}"
+    ]
+
+    check_call(detect_args + path_args)
+
+    first_path = False

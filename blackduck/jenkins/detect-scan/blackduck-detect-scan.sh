@@ -71,12 +71,21 @@ if [ -e "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json" ]; th
   CONFIG_ARG="-c ${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json"
 fi
 
-# Invoke scan script
+# If doing dry-run, clean out any old archives
 if [ "x${DRY_RUN}" = "xtrue" ]; then
   export DRY_RUN_ARG="-n"
+  rm -rf ~/blackduck/runs/*
 fi
+
+# Invoke scan script
 "${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan/run-scanner" \
   ${DRY_RUN_ARG} \
   ${CONFIG_ARG} \
   --token ~/.ssh/blackduck-token.txt \
   --pdf
+
+# Copy up dry-run archives
+if [ "x${DRY_RUN}" = "xtrue" ]; then
+  echo Copying dryrun archives...
+  cp ~/blackduck/runs/detect-run*.zip ${WORKSPACE}
+fi
