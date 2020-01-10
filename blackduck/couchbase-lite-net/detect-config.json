@@ -1,6 +1,6 @@
 {
     "detect_opts": {
-        "detect.source.path": "${WORKSPACE}/src/couchbase-lite-net-ee",
+        "detect.excluded.detector.types": "GRADLE,NUGET,MAVEN",
         "logging.level.com.synopsys.integration": "DEBUG",
         "detect.detector.search.depth": 9
     }

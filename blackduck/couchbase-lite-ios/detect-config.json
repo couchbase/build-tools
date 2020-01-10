@@ -1,6 +1,7 @@
 {
     "detect_opts": {
-        "detect.source.path": "${WORKSPACE}/src/couchbase-lite-ios-ee",
+        "detect.excluded.detector.types": "GRADLE,NUGET",
+        "detect.blackduck.signature.scanner.exclusion.name.patterns": "mobile-testkit",
 	"logging.level.com.synopsys.integration": "DEBUG",
         "detect.detector.search.depth": 9
     }
