@@ -8,17 +8,22 @@ set PHPVER=%2
 set BLD_NUM=%3
 
 rem Check out the PHP Windows SDK from our fork
-rem php-sdk-2.1.9 was the newest tag as of Dec. 13 2018
-git clone git://github.com/couchbasedeps/php-sdk-binary-tools -b php-sdk-2.1.10 || goto :error
+rem php-sdk-2.2.0 was the newest tag as of Jan. 14 2020
+git clone git://github.com/couchbasedeps/php-sdk-binary-tools -b php-sdk-2.2.0 || goto :error
 
 mkdir work
 
 rem Choose correct VC
-echo %PHPVER% | findstr /r /c:"^7\.[01]\."
-if errorlevel 1 (
+if "%PHPVER:~0,3%"=="7.2" (
+    set VC=vc14
+) else if "%PHPVER:~0,3%"=="7.3" (
+    set VC=vc15
+) else if "%PHPVER:~0,3%"=="7.4" (
     set VC=vc15
 ) else (
-    set VC=vc14
+    echo Unsupported PHP version
+    set ERRORLEVEL=1
+    goto :error
 )
 
 rem Build all versions
