@@ -15,7 +15,7 @@ mkdir work
 
 rem Choose correct VC
 if "%PHPVER:~0,3%"=="7.2" (
-    set VC=vc14
+    set VC=vc15
 ) else if "%PHPVER:~0,3%"=="7.3" (
     set VC=vc15
 ) else if "%PHPVER:~0,3%"=="7.4" (
