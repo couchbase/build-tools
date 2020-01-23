@@ -1,0 +1,79 @@
+#!/bin/bash -e
+
+# Generates the Dockerfile and supporting scripts for a product in
+# the github.com/couchbase/server-sandbox repository, and then
+# creates an appropriate branch for Docker Hub autobuilds.
+# Assumes the running account has necessary SSH permissions to
+# push to that repository.
+
+usage() {
+    echo "Usage: $0 -v VERSION"
+    exit 1
+}
+
+status() {
+    echo "-- $@"
+}
+
+# Read and verify command-line parameters
+REPO=ssh://git@github.com/couchbase/server-sandbox
+while getopts ":p:v:e:ur:" opt; do
+  case ${opt} in
+    v)
+      VERSION=${OPTARG}
+      ;;
+    \?)
+      usage
+      ;;
+    :)
+      echo "${OPTARG} requires an argument"
+      usage
+      ;;
+    r)
+      echo "Setting repository to ${OPTARG} for testing"
+      rm -rf docker
+      REPO=${OPTARG}
+      ;;
+  esac
+done
+
+if [ -z "${VERSION}" ]; then
+    usage
+fi
+
+# Clone two copies of server-sandbox - one for templatizing on master,
+# one for creating/updating autobuild branch and pushing
+rm -rf server-sandbox server-sandbox-branch
+git clone -b master ${REPO}
+git clone ${REPO} server-sandbox-branch
+
+pushd server-sandbox-branch
+status "Checking Dockerhub autobuild branch"
+if git ls-remote --heads --exit-code origin ${VERSION}; then
+    git checkout -b ${VERSION} --track origin/${VERSION}
+    VERB=Updating
+else
+    git checkout --orphan ${VERSION}
+    git reset --hard
+    VERB=Creating
+fi
+popd
+
+pushd server-sandbox
+status "Creating new Dockerfile and scripts"
+for file in $(find . -name .git -prune -o -type f -print); do
+    mkdir -p $(dirname ../server-sandbox-branch/$file)
+    perl -pe "s/SANDBOX_VERSION/${VERSION}/g" $file \
+    > ../server-sandbox-branch/$file
+done
+popd
+
+pushd server-sandbox-branch
+rm README-create.md
+status "${VERB} Dockerhub autobuild branch"
+git add .
+git commit --allow-empty -m "${VERB} branch ${VERSION} for Docker Hub autobuild"
+git push origin ${VERSION}:refs/heads/${VERSION}
+popd
+
+status "Done!"
