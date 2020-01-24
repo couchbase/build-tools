@@ -63,8 +63,8 @@ pushd server-sandbox
 status "Creating new Dockerfile and scripts"
 for file in $(find . -name .git -prune -o -type f -print); do
     mkdir -p $(dirname ../server-sandbox-branch/$file)
-    perl -pe "s/SANDBOX_VERSION/${VERSION}/g" $file \
-    > ../server-sandbox-branch/$file
+    cp -a $file ../server-sandbox-branch/$file
+    perl -pi -e "s/SANDBOX_VERSION/${VERSION}/g" ../server-sandbox-branch/$file
 done
 popd
 
