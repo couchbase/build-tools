@@ -132,6 +132,15 @@ class ComponentLicenseChecker:
             logger.debug (f"Skipping {comp['Component name']} {comp['Component version name']} because license is OK")
             return True
 
+        # Also, if *any* are "approved if unmodified" AND the match type
+        # is one of the "unmodified match types", that's good to go
+        if any(item in self.ok_if_unmod_lics for item in lics):
+            match_type = comp['Match type'].split(',')
+            if any (match in self.unmod_match_types for match in match_type):
+                logger.debug (f"Skipping {comp['Component name']} {comp['Component version name']} because "
+                    f"license is OK if unmodified and our match type is {match_type}")
+                return True
+
         # License NOT OK - warn and write report entry
         logger.warn (f"WARNING: {comp['Component name']} {comp['Component version name']} has suspect license {comp['License names']}")
         lic_links = []
@@ -161,7 +170,9 @@ class ComponentLicenseChecker:
         logger.debug("Downloading acceptable licenses JSON file")
         response = requests.get("https://raw.githubusercontent.com/couchbase/product-metadata/master/All-Products/blackduck/pre-approved-licenses.json")
         ok_lics_data = response.json()
-        self.ok_lics = ok_lics_data.keys()
+        self.ok_lics = ok_lics_data['approved'].keys()
+        self.ok_if_unmod_lics = ok_lics_data['approved-if-unmodified'].keys()
+        self.unmod_match_types = ok_lics_data['unmodified-match-types']
 
         # Download current CSV report
         logger.debug(f"Downloading CSV report for {self.product} {self.version}")
