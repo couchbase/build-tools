@@ -177,10 +177,14 @@ class UpdateManifest:
         Update all submodules in the repo, ensuring it succeeds
         (abort otherwise)
         """
-        print('Updating submodules in {}...'.format(repo_name))
+        print('Syncing and updating submodules in {}...'.format(repo_name))
         with remember_cwd():
             os.chdir(self.projects[repo_name]['path'])
             try:
+                subprocess.check_call(
+                    ['git', 'submodule', 'sync', '--recursive'],
+                    stdout=subprocess.PIPE
+                )
                 subprocess.check_call(
                     ['git', 'submodule', 'update', '--init', '--recursive'],
                     stdout=subprocess.PIPE
