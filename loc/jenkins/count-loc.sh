@@ -38,7 +38,7 @@ else
     echo "Syncing manifest $MANIFEST at $SHA"
     echo ================================
     repo init -u git://github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
-    repo sync --jobs=16
+    repo sync --jobs=8
     echo
 fi
 

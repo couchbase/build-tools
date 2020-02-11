@@ -8,6 +8,9 @@ shopt -s extglob
 rm -rf godeps/src/*/!(couchbase*)
 rm -rf godeps/src/github.com/couchbase/ns_server
 
+# Build isn't primarily about SGW
+rm -rf cbbuild
+
 echo @@@@@@@@@@@@@@@@@@@@@@@@@
 echo "sync_gateway ${RELEASE}"
 echo @@@@@@@@@@@@@@@@@@@@@@@@@
