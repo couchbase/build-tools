@@ -16,6 +16,8 @@ then
 fi
 PLATFORM=$1
 
+container_workdir=/home/couchbase
+
 sup=$(echo ${PLATFORMS} | egrep "\b${PLATFORM}\b" || true)
 if [ -z "${sup}" ]
 then
@@ -53,19 +55,23 @@ fi
 # Run Docker buildslave
 SLAVENAME="${PLATFORM}-buildslave"
 cd ${ROOT}
+
 set +e
 docker inspect ${SLAVENAME} > /dev/null 2>&1
 if [ $? -ne 0 ]
 then
+  set -e
   heading "Starting Docker buildslave container..."
   # We specify external DNS (Google's) to ensure we don't find
   # things on our LAN. We also point packages.couchbase.com to
   # a bogus IP to ensure we aren't dependent on existing packages.
-  docker run -d --name ${SLAVENAME} \
+  docker run --name "${SLAVENAME}" -d \
+    -v `pwd`:/escrow \
     --add-host packages.couchbase.com:8.8.8.8 \
     --dns 8.8.8.8 \
-    -v `pwd`:/escrow \
-    ${IMAGE} default
+    "${IMAGE}" default
+else
+  docker start "${SLAVENAME}"
 fi
 set -e
 
@@ -78,27 +84,36 @@ else
   DOCKER_EXEC_OPTION='-it'
 fi
 
+DOCKER_EXEC_OPTION="${DOCKER_EXEC_OPTION} -ucouchbase"
+
+docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} mkdir -p ${container_workdir}/escrow
+
 heading "Copying escrowed sources and dependencies into container"
-docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} rm -rf /home/couchbase/escrow
-docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} mkdir -p /home/couchbase/escrow
-docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} cp -a /escrow/in-container-build.sh \
+docker exec ${SLAVENAME} bash -c "cp /escrow/deps/rsync /usr/bin/rsync && chmod +x /usr/bin/rsync"
+docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} mkdir -p ${container_workdir}/escrow
+docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} rsync --update -az /escrow/patches.sh \
+  /escrow/in-container-build.sh \
   /escrow/escrow_config \
   /escrow/deps /escrow/golang \
-  /escrow/src /home/couchbase/escrow
-docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} chown -R couchbase:couchbase /home/couchbase
+  /escrow/src ${container_workdir}/escrow
+docker exec ${SLAVENAME} chown -R couchbase:couchbase ${container_workdir}/escrow/patches.sh ${container_workdir}/escrow/deps ${container_workdir}/escrow/in-container-build.sh ${container_workdir}/escrow/escrow_config
 
 # Launch build process
 heading "Running full Couchbase Server build in container..."
-docker exec ${DOCKER_EXEC_OPTION} -u couchbase ${SLAVENAME} bash \
-  /home/couchbase/escrow/in-container-build.sh ${PLATFORM} @@VERSION@@
+echo "docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} bash \
+  ${container_workdir}/escrow/in-container-build.sh ${container_workdir} ${PLATFORM} @@VERSION@@"
+docker exec ${DOCKER_EXEC_OPTION} ${SLAVENAME} bash \
+  ${container_workdir}/escrow/in-container-build.sh ${container_workdir} ${PLATFORM} @@VERSION@@
 
 # And copy the installation packages out of the container.
 heading "Copying installer binaries"
+
+cd ..
+
 for file in `docker exec ${SLAVENAME} bash -c \
-  "ls /home/couchbase/escrow/src/*${PLATFORM}*"`
+  "ls ${container_workdir}/escrow/src/*${PLATFORM}*"`
 do
   docker cp ${SLAVENAME}:${file} .
   localfile=`basename ${file}`
   mv ${localfile} ${localfile/-9999/}
 done
-

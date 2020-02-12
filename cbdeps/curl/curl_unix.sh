@@ -25,7 +25,7 @@ fi
 
 # Support escrow automation
 CBDEP_OPENSSL_CACHE=/home/couchbase/.cbdepscache/openssl*-${OPENSSL_VER}.tgz
-if [[ ! -z "${LOCAL_BUILD}" && -f ${CBDEP_OPENSSL_CACHE} ]]; then
+if [ ! -z "${LOCAL_BUILD}" -a -f ${CBDEP_OPENSSL_CACHE} ]; then
     mkdir -p ${OPENSSLDIR}
     tar xzf ${HOME}/.cbdepscache/openssl*-${OPENSSL_VER}.tgz -C ${OPENSSLDIR}
 else

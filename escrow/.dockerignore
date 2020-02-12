@@ -1,0 +1,5 @@
+run.log
+src
+couchbase*
+build
+output

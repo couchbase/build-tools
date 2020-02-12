@@ -16,8 +16,8 @@ as for Centos 6 when building for OEL 6.
 This script can be run on any flavor of Unix (Linux or MacOS) so long
 as it has:
 
-* bash
-* Docker (at least 1.12)
+- bash
+- Docker (at least 1.12)
 
 Because the build toolchain is run inside Docker containers, you may
 produce the installer for any or all of the above platforms while running
@@ -36,14 +36,13 @@ The host machine should have at least two CPU cores (more preferred) and
 The escrow distribution is self contained and should not even need access
 to the internet, with two exceptions:
 
-* Couchbase Analytics code is written in Java and built with Maven,
+- Couchbase Analytics code is written in Java and built with Maven,
   and Maven needs to download a number of dependencies from Maven
   Central.
-* V8's build scripts are
-  extremely idiosyncratic and depend heavily on binaries downloaded
-  directly from Google. This unfortunately means if Google decides to
-  remove those binaries in future, that portion of the build will not
-  succeed.
+- V8's build scripts are extremely idiosyncratic and depend heavily on
+  binaries downloaded directly from Google. This unfortunately means
+  if Google decides to remove those binaries in future, that portion
+  of the build will not succeed.
 
 ## Build Instructions
 
@@ -59,7 +58,7 @@ where <platform> is one of the following exact strings:
 That is all. The build will take roughly 30 minutes depending on the
 speed of the machine.
 
-Once the build is complete, the requested installer will be located in
+Once the build is complete, the requested installer will be located alongside
 the `couchbase-server-@@VERSION@@` directory. The name of the installer binary
 various from Linux flavor to flavor. For example, the Centos 6 binary is
 named:
@@ -69,7 +68,7 @@ named:
 There will also be a corresponding debug-symbols package. This package
 occasionally made available by Couchbase Support when debugging specific
 problems on customer installations. This package should be installed on
-a customer machine *in addition* to the main installer. The filename of
+a customer machine _in addition_ to the main installer. The filename of
 this debug-symbols package again varies from flavor to flavor; on Centos
 6 it is named
 
@@ -182,22 +181,17 @@ installer packages from inside to the container to the host directory.
 
 ## Escrow build notes
 
-* The Docker container for a given build is left running after the build
-is complete. If it is running and `build-couchbase-server-from-escrow.sh`
-is re-run, the container will be re-used.
+- The Docker container for a given build is left running after the build
+  is complete. If it is running and `build-couchbase-server-from-escrow.sh`
+  is re-run, the container will be re-used.
 
-* The escrow build scripts are designed to not repeat long build steps
-such as compiling cbdeps if built a second time. The containers also
-have CCache installed, so re-builds should be relatively quick.
+- The escrow build scripts are designed to not repeat long build steps
+  such as compiling cbdeps if built a second time. The containers also
+  have CCache installed, so re-builds should be relatively quick.
 
-* When re-running `build-couchbase-server-from-escrow.sh`, the local
-copy of the escrowed source code is re-copied into the container. So you
-can make local modifications and then re-run the script to build them.
-
-* However, the scripts are not heavily tested for re-builds. So we
-recommend that if you make local modifications, you should do one final
-clean build by first ensuring that the Docker build slave container is
-destroyed. You can use `docker rm -f <slavename>` for this. The slave
-name will always be "<platform>`-buildslave`", eg. `centos6-buildslave`.
-You can use `docker ps -a` to show you any existing containers.
-
+- The scripts are not heavily tested for re-builds. So we
+  recommend that if you make local modifications, you should do one final
+  clean build by first ensuring that the Docker build slave container is
+  destroyed. You can use `docker rm -f <slavename>` for this. The slave
+  name will always be "<platform>`-buildslave`", eg. `centos6-buildslave`.
+  You can use `docker ps -a` to show you any existing containers.
