@@ -1,5 +1,6 @@
 {
     "detect_opts": {
+        "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.nuget.excluded.modules": "Tests",
         "detect.detector.search.depth": 9
     }
