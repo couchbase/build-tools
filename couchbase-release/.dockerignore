@@ -1,0 +1,4 @@
+deb/
+rpm/
+*.sh
+GPG-KEY-COUCHBASE-1.0

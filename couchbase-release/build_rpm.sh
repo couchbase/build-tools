@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 this_dir=$(dirname $0)
 
@@ -11,7 +11,7 @@ else
 fi
 
 VERSION=1.0
-RELEASE=6
+RELEASE=7
 REL_NAME="couchbase-release${STAGE_EXT}-${VERSION}-${RELEASE}"
 
 rm -rf ~/rpmbuild

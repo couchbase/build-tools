@@ -16,6 +16,14 @@ BuildArch:     x86_64
 %description
 A package that configures access to Couchbase Yum repository.
 
+%global debug_package %{nil}
+
+%pre
+if grep -q -i ^"Amazon Linux release 2" /etc/system-release >/dev/null 2>&1; then
+  echo "This package cannot be installed on Amazon Linux 2"
+  exit 1
+fi
+
 %prep
 %setup -q  -c -T
 install -pm 644 %{SOURCE0} .
@@ -36,23 +44,20 @@ install -pm 644 %{SOURCE1} $RPM_BUILD_ROOT%{_sysconfdir}/yum.repos.d
 rm -rf $RPM_BUILD_ROOT
 
 %post
-if grep -q -i "release 6" /etc/redhat-release >/dev/null 2>&1
-then
-  sed -e "s/%SDK_VERSION%/6.2/g" -i /etc/yum.repos.d/couchbase-Base.repo
-  sed -e "s/%SERVER_VERSION%/6/g" -i /etc/yum.repos.d/couchbase-Base.repo
+
+if [ -f /etc/redhat-release ]; then
+  SERVER_VERSION=$((grep -Eo "release [0-9]+" | awk '{print $2}') < /etc/redhat-release)
+  [ "${SERVER_VERSION}" = "6" ] && SDK_VERSION=6.2 || SDK_VERSION=${SERVER_VERSION}
+elif [ -f /etc/system-release ]; then
+  if grep -q -i ^"Amazon Linux AMI" /etc/system-release >/dev/null 2>&1; then
+    SDK_VERSION=6.2
+    SERVER_VERSION=6
+  fi
 fi
 
-if grep -q -i "release 7" /etc/redhat-release >/dev/null 2>&1
-then
-  sed -e "s/%SDK_VERSION%/7/g" -i /etc/yum.repos.d/couchbase-Base.repo
-  sed -e "s/%SERVER_VERSION%/7/g" -i /etc/yum.repos.d/couchbase-Base.repo
-fi
-
-if grep -q -i ^"Amazon Linux" /etc/system-release >/dev/null 2>&1
-then
-  sed -e "s/%SDK_VERSION%/6.2/g" -i /etc/yum.repos.d/couchbase-Base.repo
-  sed -e "s/%SERVER_VERSION%/6/g" -i /etc/yum.repos.d/couchbase-Base.repo
-fi
+sed -e "s/%SDK_VERSION%/${SDK_VERSION}/g" \
+    -e "s/%SERVER_VERSION%/${SERVER_VERSION}/g" \
+    -i /etc/yum.repos.d/couchbase-Base.repo
 
 %postun
 
@@ -62,5 +67,8 @@ fi
 /etc/pki/rpm-gpg/*
 
 %changelog
+* Fri Feb 14 2020 Blair Watt <blair.watt@couchbase.com>
+- Add support for CentOS 8
+
 * Thu May 07 2015 Hari Kodungallur <hari.kodungallur@couchbase.com>
 - Initial release
