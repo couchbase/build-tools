@@ -1,4 +1,4 @@
 # Ansible playbook to install CB Server binary
 
-% ansible-playbook  -i ./inventory  playbook.yml --extra-vars "couchbase_server_package_base_url=http://172.23.120.24/builds/latestbuilds/couchbase-server/5.1.0/1397  couchbase_server_package=couchbase-server-enterprise_5.1.0-1397-windows_amd64.msi"
+% ansible-playbook  -i ./inventory  playbook.yml --extra-vars "couchbase_server_package_base_url=http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/5.1.0/1397  couchbase_server_package=couchbase-server-enterprise_5.1.0-1397-windows_amd64.msi"
 
