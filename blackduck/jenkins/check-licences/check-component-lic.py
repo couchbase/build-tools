@@ -121,15 +121,18 @@ class ComponentLicenseChecker:
         Check a component's license(s). If not OK, write a license report.
         Returns: true if all OK
         """
+
+        human_name = f"{comp['Component name']} {comp['Component version name']}"
+
         # If it's Reviewed in Black Duck, it's presumed OK
         if comp['Review status'] == "REVIEWED":
-            logger.debug (f"Skipping {comp['Component name']} {comp['Component version name']} because it's reviewed")
+            logger.debug (f"Skipping {human_name} because it's reviewed")
             return True
 
         # Pull out all known license IDs and see if *any* are approved
         lics = comp['License ids'].split(',')
         if any(item in self.ok_lics for item in lics):
-            logger.debug (f"Skipping {comp['Component name']} {comp['Component version name']} because license is OK")
+            logger.debug (f"Skipping {human_name} because license is pre-approved")
             return True
 
         # Also, if *any* are "approved if unmodified" AND the match type
@@ -137,12 +140,20 @@ class ComponentLicenseChecker:
         if any(item in self.ok_if_unmod_lics for item in lics):
             match_type = comp['Match type'].split(',')
             if any (match in self.unmod_match_types for match in match_type):
-                logger.debug (f"Skipping {comp['Component name']} {comp['Component version name']} because "
-                    f"license is OK if unmodified and our match type is {match_type}")
+                logger.debug (f"Skipping {human_name} because license is 'OK "
+                    f"if unmodified' and our match type is '{match_type}'")
                 return True
 
+        # Finally, if *any* licenses are in the "PERMISSIVE" License family
+        # (the equivalent of "None" license risk in the Black Duck UI), that's
+        # good too.
+        fams = comp['License families'].split(',')
+        if 'PERMISSIVE' in fams:
+            logger.debug (f"Skipping {human_name} because license is Permissive")
+            return True
+
         # License NOT OK - warn and write report entry
-        logger.warn (f"WARNING: {comp['Component name']} {comp['Component version name']} has suspect license {comp['License names']}")
+        logger.warn (f"WARNING: {human_name} has suspect license {comp['License names']}")
         lic_links = []
         for lic_id in lics:
             lic_links.append(
