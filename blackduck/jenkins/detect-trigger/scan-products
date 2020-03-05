@@ -62,7 +62,11 @@ for root, dirs, files in os.walk(blackduck_dir):
                 check_states[prod_version] = 0
 
             if (now - check_states[prod_version] > interval * 60):
-                result = (product_name, version)
+                result = (
+                    product_name,
+                    values.get("release", version),
+                    version
+                )
                 check_states[prod_version] = now
                 break
         else:
@@ -76,7 +80,7 @@ if result is not None:
     with open(trigger_filename, "w") as trigger:
         trigger.write(f"PRODUCT={result[0]}\n")
         trigger.write(f"RELEASE={result[1]}\n")
-        trigger.write(f"VERSION={result[1]}\n")
+        trigger.write(f"VERSION={result[2]}\n")
         trigger.write(f"BLD_NUM=9999\n")
 else:
     print("No products need scanning yet; not triggering scan job")

@@ -1,0 +1,11 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.detector.search.continue": true,
+        "detect.maven.included.modules": "scala-client_2.12,scala-implicits_2.12,core-io-deps",
+        "detect.maven.included.scopes": "compile,runtime",
+        "detect.maven.build.command": "--batch-mode"
+    }
+}
