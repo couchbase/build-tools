@@ -3,13 +3,16 @@
 set INSTALL_DIR=%1
 set DEPS=%WORKSPACE%\deps
 
-set SITE=https://packages.couchbase.com/cbdep/0.9.3/cbdep-0.9.3-windows.exe
+set CBDEP_TOOL_VER=0.9.12
+set GO_VER=1.13.8
+
+set SITE=https://packages.couchbase.com/cbdep/%CBDEP_TOOL_VER%/cbdep-%CBDEP_TOOL_VER%-windows.exe
 set FILENAME=%WORKSPACE%\cbdep.exe
 powershell -command "& { (New-Object Net.WebClient).DownloadFile('%SITE%', '%FILENAME%') }" || goto error
-%WORKSPACE%\cbdep.exe install -d "%DEPS%" golang 1.11.5
+%WORKSPACE%\cbdep.exe install -d "%DEPS%" golang %GO_VER%
 
 set GOPATH=%WORKSPACE%
-set PATH=%GOPATH%\deps\go1.11.5\bin;%PATH%
+set PATH=%GOPATH%\deps\go%GO_VER%\bin;%PATH%
 
 cd protoc-gen-go || goto error
 go build || goto error

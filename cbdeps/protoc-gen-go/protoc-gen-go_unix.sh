@@ -3,16 +3,16 @@
 INSTALL_DIR=$1
 
 DEPS=${WORKSPACE}/deps
-GO_VERS=1.11.5
-CBDEP_TOOL_VERS=0.9.3
+GO_VER=1.13.8
+CBDEP_TOOL_VER=0.9.12
 
-CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
+CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux
 
 if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
     if [ $(uname -s) = "Darwin" ]; then
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-darwin
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-darwin
     else
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux
     fi
     curl -o /tmp/cbdep ${CBDEP_URL}
 else
@@ -20,10 +20,10 @@ else
 fi
 
 chmod +x /tmp/cbdep
-/tmp/cbdep install -d "${DEPS}" golang ${GO_VERS}
+/tmp/cbdep install -d "${DEPS}" golang ${GO_VER}
 
 GOPATH=${WORKSPACE}
-PATH=${DEPS}/go1.11.5/bin:$PATH
+PATH=${DEPS}/go${GO_VER}/bin:$PATH
 
 cd protoc-gen-go
 go build
