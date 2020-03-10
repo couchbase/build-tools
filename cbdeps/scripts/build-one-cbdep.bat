@@ -62,9 +62,10 @@ call %BASE_DIR%\win32\environment.bat %tools_version% || goto error
 cd %PROD_NAME% || goto error
 call %BASE_DIR%\%PROD_NAME%\%PROD_NAME%_windows.bat %INSTALL_DIR% || goto error
 
-echo "Preparing for packages..."
-cd %WORKSPACE% || goto error
-xcopy %BASE_DIR%\%PROD_NAME%\package\* %INSTALL_DIR% /s /e /y || goto error
+echo "Preparing for package..."
+if exist "package" (
+  xcopy package\* %INSTALL_DIR% /s /e /y || goto error
+)
 
 echo "Create package..."
 set PKG_DIR=%WORKSPACE%\packages\%PROD_NAME%\%VERSION%\%BLD_NUM%
