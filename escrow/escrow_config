@@ -1,22 +1,21 @@
 # Need to update/sync latest required dependencies
 
 # Escrow Product
-VERSION=6.5.0
+VERSION=7.0.0
 PRODUCT=couchbase-server
-RELEASE=mad-hatter
-MANIFEST_FILE=released/${PRODUCT}/${VERSION}.xml
+RELEASE=cheshire-cat
+MANIFEST_FILE=${PRODUCT}/${VERSION}.xml
 
 # Docker images
-IMAGES="couchbasebuild/server-amzn2-build:20190424
-couchbasebuild/server-centos7-build:20190430
-couchbasebuild/server-centos8-build:20191005
-couchbasebuild/server-debian8-build:20190426
-couchbasebuild/server-debian9-build:20190426
-couchbasebuild/server-debian10-build:20191003
-build-docker.couchbase.com/couchbasebuild/server-rhel8-build:20190524
-couchbasebuild/server-suse15-build:20190910
-couchbasebuild/server-ubuntu16-build:20190501
-couchbasebuild/server-ubuntu18-build:20190424"
+IMAGES="couchbasebuild/server-amzn2-build:20200211
+couchbasebuild/server-centos7-build:20200211
+couchbasebuild/server-centos8-build:20200211
+couchbasebuild/server-debian8-build:20200211
+couchbasebuild/server-debian9-build:20200211
+couchbasebuild/server-debian10-build:20200211
+couchbasebuild/server-suse15-build:20200211
+couchbasebuild/server-ubuntu16-build:20200211
+couchbasebuild/server-ubuntu18-build:20200211"
 
 # cbdeps to copy from released version rather than build
 CACHED_DEPS=( v8 )
