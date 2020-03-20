@@ -4,7 +4,7 @@
 VERSION=7.0.0
 PRODUCT=couchbase-server
 RELEASE=cheshire-cat
-MANIFEST_FILE=${PRODUCT}/${VERSION}.xml
+MANIFEST_FILE=${PRODUCT}/${RELEASE}.xml
 
 # Docker images
 IMAGES="couchbasebuild/server-amzn2-build:20200211
