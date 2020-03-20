@@ -4,11 +4,10 @@ Compare two manifests from a given product to see if there are any
 potential commits in the older manifest which did not get included
 into the newer manifest.  This will assist in determining if needed
 fixes or changes have been overlooked being added to newer releases.
-
 The form of the manifest filenames passed is a relative path based
 on their location in the manifest repository (e.g. released/4.6.1.xml).
 """
-
+import os
 import argparse
 import io
 import logging
@@ -17,7 +16,7 @@ import pathlib
 import re
 import subprocess
 import sys
-
+import contextlib
 from distutils.spawn import find_executable
 
 import dulwich.patch
@@ -25,80 +24,21 @@ import dulwich.porcelain
 import dulwich.repo
 import lxml.etree
 
+from manifest_tools.scripts.jira_util import connect_jira, get_tickets
 
-class Manifest:
-    """FILL IN"""
 
-    def __init__(self, product_dir, manifest):
-        """Initialize parameters for metadata storage"""
+@contextlib.contextmanager
+def pushd(new_dir):
+    old_dir = os.getcwd()
+    os.chdir(new_dir)
 
-        self.manifest = str(product_dir / '.repo/manifests' / manifest)
-        self.remotes = None
-        self.projects = None
+    try:
+        yield
+    finally:
+        os.chdir(old_dir)
 
-    def get_remotes(self, tree):
-        """Acquire the Git remotes for the repositories"""
 
-        remotes = dict()
-
-        for remote in tree.findall('remote'):
-            remote_name = remote.get('name')
-            remote_url = remote.get('fetch')
-
-            # Skip incomplete/invalid remotes
-            if remote_name is None or remote_url is None:
-                continue
-
-            remotes[remote_name] = remote_url
-
-        # Get default remote
-        default_remote = tree.find('default')
-        default_remote_name = default_remote.get('remote')
-        remotes['default'] = remotes[default_remote_name]
-
-        self.remotes = remotes
-
-    def get_projects(self, tree):
-        """Acquire information for repositories to be archived"""
-
-        projects = dict()
-
-        for project in tree.findall('project'):
-            project_name = project.get('name')
-            project_remote = project.get('remote')
-            project_revision = project.get('revision')
-            project_path = project.get('path')
-
-            # Skip incomplete/invalid projects
-            if project_name is None:
-                continue
-
-            if project_remote is None:
-                project_remote = self.remotes['default']
-
-            if project_path is None:
-                project_path = project_name
-
-            projects[project_name] = {
-                'remote': project_remote,
-                'revision': project_revision,
-                'path': project_path,
-            }
-
-        self.projects = projects
-
-    def get_metadata(self):
-        """
-        Acquire the manifest, then parse and extract information for
-        the remotes and projects, needed to retrieve the repositories
-        to be archived
-        """
-
-        tree = lxml.etree.parse(self.manifest)
-
-        self.get_remotes(tree)
-        self.get_projects(tree)
-
+DEVNULL = open(os.devnull, 'w')
 
 class MissingCommits:
     """"""
@@ -123,11 +63,38 @@ class MissingCommits:
         self.pre_merge = pre_merge
         self.post_merge = post_merge
         self.merge_map = merge_map
+        self.new_branch = new_manifest.name.split('.')[0]
 
         # Projects we don't care about
         self.ignore_projects = ['testrunner']
 
         self.repo_bin = find_executable('repo')
+
+        # We check jira and ignore tickets which are flagged "is a backport of" a ticket in the newer release
+        try:
+            self.jira = connect_jira()
+        except Exception:
+            print("Jira connection failed")
+            sys.exit(1)
+
+
+    def backports_of(self, tickets):
+        """For a list of tickets, gather any outward links flagged "is a backport of" in Jira
+        and return a combined listing of the ticket references"""
+
+        backports = []
+        for ticket in tickets:
+            try:
+                jira_ticket = self.jira.issue(ticket)
+                for issuelink in jira_ticket.raw["fields"]["issuelinks"]:
+                    if issuelink["type"]["outward"] == "is a backport of":
+                        backports.append(issuelink["outwardIssue"]["key"])
+            except Exception:
+                print("Jira ticket retrieval failed")
+                sys.exit(1)
+
+        return backports
+
 
     def repo_sync(self):
         """
@@ -162,13 +129,13 @@ class MissingCommits:
 
         try:
             cmd = [self.repo_bin, 'init', '-u',
-                 self.manifest_repo,
-                 '-g', 'all', '-m', self.new_manifest]
+                   self.manifest_repo,
+                   '-g', 'all', '-m', self.new_manifest]
             if self.reporef_dir is not None:
                 cmd.extend(['--reference', self.reporef_dir])
             subprocess.check_output(cmd,
-                cwd=self.product_dir, stderr=subprocess.STDOUT
-            )
+                                    cwd=self.product_dir, stderr=subprocess.STDOUT
+                                    )
         except subprocess.CalledProcessError as exc:
             print(f'The "repo init" command failed: {exc.output}')
             sys.exit(1)
@@ -298,7 +265,6 @@ class MissingCommits:
         former, which is a strong indication that the commit was
         properly merged into the project at the time of the target
         manifest.
-
         Print out any possible matches along with any 'missing'
         commits to allow user to determine what might still need
         to be merged forward.
@@ -317,7 +283,6 @@ class MissingCommits:
         new_commit = self.get_commit_sha(repo_path, new_commit)
 
         project_dir = self.product_dir / repo_path
-
         try:
             old_results = subprocess.check_output(
                 missing + [f'{old_commit}...{new_commit}'],
@@ -346,35 +311,59 @@ class MissingCommits:
         project_has_missing_commits = False
 
         if new_results:
-
             for commit in new_results.strip().split('\n'):
                 sha, comment = commit.split(' ', 1)
 
-                if any(c.startswith(sha) for c in self.ignored_commits):
+                if any(c.startswith(sha[:7]) for c in self.ignored_commits):
                     continue
 
                 match = True
                 for rev_commit in rev_commits:
                     rev_sha, rev_comment = rev_commit.split(' ', 1)
-
                     if self.compare_summaries(rev_comment, comment):
                         break
-
                 else:
                     match = False
+                backports = self.backports_of(get_tickets(comment))
+                is_a_backport = False
+                if backports:
+                    with pushd(self.product_dir / repo_path):
+                        with open('.git/HEAD') as f:
+                            head = f.read().strip()
+                        remote = subprocess.check_output(["git", "remote"]).decode("utf-8").strip()
+                        gitlog = subprocess.Popen(
+                            ['git', 'log', '--oneline', f'{remote}/{self.new_branch}'], stdout=subprocess.PIPE)
+                        try:
+                            matches = subprocess.check_output(
+                                ["grep", "-E"] + ['|'.join(backports)], stdin=gitlog.stdout).decode("ascii").strip().split("\n")
+                            if len(matches) > 0:
+                                is_a_backport = True
+                        except subprocess.CalledProcessError as exc:
+                            if exc.returncode == 1:
+                                # grep most likely failed to find a match.
+                                pass
+                            else:
+                                print("Exception:", exc.output)
+                        subprocess.call(['git', 'checkout', head],
+                                        stdout=DEVNULL, stderr=DEVNULL)
 
                 # At this point we know we have something to report. Set a
                 # flag. If this is the first time, print the project header.
                 if not project_has_missing_commits:
                     print(f'Project {repo_path}:')
                     project_has_missing_commits = True
-
                 if match:
-                    print(f'    [Possible commit match] {sha[:7]} {comment}')
+                    print(
+                        f'    [Possible commit match] {sha[:7]} {comment}')
                     print(f'        Check commit: {rev_sha[:7]} '
                           f'{rev_comment}')
+                elif is_a_backport:
+                    print(
+                        f'               [Backport] {sha[:8]} {comment}')
+                    print(f'                      of:',
+                          '\n                         '.join(matches))
                 else:
-                    print(f'    [No commit match      ] {sha[:7]} '
+                    print(f'        [No commit match] {sha[:7]} '
                           f'{comment}')
 
             if project_has_missing_commits:
@@ -384,7 +373,6 @@ class MissingCommits:
     def determine_diffs(self):
         """
         This manages the main workflow:
-
          - Sync the repo checkout to the target release/branch
          - Generate the diffs between the two manifests
          - Determine any "missing" commits by comparing SHAs
@@ -412,7 +400,6 @@ class MissingCommits:
                 _, repo_path, final_commit = entry.split()
 
                 if repo_path in self.pre_merge:
-                    # self.clone_removed_repo(repo_path)
                     changes[repo_path] = (
                         'removed', final_commit,
                         self.generate_diff(repo_path, final_commit)
@@ -494,7 +481,6 @@ def main():
             for entry in fh.readlines():
                 if entry.startswith('#'):
                     continue   # Skip comments
-
                 try:
                     project, commit = entry.split()[0:2]
                 except ValueError:
@@ -549,7 +535,6 @@ def main():
 
     if miss_comm.missing_commits_found:
         sys.exit(1)
-
 
 
 if __name__ == '__main__':

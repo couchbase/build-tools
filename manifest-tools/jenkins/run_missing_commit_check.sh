@@ -1,12 +1,12 @@
-#!/bin/bash -e
+#!/bin/sh -ex
 
 PRODUCT=$1
 shift
 RELEASE=$1
 shift
 
-# Ensure we have the latest image
-docker pull couchbasebuild/ubuntu-1604-recreate-build-manifest:latest
+reporef_dir=/data/reporef
+metadata_dir=/data/metadata
 
 # Update reporef. Note: This script requires /home/couchbase/reporef
 # to exist in three places, with that exact path:
@@ -16,9 +16,14 @@ docker pull couchbasebuild/ubuntu-1604-recreate-build-manifest:latest
 #  - Mounted into the ubuntu-1604-recreate-build-manifest container, and
 #    passed as the --reporef_dir argument to find_missing_commits
 # Remember that when passing -v arguments to "docker run" from within a
-# container (like the Jenkins slave), the path is interpretted by the
+# container (like the Jenkins slave), the path is interpreted by the
 # Docker daemon, so the path must exist on the Docker *host*.
-cd /home/couchbase/reporef
+if [ -z "$(ls -A $reporef_dir)" ]
+then
+  echo "reporef dir is empty"
+  exit 1
+fi
+
 if [ ! -e .repo ]; then
     # This only pre-populates the reporef for Server git code. Might be able
     # to do better in future.
@@ -26,22 +31,23 @@ if [ ! -e .repo ]; then
 fi
 repo sync --jobs=6 > /dev/null
 
+cd /data/metadata
+
 # This script also expects a /home/couchbase/check_missing_commits to be
 # available on the Docker host, and mounted into the Jenkins slave container
 # at /home/couchbase/check_missing_commits, for basically the same reasons
 # as above. Note: I tried initially to use a named Docker volume for this
 # to avoid needing to create the directory on the host; however, Docker kept
 # changing the ownership of the mounted directory to root in that case.
-cd /home/couchbase/check_missing_commits
+
 rm -rf product-metadata
 git clone git://github.com/couchbase/product-metadata > /dev/null
 
-metadata_dir=product-metadata/${PRODUCT}/missing_commits/${RELEASE}
-if [ ! -e "${metadata_dir}" ]; then
+release_dir=product-metadata/${PRODUCT}/missing_commits/${RELEASE}
+if [ ! -e "${release_dir}" ]; then
     echo "Cannot run check for unknown release ${RELEASE}!"
     exit 1
 fi
-cd ${metadata_dir}
 
 # Sync Gateway annoyingly has a different layout and repository for manifests
 # compared to the rest of the company. In particular they re-use "default.xml"
@@ -66,22 +72,22 @@ echo
 echo "Checking for missing commits in release ${RELEASE}...."
 echo
 
+cd ${release_dir}
+
+set +ex
+failed=0
+
 for previous_manifest in $(cat previous-manifests.txt); do
-    docker run --rm -u couchbase \
-        -w $(pwd) \
-        -v /home/couchbase/check_missing_commits:/home/couchbase/check_missing_commits \
-        -v /home/couchbase/reporef:/home/couchbase/reporef \
-        -v /home/couchbase/jenkinsdocker-ssh:/home/couchbase/.ssh \
-        couchbasebuild/ubuntu-1604-recreate-build-manifest \
-            find_missing_commits \
-            --manifest_repo ${manifest_repo} \
-            --reporef_dir /home/couchbase/reporef \
-            -i ok-missing-commits.txt \
-            -m merge-projects.txt \
-            ${PRODUCT} \
-            ${previous_manifest} \
-            ${current_manifest} \
-    || failed=1
+    echo "Checking ${previous_manifest}"
+    find_missing_commits \
+        --manifest_repo ${manifest_repo} \
+        --reporef_dir ${reporef_dir} \
+        -i ok-missing-commits.txt \
+        -m merge-projects.txt \
+        ${PRODUCT} \
+        ${previous_manifest} \
+        ${current_manifest}
+    failed=$(($failed + $?))
 done
 
 exit $failed
