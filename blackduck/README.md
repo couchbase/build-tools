@@ -1,2 +1,5 @@
-Directory contains scripts for performing Black Duck scans,
-in particular for creating and then pruning a Couchbase Server checkout.
+jenkins/ directory contains scripts for the various Jenkins jobs.
+Other subdirectories are product-specific configuration and scripts for
+doing scans on those products.
+
+https://hub.internal.couchbase.com/confluence/display/CR/Blackduck+Scanning+Process
