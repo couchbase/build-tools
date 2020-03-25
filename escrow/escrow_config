@@ -18,7 +18,7 @@ couchbasebuild/server-ubuntu16-build:20200211
 couchbasebuild/server-ubuntu18-build:20200211"
 
 # cbdeps to copy from released version rather than build
-CACHED_DEPS=( v8 )
+CACHED_DEPS=( v8 openjdk-rt )
 
 # Version of docker cli tools to in container used by go.sh
 DOCKER_VERSION=19.03.5

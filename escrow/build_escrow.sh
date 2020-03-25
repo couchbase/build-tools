@@ -3,7 +3,6 @@
 source ./escrow_config || exit 1
 
 # Top-level directory; everything to escrow goes in here.
-
 if [ -z "$1" ]
 then
   echo "Usage: $0 /path/to/output/files"
@@ -148,23 +147,48 @@ cache_deps() {
 cache_openjdk() {
   echo "# Caching openjdk + openjdk_rt"
   sleep 5
-  local openjdk_version=$(awk '/SET \(_jdk_ver / {print substr($3, 1, length($3)-1)}' ${ESCROW}/src/analytics/cmake/Modules/FindCouchbaseJava.cmake) \
-    || fatal "Couldn't get openjdk version"
-  local openjdk_rt_version=$(curl -Lvs https://raw.githubusercontent.com/couchbase/tlm/${RELEASE}/deps/manifest.cmake 2>/dev/null | awk "/openjdk-rt .*${PLATFORM}/ {print \$4}") \
-    || fatal "Couldn't get openjdk-rt version"
-  "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n openjdk "${openjdk_version}"
-  "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache openjdk-rt ${openjdk_rt_version}
-  mkdir -p ${ESCROW}/src/build/tlm/deps/openjdk-rt.exploded
-  cp -rp ${ESCROW}/deps/.cbdepscache/openjdk-rt-${openjdk_rt_version}/openjdk-rt.jar ${ESCROW}/src/build/tlm/deps/openjdk-rt.exploded/openjdk-rt.jar
+
+  local openjdk_versions=$(awk '/SET \(_jdk_ver / {print substr($3, 1, length($3)-1)}' ${ESCROW}/src/analytics/cmake/Modules/FindCouchbaseJava.cmake) \
+    || fatal "Couldn't get openjdk versions"
+  echo "openjdk_versions: $openjdk_versions"
+  for openjdk_version in $openjdk_versions
+  do
+    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n openjdk "${openjdk_version}" || fatal "OpenJDK install failed"
+  done
+
+  # mkdir -p ${ESCROW}/src/build/tlm/deps/openjdk-rt.exploded
+  # local manifest=$(curl -Lvs https://raw.githubusercontent.com/couchbase/tlm/master/deps/manifest.cmake 2>/dev/null)
+  # local openjdk_rt_versions=$(echo "$manifest" | awk "/openjdk-rt .*${PLATFORM}/ {print \$4}") \
+  #   || fatal "Couldn't get openjdk-rt versions"
+  # for openjdk_rt_version in $openjdk_rt_versions
+  # do
+  #   "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache openjdk-rt ${openjdk_rt_version}
+  #   cp -rp ${ESCROW}/deps/.cbdepscache/openjdk-rt-${openjdk_rt_version}/openjdk-rt.jar ${ESCROW}/src/build/tlm/deps/openjdk-rt.exploded/openjdk-rt.jar
+  # done
 }
 
 cache_analytics() {
   echo "# Caching analytics"
-  local version=$(awk "/PACKAGE analytics-jars VERSION/ {print substr(\$5, 1, length(\$5)-1)}" "${ESCROW}/src/analytics/CMakeLists.txt") \
-    || fatal "Coudln't get analytics version"
-  chmod +x ${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux
-  "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n analytics-jars "${version}"
-  "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache analytics-jars "${version}"
+  VERSION_STRINGS=$(awk "/PACKAGE analytics-jars VERSION/ {print substr(\$5, 1, length(\$5)-1)}" "${ESCROW}/src/analytics/CMakeLists.txt") || fatal "Coudln't get analytics version"
+  if [ -z "$VERSION_STRINGS" ]
+  then
+    fatal "Failed to retrieve analytics versions"
+  fi
+  for version in $VERSION_STRINGS
+  do
+    if [[ $version == \$\{*\} ]]; # if it's a parameter, we need to figure out what its value is
+    then
+      param=${version:2:${#version}-3}
+      analytics_version=$(grep "SET ($param " "${ESCROW}/src/analytics/CMakeLists.txt" | cut -d'"' -f2)
+    else
+      analytics_version=$version
+    fi
+    analytics_version=${analytics_version/-*/}
+    chmod +x ${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux
+    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n analytics-jars "${analytics_version}" || fatal "Failed to cache analytics jars"
+    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache analytics-jars "${analytics_version}" || fatal "Failed to cache analytics jars"
+  done
+
   mkdir -p ${ESCROW}/src/analytics/cbas/cbas-install/target/cbas-install-1.0.0-SNAPSHOT-generic/cbas/repo/compat/60x
   sed -i 's/PWD/pwd/g' "${ESCROW}/src/analytics/scripts/link_duplicates.sh"
 }
@@ -257,7 +281,6 @@ repo sync --jobs=6
 
 # Download all cbdeps source code
 mkdir -p "${ESCROW}/deps"
-
 # Determine set of cbdeps used by this build, per platform.
 for platform in ${PLATFORMS}
 do

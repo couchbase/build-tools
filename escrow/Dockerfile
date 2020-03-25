@@ -1,4 +1,4 @@
-FROM ubuntu
+FROM ubuntu:16.04
 # Placeholder - this is overriden by escrow_config when a build is triggered using go.sh
 ARG DOCKER_VERSION=19.03.5
 
