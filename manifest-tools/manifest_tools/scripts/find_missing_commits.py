@@ -344,8 +344,6 @@ class MissingCommits:
                                 pass
                             else:
                                 print("Exception:", exc.output)
-                        subprocess.call(['git', 'checkout', head],
-                                        stdout=DEVNULL, stderr=DEVNULL)
 
                 # At this point we know we have something to report. Set a
                 # flag. If this is the first time, print the project header.

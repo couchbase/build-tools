@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/sh -e
 
 PRODUCT=$1
 shift
@@ -9,20 +9,22 @@ reporef_dir=/data/reporef
 metadata_dir=/data/metadata
 
 # Update reporef. Note: This script requires /home/couchbase/reporef
-# to exist in three places, with that exact path:
+# to exist in two places, with that exact path:
 #  - The Docker host (currently mega3), so it's persistent
 #  - Mounted in the Jenkins slave container, so this script can be run
 #    to update it
-#  - Mounted into the ubuntu-1604-recreate-build-manifest container, and
-#    passed as the --reporef_dir argument to find_missing_commits
-# Remember that when passing -v arguments to "docker run" from within a
-# container (like the Jenkins slave), the path is interpreted by the
-# Docker daemon, so the path must exist on the Docker *host*.
+# It is then mounted into the container running this script as
+# /data/reporef Remember that when passing -v arguments to "docker run"
+# from within a container (like the Jenkins slave), the path is
+# interpreted by the Docker daemon, so the path must exist on the
+# Docker *host*.
 if [ -z "$(ls -A $reporef_dir)" ]
 then
   echo "reporef dir is empty"
   exit 1
 fi
+
+cd "${reporef_dir}"
 
 if [ ! -e .repo ]; then
     # This only pre-populates the reporef for Server git code. Might be able
@@ -31,12 +33,12 @@ if [ ! -e .repo ]; then
 fi
 repo sync --jobs=6 > /dev/null
 
-cd /data/metadata
+cd "${metadata_dir}"
 
 # This script also expects a /home/couchbase/check_missing_commits to be
 # available on the Docker host, and mounted into the Jenkins slave container
-# at /home/couchbase/check_missing_commits, for basically the same reasons
-# as above. Note: I tried initially to use a named Docker volume for this
+# at /data/metadata, for basically the same reasons as above.
+# Note: I tried initially to use a named Docker volume for this
 # to avoid needing to create the directory on the host; however, Docker kept
 # changing the ownership of the mounted directory to root in that case.
 
