@@ -4,14 +4,19 @@ this_dir=$(dirname $0)
 
 STAGING=$1
 
+# Version and release are passed in as environment variables by go.sh
+if [ -e "$VERSION" -o -e "$RELEASE" ]
+then
+  echo "Env vars not specified, this script should be triggered by go.sh"
+  exit 1
+fi
+
 if [[ "${STAGING}" == "yes" ]]; then
     STAGE_EXT="-staging"
 else
     STAGE_EXT=""
 fi
 
-VERSION=1.0
-RELEASE=7
 REL_NAME="couchbase-release${STAGE_EXT}-${VERSION}-${RELEASE}"
 
 rm -rf ~/rpmbuild

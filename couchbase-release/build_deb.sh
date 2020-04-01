@@ -5,17 +5,25 @@ pushd ${this_dir}
 
 STAGING=$1
 
+# Version, release and distro codenames are passed in as environment variables by go.sh
+if [ -e "$DISTRO_CODENAMES" -o -e "$VERSION" -o -e "$RELEASE" ]
+then
+  echo "Env vars not specified, this script should be triggered by go.sh"
+  exit 1
+fi
+
 if [[ "${STAGING}" == "yes" ]]; then
     STAGE_EXT="-staging"
 else
     STAGE_EXT=""
 fi
 
-VERSION=1.0
-RELEASE=7
 REL_NAME="couchbase-release${STAGE_EXT}-${VERSION}-${RELEASE}"
 
 rm -rf deb/${REL_NAME}
+
+sed -e "s/%DISTRO_CODENAMES%/${distro_codenames}/g" deb/debian_control_files/DEBIAN/postinst.in > deb/debian_control_files/DEBIAN/postinst
+sed -e "s/%DISTRO_CODENAMES%/${distro_codenames}/g" deb/debian_control_files/DEBIAN/preinst.in > deb/debian_control_files/DEBIAN/preinst
 
 sed -e "s/%STAGING%/${STAGE_EXT}/g" \
     -e "s/%VERSION%/${VERSION}/g" \
@@ -25,6 +33,8 @@ sed -e "s/%STAGING%/${STAGE_EXT}/g" \
 mkdir -p deb/debian_control_files/etc/apt/sources.list.d
 sed -e "s/%STAGING%/${STAGE_EXT}/g" deb/tmpl/couchbase.list.in \
     > deb/debian_control_files/etc/apt/sources.list.d/couchbase.list
+
+chmod 755 deb/debian_control_files/DEBIAN/{pre,post}inst
 
 cp -pr deb/debian_control_files deb/${REL_NAME}
 mkdir -p deb/${REL_NAME}/etc/apt/trusted.gpg.d

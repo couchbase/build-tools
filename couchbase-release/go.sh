@@ -3,13 +3,13 @@
 # This script takes a version and release as arguments, before generating
 # and testing .deb and .rpm packages for the couchbase package manager repos.
 # Trigger it with:
-#   ./run.sh [version] [release]
-# e.g: ./run.sh 1.0 7
+#   ./go.sh [version] [release]
+# e.g: ./go.sh 1.0 7
 
 # Note: apt/yum output is suppressed unless $verbose is non-empty. Run with
-# e.g. `verbose=1 ./run_tests.sh 1.0 999` to see unrestricted output
+# e.g. `verbose=1 ./go.sh 1.0 999` to see unrestricted output
 
-[ "$2" = "" ] && (echo "Usage: ./run_tests.sh [version] [release]" ; exit 1)
+[ "$2" = "" ] && (echo "Usage: ./go.sh [version] [release]" ; exit 1)
 
 # Amazon linux versions currently have to be added manually
 amazon_versions=( 2 )
@@ -91,16 +91,6 @@ run_test() {
     fi
 }
 
-# To maintain portability between Linux and Mac OS, for in-place edits we let
-# sed make backup files and delete them immediately after
-sed -e "s/%DISTRO_CODENAMES%/${distro_codenames}/g" deb/debian_control_files/DEBIAN/postinst.in > deb/debian_control_files/DEBIAN/postinst
-sed -e "s/%DISTRO_CODENAMES%/${distro_codenames}/g" deb/debian_control_files/DEBIAN/preinst.in > deb/debian_control_files/DEBIAN/preinst
-sed -i'.bak' -e "s/^VERSION=.*/VERSION=${version}/" -e "s/^RELEASE=.*/RELEASE=${release}/" build_{rpm,deb}.sh
-sed -i'.bak' -e "s/^Version:.*/Version: ${version}-${release}/" deb/debian_control_files/DEBIAN/control
-chmod 755 deb/debian_control_files/DEBIAN/{pre,post}inst
-rm -f build_*.sh.bak \
-      deb/debian_control_files/DEBIAN/control.bak
-
 # Tidy up the output of previous runs
 for ext in deb rpm ; do [ -f couchbase-release*.${ext} ] && rm couchbase-release*.${ext}; done
 rm -rf deb/couchbase-release*
@@ -148,12 +138,12 @@ EOF
 # Create .rpm
 heading "Creating .rpm"
 docker run --rm -it -v $(pwd):/app -w /app couchbase-release-centos bash -c \
-  "./build_rpm.sh ${STAGING}"
+  "VERSION=${version} RELEASE=${release} ./build_rpm.sh ${STAGING}"
 
 # Create .deb
 heading "Creating .deb"
 docker run --rm -it -v $(pwd):/app -w /app couchbase-release-ubuntu bash -c \
-  "./build_deb.sh ${STAGING}"
+  "VERSION=${version} RELEASE=${release} DISTRO_CODENAMES=\"${distro_codenames}\" ./build_deb.sh ${STAGING}"
 
 if [ "$run_tests" = "no" ]; then exit 0; fi
 
