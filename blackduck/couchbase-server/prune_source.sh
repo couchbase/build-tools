@@ -26,11 +26,11 @@ find . -name analytics -prune -o -type d -name benchmarks -print0 | xargs -0 rm 
 # Remove all msvc, vcs* window projects
 WIN='example *msvc* *vcproj* *vcxproj* visual vstudio dot_net_example example csharp vc7ide'
 for windir in ${WIN}; do
-	find . -name analytics -prune -o -type d -name "$windir" | xargs rm -rf
+	find . -name analytics -prune -o -type d -name "$windir" -print0 | xargs -0 rm -rf
 done
 
 # cbdeps-specific pruning
-cd thirdparty-src/deps
+pushd thirdparty-src/deps
 
 rm -rf erlang/lib/*test*
 rm -rf ./v8/src/debug
@@ -44,3 +44,5 @@ rm -rf maven
 
 # We don't actually ship with this library enabled
 rm -rf rocksdb
+
+popd
