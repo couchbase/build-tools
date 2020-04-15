@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -ex
 
 usage() {
     cat << EOF
@@ -13,7 +13,8 @@ check_notarization_status() {
 
     XML_OUTPUT=$(
         xcrun altool --notarization-info ${request} \
-        -u build-team@couchbase.com -p "@env:AC_PASSWORD" \
+        -u build-team@couchbase.com -p ${AC_PASSWORD} \
+        --output-format xml \
         2>&1
     )
     if [ $? != 0 ]; then
@@ -23,8 +24,7 @@ check_notarization_status() {
 
     STATUS=$(
         echo "$XML_OUTPUT" | \
-        grep "Status:" | \
-        cut -c 17-
+        xmllint --xpath '//dict[key/text() = "notarization-info"]/dict/key[text() = "Status"]/following-sibling::string[1]/text()' -
     )
     case ${STATUS} in
         success)
@@ -65,14 +65,17 @@ if [ -z "${RELEASE}" -o -z "${VERSION}" -o -z "${BLD_NUM}" ]; then
     usage
 fi
 
-cd /latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}
+DMG_URL_DIR=http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}
 
 DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
 
 # Check files exist
 for file in ${DMGS[*]}; do
-    if [ ! -e ${file} ]; then
-        echo "${file} is missing! Aborting..."
+    if curl --head --silent --fail ${DMG_URL_DIR}/${file} 2> /dev/null;
+    then
+        curl -O ${DMG_URL_DIR}/${file}
+    else
+        echo "${DMG_URL_DIR}/${file} does not exist. Aborting..."
         exit 1
     fi
 done
@@ -89,18 +92,6 @@ for file in ${DMGS[*]}; do
     echo
 done
 
-# Load username/password from files - ensure set -x unset so
-# password isn't echoed to output
-if shopt -qo xtrace; then
-    export TRACE=1
-    set +x
-fi
-export AC_USERNAME=$(cat ~/.ssh/appleid.txt)
-export AC_PASSWORD=$(cat ~/.ssh/appleid.password)
-if [ ! -z "${TRACE}" ]; then
-    set -x
-fi
-
 # Start notarization process
 declare -a REQUESTS
 for file in ${UNNOTARIZED[*]}; do
@@ -109,7 +100,7 @@ for file in ${UNNOTARIZED[*]}; do
         xcrun altool --notarize-app -t osx \
         -f ${file} \
         --primary-bundle-id com.couchbase.couchbase-server \
-        -u build-team@couchbase.com -p "@env:AC_PASSWORD" \
+        -u build-team@couchbase.com -p ${AC_PASSWORD} \
         --output-format xml
     )
     if [ $? != 0 ]; then
