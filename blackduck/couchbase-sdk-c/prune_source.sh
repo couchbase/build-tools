@@ -1,4 +1,5 @@
 #!/bin/bash -ex
 
-pushd libcouchbase
-rm -rf contrib/gtest*
+rm -rf libcouchbase/contrib/gtest*
+rm -rf thirdparty/libuv/docs
+rm -rf thirdparty/openssl/external/perl
