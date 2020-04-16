@@ -40,7 +40,7 @@ docker build -f Dockerfile.rhel \
    --build-arg PROD_BUILD=${BLD_NUM} \
    --build-arg OS_BUILD=${OS_BUILD} \
    -t "${OPENSHIFT_IMAGE}" \
-   -t "${NAUGHTY_IMAGE}"
+   -t "${NAUGHTY_IMAGE}" \
    .
 
 echo "Pushing to internal Docker registry and Docker Hub"
