@@ -227,11 +227,12 @@ class UpdateManifest:
             # Note: We assume the first repo specified on the command line
             # is the "parent" of any others, and hence the path in the
             # manifest must be nested below that one. That's a limitation.
+            base_path = self.projects[self.repos[0]]['path']
             project = self.tree.xpath(
-                '//project[@path="{}/{}"]'.format(self.repos[0], path))
+                '//project[@path="{}/{}"]'.format(base_path, path))
             if len(project) == 0:
                 print('Unable to find project with path "{}/{}", '
-                      'aborting...'.format(self.repos[0], path))
+                      'aborting...'.format(base_path, path))
                 sys.exit(1)
             project = project[0]
 
