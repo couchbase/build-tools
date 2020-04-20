@@ -12,7 +12,7 @@ import sys
 
 from blackduck.HubRestApi import HubInstance
 from mdutils.mdutils import MdUtils
-from mdutils.tools.tools import TextUtils
+from mdutils.tools import TextUtils
 from pathlib import Path
 
 logger = logging.getLogger('blackduck/check-component-lic')
@@ -125,7 +125,7 @@ class ComponentLicenseChecker:
         human_name = f"{comp['Component name']} {comp['Component version name']}"
 
         # If it's Reviewed in Black Duck, it's presumed OK
-        if comp['Review status'] == "REVIEWED":
+        if comp['Snippet Review status'] == "REVIEWED":
             logger.debug (f"Skipping {human_name} because it's reviewed")
             return True
 
