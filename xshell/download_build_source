@@ -1,0 +1,36 @@
+#!/bin/bash -e
+
+if [ ! -z "$1" ]; then
+    PRODUCT=$1
+    RELEASE=$2
+    VERSION=$3
+    BLD_NUM=$4
+fi
+
+if [ -z "${PRODUCT}" ]; then
+    echo Missing PRODUCT
+    exit 1
+fi
+if [ -z "${RELEASE}" ]; then
+    echo Missing RELEASE
+    exit 1
+fi
+if [ -z "${VERSION}" ]; then
+    echo Missing VERSION
+    exit 1
+fi
+if [ -z "${BLD_NUM}" ]; then
+    echo Missing BLD_NUM
+    exit 1
+fi
+
+ROOT=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}
+
+echo "Downloading properties for ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM}..."
+curl --retry 5 -s -L -o build.properties ${ROOT}/${PRODUCT}-${RELEASE}-${BLD_NUM}.properties
+
+echo "Downloading source for ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM}..."
+curl --retry 5 -s -LO ${ROOT}/${PRODUCT}-${VERSION}-${BLD_NUM}-source.tar.gz
+
+echo "Extracting source..."
+tar xzf ${PRODUCT}-${VERSION}-${BLD_NUM}-source.tar.gz
