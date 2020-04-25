@@ -4,6 +4,13 @@ This directory contains scripts useful for using with the Jenkins "XShell"
 Scripts in here should always come in pairs, one with no extension (for
 execution on Unix) and one with a .bat extension (for Windows).
 
+If you wish to write the Windows version using Powershell, you can commit
+that here with a .ps1 extension, but you must also include a stub .bat file
+with the content:
+
+    @echo off
+    powershell %~dp0\NAME_OF_SCRIPT.ps1 %*
+
 download_build_source - accepts the standard four "build co-ordinates"
 (product, release, version, bld_num) on the command line. If they are not
 specified, assumes that the variables PRODUCT, RELEASE, VERSION, and BLD_NUM

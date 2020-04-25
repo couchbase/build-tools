@@ -24,13 +24,20 @@ if [ -z "${BLD_NUM}" ]; then
     exit 1
 fi
 
-ROOT=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}
+# Derived values
+PRODUCT_PATH=${PRODUCT/:://}
+PRODUCT_NAME=$(basename ${PRODUCT_PATH})
+ROOT=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT_PATH}/${RELEASE}/${BLD_NUM}
 
-echo "Downloading properties for ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM}..."
-curl --retry 5 -s -L -o build.properties ${ROOT}/${PRODUCT}-${RELEASE}-${BLD_NUM}.properties
+# Downloads
 
-echo "Downloading source for ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM}..."
-curl --retry 5 -s -LO ${ROOT}/${PRODUCT}-${VERSION}-${BLD_NUM}-source.tar.gz
+PROP=${PRODUCT_NAME}-${RELEASE}-${BLD_NUM}.properties
+echo "Downloading ${PROP}..."
+curl --fail --retry 5 -s -L -o build.properties ${ROOT}/${PROP}
+
+SRC=${PRODUCT_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
+echo "Downloading ${SRC}..."
+curl --fail --retry 5 -s -LO ${ROOT}/${SRC}
 
 echo "Extracting source..."
-tar xzf ${PRODUCT}-${VERSION}-${BLD_NUM}-source.tar.gz
+tar xzf ${SRC}
