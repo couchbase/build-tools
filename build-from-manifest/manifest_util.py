@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import contextlib
@@ -6,6 +6,7 @@ import json
 import os
 import pprint
 import shutil
+import xml.etree.ElementTree as ET
 
 from subprocess import check_call, check_output
 
@@ -64,35 +65,49 @@ def scan_manifests(manifest_repo="git://github.com/couchbase/manifest"):
                     config = json.load(conffile)
                     if "manifests" not in config:
                         continue
-
-                    for manifest in config["manifests"]:
-                        manifests[manifest] = config["manifests"][manifest]
-
-            # Identify each .xml file
-            for filename in files:
-                if filename[-4:] == ".xml":
-                    # If this manifest is listed in a product-config.json,
-                    # it will have already been read since we're doing
-                    # a top-down walk. So if we don't find it here,
-                    # initialize it with a dict that marks it "inactive".
-                    # QQQ it should only assume manifests are inactive
-                    # if there is NO product-config.json for the current
-                    # project.
-                    full_filename = os.path.join(root, filename)[2:]
-                    if full_filename not in manifests:
-                        manifests[full_filename] = {
-                          "inactive": True, "type": ""
-                        }
-
-                    if "type" not in manifests[full_filename]:
-                        if root.endswith("toys"):
-                            manifests[full_filename]["type"] = "toy"
-                        elif root.endswith("features"):
-                            manifests[full_filename]["type"] = "feature"
-                        else:
-                            manifests[full_filename]["type"] = "production"
+                    # Strip leading "./" from product path
+                    add_manifests(
+                        manifests,
+                        config["manifests"],
+                        root[2:],
+                        config.get("product")
+                    )
 
     return manifests
+
+def add_manifests(manifests, prod_manifests, product_path, override_product):
+    """
+    Adds all manifests for a product (ie, a single
+    product-config.json), applying appropriate derived
+    values
+    """
+
+    # QQQ we do NOT support per-manifest overrides of "product" here;
+    # that feature should be considered deprecated
+
+    if override_product is not None:
+        # Override product (and product_path) if set in product-config.json
+        product = override_product
+        product_path = override_product.replace('::', '/')
+    else:
+        # Otherwise, product name is derived from product path
+        product = product_path.replace('/', '::')
+
+    for manifest, values in prod_manifests.items():
+        # Have to actually parse the manifest to extract VERSION
+        root = ET.parse(manifest)
+        verattr = root.find('project[@name="build"]/annotation[@name="VERSION"]')
+        if verattr is not None:
+            values['version'] = verattr.get('value', "0.0.0")
+        else:
+            values['version'] = "0.0.0"
+
+        # Derived values are here
+        values['product'] = product
+        values['product_path'] = product_path
+        values['prod_name'] = product.split('::')[-1]
+        values['build_job'] = values.get('jenkins_job', f'{product}-build')
+        manifests[manifest] = values
 
 
 if __name__ == '__main__':
@@ -100,6 +115,15 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--manifest-project", type=str,
                         default="git://github.com/couchbase/manifest",
                         help="Alternate git URL for manifest repository")
+    parser.add_argument("-m", "--manifest-file", type=str,
+                        default=None,
+                        help="Specific manifest to show info about (default: all)")
     args = parser.parse_args()
+
+    details = scan_manifests(args.manifest_project)
+
     pp = pprint.PrettyPrinter(indent=2)
-    pp.pprint(scan_manifests(args.manifest_project))
+    if args.manifest_file is not None:
+        pp.pprint(details[args.manifest_file])
+    else:
+        pp.pprint(details)
