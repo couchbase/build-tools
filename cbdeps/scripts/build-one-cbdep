@@ -4,7 +4,13 @@ set -ex
 
 PROD_NAME=${PRODUCT#"cbdeps::"}
 PROD_PATH=${PRODUCT//::/\/}
-cd ${WORKSPACE}
+
+if [ -z "${WORKSPACE}" ]; then
+    WORKDIR=$(pwd)
+else
+    WORKDIR="${WORKSPACE}"
+fi
+cd "${WORKDIR}"
 
 env
 
@@ -21,27 +27,39 @@ if [[ "${PLATFORM}" =~ -windowscrosscompile$ ]]; then
 else
     export ARCH=x86_64
 fi
+
+# Hacky fix for inconsistent naming of MacOS
+if [ "${PLATFORM}" == "macos" ]; then
+    export PLATFORM=macosx
+fi
+
 TARBALL_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.tgz
 MD5_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.md5
 
 echo "Performing build..."
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BASE_DIR=$(dirname ${SCRIPT_DIR})  # Need 'cbdeps' directory
-INSTALL_DIR=${WORKSPACE}/install
+PACKAGE_DIR="$( cd "$SCRIPT_DIR/../${PROD_NAME}" && pwd )" # build-tools/cbdeps/PACKAGE
+ROOT_DIR="$( cd "$SCRIPT_DIR/../../.." && pwd )" # root of repo sync
+
+INSTALL_DIR=${WORKDIR}/install
 rm -rf ${INSTALL_DIR}
 mkdir -p ${INSTALL_DIR}
-${BASE_DIR}/${PROD_NAME}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${PLATFORM} ${RELEASE} ${VERSION} ${BLD_NUM}
+${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${RELEASE} ${VERSION} ${BLD_NUM}
 
 echo "Preparing for package..."
-PACKAGE=${BASE_DIR}/${PROD_NAME}/package
+PACKAGE=${PACKAGE_DIR}/package
 if [ -d ${PACKAGE} ]; then
     cp -pr ${PACKAGE}/* ${INSTALL_DIR}
 fi
 
 echo "Create package..."
-PKG_DIR=${WORKSPACE}/packages/${PROD_NAME}/${VERSION}/${BLD_NUM}
+PKG_DIR=${WORKDIR}/packages/${PROD_NAME}/${VERSION}/${BLD_NUM}
 rm -rf ${PKG_DIR}
 mkdir -p ${PKG_DIR}
 cd ${INSTALL_DIR}
 tar zcf ${PKG_DIR}/${TARBALL_NAME} .
 md5sum ${PKG_DIR}/${TARBALL_NAME} > ${PKG_DIR}/${MD5_NAME}
+
+if [ "$1" == "install" ]; then
+    cp -p ${PKG_DIR}/* ~/.cbdepscache
+fi

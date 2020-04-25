@@ -1,7 +1,10 @@
 #!/bin/bash -ex
 
 INSTALL_DIR=$1
-DISTRO=$2
+ROOT_DIR=$2
+PLATFORM=$3
+
+cd ${ROOT_DIR}
 
 DEPS=${WORKSPACE}/deps
 rm -rf ${DEPS}
@@ -10,13 +13,13 @@ GO_VER=1.14.2
 NODEJS_VER=12.16.2
 
 # Download cbdep, unless it's already available in the local .cbdepscache
-PLATFORM=$(uname -s | tr "[:upper:]" "[:lower:]")
-CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-${PLATFORM}
+OPSYS=$(uname -s | tr "[:upper:]" "[:lower:]")
+CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-${OPSYS}
 
 if [[ -f ${CBDEP_BIN_CACHE} ]]; then
     cp ${CBDEP_BIN_CACHE} /tmp/cbdep
 else
-    CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-${PLATFORM}
+    CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-${OPSYS}
     curl -o /tmp/cbdep ${CBDEP_URL}
 fi
 
@@ -36,7 +39,7 @@ npm install -g yarn
 # And, finally, build prometheus
 export GOPATH=$(pwd)/goproj
 cd goproj/src/github.com/prometheus/prometheus
-if [[ ${DISTRO} =~ ^windows ]]; then
+if [[ ${PLATFORM} =~ ^windows ]]; then
     echo "CROSS COMPILING FOR WINDOWS!"
     export GOOS=windows
     export GOARCH=amd64

@@ -1,6 +1,9 @@
 #!/bin/bash -e
 
 INSTALL_DIR=$1
+ROOT_DIR=$2
+
+cd ${ROOT_DIR}/protoc-gen-go
 
 DEPS=${WORKSPACE}/deps
 GO_VER=1.13.8

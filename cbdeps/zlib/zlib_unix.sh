@@ -1,7 +1,9 @@
 #!/bin/bash -e
 
 INSTALL_DIR=$1
+ROOT_DIR=$2
 
+cd ${ROOT_DIR}/zlib
 ./configure --prefix=${INSTALL_DIR}
 make
 make install

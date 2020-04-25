@@ -1,6 +1,9 @@
 #!/bin/bash -e
 
 INSTALL_DIR=$1
+ROOT_DIR=$2
+
+cd ${ROOT_DIR}/jemalloc
 
 ./autogen.sh
 CPPFLAGS=-I/usr/local/include ./configure \

@@ -1,6 +1,9 @@
 @echo on
 
 set INSTALL_DIR=%1
+set ROOT_DIR=%2
+
+cd %ROOT_DIR%\zlib
 
 rem Build zlib libraries
 call nmake -f win32\Makefile.msc || goto error

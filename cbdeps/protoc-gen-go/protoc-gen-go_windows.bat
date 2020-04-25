@@ -1,6 +1,10 @@
 @echo on
 
 set INSTALL_DIR=%1
+set ROOT_DIR=%2
+
+cd %ROOT_DIR%\protoc-gen-go
+
 set DEPS=%WORKSPACE%\deps
 
 set CBDEP_TOOL_VER=0.9.12

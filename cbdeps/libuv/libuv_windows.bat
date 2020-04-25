@@ -1,6 +1,9 @@
 @echo on
 
 set INSTALL_DIR=%1
+set ROOT_DIR=%2
+
+cd %ROOT_DIR%\libuv
 
 set PYTHON=C:\Python27\python.exe
 set GYP_MSVS_VERSION=2015

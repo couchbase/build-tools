@@ -1,4 +1,7 @@
 set INSTALL_DIR=%1
+set ROOT_DIR=%2
+
+cd %ROOT_DIR%\curl
 
 set OUTPUT_DIR=builds\libcurl-vc15-x64-release-dll-ipv6-sspi-winssl
 

@@ -1,6 +1,9 @@
 #!/bin/bash -ex
 
 INSTALL_DIR=$1
+ROOT_DIR=$2
+
+cd ${ROOT_DIR}/curl
 
 # Openssl dependency
 OPENSSL_VER=1.1.1d-cb1

@@ -1,4 +1,8 @@
 set INSTALL_DIR=%1
+set ROOT_DIR=%2
+
+cd %ROOT_DIR%\breakpad
+
 set GYP_MSVS_VERSION=2015
 
 rem win_{release,debug}_RuntimeLibrary: Breakpad defaults to building static

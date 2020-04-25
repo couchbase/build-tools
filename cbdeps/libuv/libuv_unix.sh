@@ -1,6 +1,9 @@
 #!/bin/bash -e
 
 INSTALL_DIR=$1
+ROOT_DIR=$2
+
+cd ${ROOT_DIR}/libuv
 
 # Unix build without gyp
 ./autogen.sh
