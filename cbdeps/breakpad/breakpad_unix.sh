@@ -9,7 +9,6 @@ cd ${ROOT_DIR}/breakpad
 
 export LDFLAGS="-Wl,-rpath,'\$\$ORIGIN/../lib'"
 
-autoreconf -i
 ./configure --prefix=${INSTALL_DIR}
 make
 make install

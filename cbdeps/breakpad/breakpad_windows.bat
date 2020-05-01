@@ -3,7 +3,7 @@ set ROOT_DIR=%2
 
 cd %ROOT_DIR%\breakpad
 
-set GYP_MSVS_VERSION=2015
+set GYP_MSVS_VERSION=2017
 
 rem win_{release,debug}_RuntimeLibrary: Breakpad defaults to building static
 rem variants (/MT and /MTd) whereas we need the DLL variants.
