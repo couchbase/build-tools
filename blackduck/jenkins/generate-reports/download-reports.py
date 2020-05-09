@@ -54,7 +54,7 @@ class ReportsDownloader:
         report_id = location.split("/")[-1]
         logger.info(f"Downloading {report_name}")
         logger.debug(f"Report ID is {report_id}")
-        retries = 150
+        retries = 200
         while retries > 0:
             response = self.hub.download_report(report_id)
             if response.status_code != 200:
