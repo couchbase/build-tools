@@ -62,6 +62,8 @@ call %SCRIPT_DIR%\win32-environment.bat %tools_version% || goto error
 @echo on
 cd %PACKAGE_DIR% || goto error
 call %PROD_NAME%_windows.bat %INSTALL_DIR% %ROOT_DIR% %PLATFORM% %RELEASE% %VERSION% %BLD_NUM% || goto error
+cd %PACKAGE_DIR% || goto error
+@echo on
 
 echo "Preparing for package..."
 if exist "package" (

@@ -7,7 +7,7 @@ set OUTPUT_DIR=builds\libcurl-vc15-x64-release-dll-ipv6-sspi-winssl
 
 rem Fix that wasn't in 7.66.0 - probably needs to be removed
 rem when building later versions
-git cherry-pick a765a305
+git cherry-pick a765a305 || goto error
 
 call .\buildconf.bat || goto error
 cd winbuild

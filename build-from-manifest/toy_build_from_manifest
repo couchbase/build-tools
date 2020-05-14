@@ -55,7 +55,9 @@ repo manifest -r > manifest.xml
 
 echo "Creating source tarball"
 echo =======================
-tar czf ../source.tar.gz .[A-z]* *
+# As with build_from_manifest.py, we dereference symlinks so .git directories
+# will work on Windows. As such, we don't actually need the .repo directory.
+tar --create --file ../source.tar.gz --gzip --dereference --exclude .repo .[A-z]* *
 popd
 
 echo "Creating properties files"
