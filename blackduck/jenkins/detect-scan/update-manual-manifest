@@ -70,7 +70,7 @@ class UpdateComponents:
         self.comp_urls = {}
         for comp in self.components:
             comp_name = comp['componentName'].lower()
-            self.comp_map[comp_name].add(comp['componentVersionName'])
+            self.comp_map[comp_name].add(comp.get('componentVersionName', ""))
             self.comp_urls[comp_name] = comp['component']
         logging.debug(f"Final comp_map: {self.comp_map}")
 
@@ -110,6 +110,10 @@ class UpdateComponents:
         """
         Returns a component_version_url for a component, if the version is known
         """
+
+        if version == "":
+            logging.debug(f"No version specified for component {component_name}, so using Unknown version")
+            return component_url
 
         logging.debug(f"Searching for version {version} for {component_name}")
         versions_url = component_url + "/versions?limit=9999"
@@ -176,7 +180,7 @@ class UpdateComponents:
         # a simple linear search is fine.
         for component in self.components:
             if (component['componentName'].lower() == comp and
-                component['componentVersionName'] == version):
+                component.get('componentVersionName', "") == version):
                 response = self.hub.execute_delete(component['_meta']['href'])
                 response.raise_for_status()
                 return
