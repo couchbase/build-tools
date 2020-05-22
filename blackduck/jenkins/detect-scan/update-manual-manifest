@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+
+import argparse
+import bisect
+import collections
+import dictdiffer
+import json
+import logging
+import requests
+import sys
+import yaml
+
+from blackduck.HubRestApi import HubInstance
+
+class UpdateComponents:
+    """
+    Given a product name and version, add a component to it
+    """
+
+    def __init__(self, creds, product, version):
+        logging.info(f"Preparing to update components for {product} {version}")
+        self.hub = HubInstance(
+            creds['url'],
+            creds['username'],
+            creds['password'],
+            insecure=True
+        )
+        self.name = f"{product} {version}"
+        logging.debug(f"Looking up product {product}")
+        self.product = self.hub.get_project_by_name(product)
+        logging.debug(f"Looking up version {version}")
+        self.product_version = self.hub.get_version_by_name(self.product, version)
+        self._load_manual_components()
+
+        # Initialize manifest info
+        self.manifest = collections.defaultdict(set)
+
+    def _get_version_components(self, projectversion, limit=1000, filters={}):
+        """
+        Copied from HubRestApi.py so we can add filters
+        """
+
+        url = self.hub.get_link(projectversion, "components")
+        headers = self.hub.get_headers()
+        headers['Accept'] = 'application/vnd.blackducksoftware.bill-of-materials-4+json'
+        filter_opts = [ f"{k}:{v}" for k,v in filters.items() ]
+        response = requests.get(
+            url,
+            headers = headers,
+            params = { "limit": limit, "filter": filter_opts },
+            verify = not self.hub.config['insecure']
+        )
+        jsondata = response.json()
+        return jsondata
+
+    def _load_manual_components(self):
+        """
+        Reads in set of current manually-added components for product-version
+        """
+
+        logging.debug(f"Retrieving current manual component list for {self.name}")
+        self.components = self._get_version_components(
+            self.product_version,
+            filters = {"bomMatchType": "manually_added"}
+        ).get('items', [])
+        logging.debug(f"Found {len(self.components)} manual components")
+
+        # Create internal map of current components, and also remember their URLs
+        self.comp_map = collections.defaultdict(set)
+        self.comp_urls = {}
+        for comp in self.components:
+            comp_name = comp['componentName'].lower()
+            self.comp_map[comp_name].add(comp['componentVersionName'])
+            self.comp_urls[comp_name] = comp['component']
+        logging.debug(f"Final comp_map: {self.comp_map}")
+
+    def add_manifest(self, manifest):
+        """
+        Given the YAML representation of the manifest, store the important
+        information internally in a canonicalized form
+        """
+
+        logging.debug("Canonicalizing manifest")
+
+        # Store versions as a Set so we can produce minimal diffs, and also
+        # handle the case where two manifests list the same dep version.
+        # Ensure keys are all-lowercase.
+        # Ensure version values are all strings (YAML might read them as
+        # floats).
+        try:
+            components = manifest['components']
+        except KeyError:
+            logging.fatal("Manifest does not have top-level 'components' key!")
+            sys.exit(2)
+
+        for (comp, value) in components.items():
+            # If the value is just an array, it is presumed to be a list of
+            # versions. Otherwise, it's a dict with possible keys 'versions'
+            # and 'bd-name' (maybe more in future?).
+            if isinstance(value, list):
+                versions = value
+                comp_lower = comp.lower()
+            else:
+                versions = value['versions']
+                comp_lower = value.get('bd-name', comp).lower()
+
+            self.manifest[comp_lower].update([ str(ver) for ver in versions ])
+
+    def find_version_for_component(self, component_name, component_url, version):
+        """
+        Returns a component_version_url for a component, if the version is known
+        """
+
+        logging.debug(f"Searching for version {version} for {component_name}")
+        versions_url = component_url + "/versions?limit=9999"
+        versions = self.hub.execute_get(versions_url).json().get('items', [])
+        logging.debug(f"Found {len(versions)} items")
+
+        for ver in versions:
+            if ver['versionName'] == version:
+                return ver['_meta']['href']
+
+        logging.debug(f"Found no matching version")
+
+    def find_component(self, component, version):
+        """
+        Finds URL for "best" component/version match on Hub.
+        """
+
+        logging.debug(f"Searching for component {component}")
+        hits = self.hub.search_components(component, limit=100).get('items', [])[0].get('hits', [])
+        logging.debug(f"Found {len(hits)} hits")
+        for hit in hits:
+            component_name = hit['fields']['name']
+            score = float(hit['fields']['score'][0])
+            if score < 0.4:
+                logging.debug(f"Skipping {component_name} because score is too low ({score})")
+                continue
+            component_url = hit['component']
+            component_version = self.find_version_for_component(component_name, component_url, version)
+            if component_version is not None:
+                return component_version
+        logging.fatal(f"Found no component-version for {component} {version}!")
+        sys.exit(4)
+
+    def add_component(self, comp, version):
+        """
+        Adds a component-version to this product-version
+        """
+
+        logging.info(f"Adding component: {comp} {version}")
+        comp_url = self.comp_urls.get(comp)
+        if comp_url is None:
+            component_version_url = self.find_component(comp, version)
+        else:
+            logging.debug(f"Component {comp} is already known, using that")
+            component_version_url = self.find_version_for_component(
+                comp, comp_url, version
+            )
+        logging.debug(f"Component version URL is {component_version_url}")
+
+        pv_components_url = self.hub.get_link(self.product_version, "components")
+        post_data = {'component': component_version_url}
+        custom_headers = {'Content-Type': 'application/vnd.blackducksoftware.bomcomponent-1+json', 'Accept': '*/*'}
+        response = self.hub.execute_post(pv_components_url, post_data, custom_headers=custom_headers)
+        response.raise_for_status()
+
+    def remove_component(self, comp, version):
+        """
+        Removes a component-version from this product-version
+        """
+
+        logging.info(f"Removing component: {comp} {version}")
+        # Since by definition we must be removing something that already exists,
+        # we can look it up in self.components. This should happen rarely so
+        # a simple linear search is fine.
+        for component in self.components:
+            if (component['componentName'].lower() == comp and
+                component['componentVersionName'] == version):
+                response = self.hub.execute_delete(component['_meta']['href'])
+                response.raise_for_status()
+                return
+
+        logging.fatal(f"Failed to find component {comp} {version} to delete!!")
+        sys.exit(1)
+
+    def apply_manifests(self):
+        """
+        Compute the actions to make self.comp_map look like added manifests,
+        then execute each action
+        """
+
+        logging.debug("Computing actions")
+        diff = dictdiffer.diff(self.comp_map, self.manifest)
+
+        func_map = {
+            "add": self.add_component,
+            "remove": self.remove_component
+        }
+        actions_taken = 0
+
+        for (action, target, value) in diff:
+            logging.debug(f"Executing '{action}' '{target}' '{value}'")
+
+            if action == "remove" or action == "add":
+                if target == '':
+                    for (comp, versions) in value:
+                        for version in versions:
+                            func_map[action](comp, version)
+                            actions_taken += 1
+                else:
+                    comp = target
+                    for version in value[0][1]:
+                        func_map[action](comp, version)
+                        actions_taken += 1
+            else:
+                logging.fatal(f"Unknown dictdiffer action {action}!")
+                sys.exit(6)
+
+        if actions_taken == 0:
+            logging.info("Current components match manifest - no updates needed!")
+        else:
+            logging.info(f"Updated {actions_taken} components")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Get components from hub"
+    )
+    parser.add_argument('-d', '--debug', action='store_true',
+        help="Produce debugging output")
+    parser.add_argument('-c', '--credentials', required=True,
+        type=argparse.FileType('r'),
+        help="Black Duck Hub credentials JSON file")
+    parser.add_argument('-p', '--product', required=True,
+        help="Product from Black Duck server")
+    parser.add_argument('-v', '--version', required=True,
+        help="Version of <product>")
+    parser.add_argument('-m', '--manifest', required=True, nargs='+',
+        type=argparse.FileType('r'),
+        help="JSON manifest of manual components")
+    args = parser.parse_args()
+
+    if args.debug:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logging.basicConfig(
+        stream=sys.stderr,
+        format='%(threadName)s: %(asctime)s: %(levelname)s: %(message)s',
+        level=log_level
+    )
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+    updater = UpdateComponents(
+        json.load(args.credentials),
+        args.product,
+        args.version
+    )
+    for manifest in args.manifest:
+        updater.add_manifest(yaml.safe_load(manifest))
+    logging.debug(f"Final manifest: {updater.manifest}")
+    updater.apply_manifests()

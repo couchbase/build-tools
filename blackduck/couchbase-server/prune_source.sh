@@ -61,27 +61,3 @@ WIN='example *msvc* *vcproj* *vcxproj* visual vstudio dot_net_example example cs
 for windir in ${WIN}; do
     find . -name analytics -prune -o -type d -name "$windir" -print0 | xargs -0 rm -rf
 done
-
-# cbdeps-specific pruning
-pushd thirdparty-src/deps
-
-rm -rf erlang/lib/*test*
-rm -rf v8/src/debug
-rm -rf v8/tools
-
-rm -rf boost/more
-
-rm -rf openssl/external/perl
-
-# flatbuffers implementations we don't care about
-pushd flatbuffers
-rm -rf android dart go grpc java js lobster lua net php python reflection rust appveyor.yml composer.json package.json pom.xml
-popd
-
-# Build-time only tool
-rm -rf maven
-
-# We don't actually ship with this library enabled
-rm -rf rocksdb
-
-popd

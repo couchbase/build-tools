@@ -66,7 +66,7 @@ if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ]; then
   "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ${RELEASE}
 fi
 
-# Product-specific config for Synopsis Detect
+# Product-specific config for Synopsys Detect
 if [ -e "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json" ]; then
   CONFIG_ARG="-c ${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json"
 fi
@@ -88,4 +88,32 @@ fi
 if [ "x${DRY_RUN}" = "xtrue" ]; then
   echo Copying dryrun archives...
   cp ~/blackduck/runs/detect-run*.zip ${WORKSPACE}
+  # Don't go on to add manual entries
+  exit
 fi
+
+do-manual-manifest() {
+  venv="${WORKSPACE}/.venv"
+  if [ ! -d "${venv}" ]; then
+    python3 -m venv "${venv}"
+  fi
+  source "${venv}/bin/activate"
+
+  cd "${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
+  pip3 install -r manual-manifest-requirements.txt
+
+  echo "Loading product-specific Black Duck manifest ${manifest[0]}"
+  ./update-manual-manifest -d \
+      -c ~/.ssh/blackduck-creds.json \
+      -m ${manifest[@]} \
+      -p ${PRODUCT} -v ${VERSION}
+}
+
+# If there's a product-specific manual Black Duck manifest, load that as well
+manifest=( $(find "${WORKSPACE}/src" -maxdepth 8 -name ${PRODUCT}-black-duck-manifest.yaml) )
+case ${#manifest[@]} in
+  0) echo "No product-specific Black Duck manifest; skipping"
+     ;;
+  *) do-manual-manifest
+     ;;
+esac
