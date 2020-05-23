@@ -32,6 +32,9 @@ rm -rf godeps/src/github.com/blevesearch/bleve-mapping-ui/bower_components
 
 # END NPM-related stuff
 
+# Need to save any of these before deleting the rest of cbbuild
+find cbbuild -name couchbase-server-black-duck-manifest.yaml -print0 | xargs -0 -I FILENAME cp FILENAME .
+
 # cleanup unwanted stuff - test files, build scripts, etc.
 rm -rf testrunner
 rm -rf cbbuild
