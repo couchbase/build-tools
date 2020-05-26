@@ -9,10 +9,10 @@ shopt -s extglob
 if [ "$RELEASE" = "mad-hatter" ]; then
     # Can't scan package.json files with NPM detector unless we also
     # have package-lock.json, which we don't in mad-hatter, so...
-    rm ns_server/priv/public/ui/package.json
     rm goproj/src/github.com/couchbase/cbgt/rest/static/lib/angular-bootstrap/package.json
     rm goproj/src/github.com/couchbase/cbgt/rest/static/lib/angular-route/package.json
     rm goproj/src/github.com/couchbase/cbgt/rest/static/lib/angular/package.json
+    rm goproj/src/github.com/couchbase/cbft/ns_server_static/fts/lib/angular-legacy-sortablejs/package.json
 else
     # Most of this stuff is npm-generated "compiled" code; we ONLY want
     # to scan the npm package.json/package-lock.json files
