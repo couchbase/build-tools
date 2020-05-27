@@ -1,12 +1,16 @@
 #!/bin/bash -ex
 
+PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PRODUCT}"
+SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/generate-reports"
+
 # Required to push back to git
 GIT_DIR="${WORKSPACE}/product-metadata/${PRODUCT}/blackduck/${VERSION}"
 git clone ssh://git@github.com/couchbase/product-metadata.git product-metadata
 mkdir -p ${GIT_DIR}
 
 # Install required Blackduck modules
-cd ${WORKSPACE}/build-tools/blackduck/jenkins/generate-reports
+
+cd ${SCRIPT_DIR}
 python3 -m venv .venv
 source .venv/bin/activate
 pip3 install --upgrade pip
@@ -31,8 +35,27 @@ rm -f .restconfig.json
 cp ${OUTPUT_DIR}/*-components.csv ${GIT_DIR}/components.csv
 cp ${OUTPUT_DIR}/*-notices.txt ${GIT_DIR}/notices.txt
 
-# Push back to GitHub
 pushd ${GIT_DIR}
+
+# Delete Phase and Distribution lines from notices.txt, and insert
+# product-specific additional information (if any)
+if [ -e ${PROD_DIR}/additional-notices.txt ]; then
+    ADD_FILE=${PROD_DIR}/additional-notices.txt
+else
+    ADD_FILE=${SCRIPT_DIR}/empty-file.txt
+fi
+
+sed -i -e "
+    1,10 {
+        /^Phase: / {
+            r ${ADD_FILE}
+            d
+        }
+        /^Distribution: / d
+    }
+" notices.txt
+
+# Push back to GitHub
 git add .
 git config --global push.default simple
 git diff --quiet && git diff --staged --quiet || git commit \
