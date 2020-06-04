@@ -14,6 +14,7 @@ import os
 import os.path
 import pathlib
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
@@ -21,7 +22,7 @@ import xml.etree.ElementTree as EleTree
 
 from datetime import datetime
 from pathlib import Path
-from subprocess import PIPE, run
+from subprocess import PIPE, STDOUT, run
 from typing import Union
 
 
@@ -220,13 +221,19 @@ class ManifestBuilder:
             module_projects_dir.mkdir()
 
         with pushd(module_projects_dir):
-            print('"module_projects" is set, updating manifest...')
-            # The following really should be importable as a module
-            run(
+            print('"module_projects" is set, calling update_manifest_from_submodules...')
+            # https://code-maven.com/python-capture-stdout-stderr-exit
+            # Do the following so the output from the sub-script's stderr
+            # and stdout aren't all out of order.
+            proc = subprocess.Popen(
                 [f'{script_dir}/update_manifest_from_submodules',
                  f'../manifest/{self.manifest}']
-                + module_projects, check=True
+                + module_projects, stdout=PIPE, stderr=STDOUT
             )
+            print(proc.communicate()[0].decode('UTF-8'))
+            if proc.returncode != 0:
+                print("\n\nError {proc.returncode} running update_manifest_from_submodules!")
+                sys.exit(5)
 
             with pushd(module_projects_dir.parent / 'manifest'):
                 # I have no idea why this call is required, but
@@ -669,6 +676,9 @@ def parse_args():
 
 def main():
     """Initialize manifest builder object and trigger the build"""
+
+    # Make sure log output comes out in the right order
+    os.environ['PYTHONUNBUFFERED'] = "1"
 
     manifest_builder = ManifestBuilder(parse_args())
     manifest_builder.create_manifest()

@@ -143,7 +143,7 @@ class UpdateManifest:
 
         with remember_cwd():
             os.chdir(repo_path)
-            print('Updating {}...'.format(repo_name))
+            print('Updating git repository {}...'.format(repo_name))
             subprocess.check_call(
                 ['git', 'fetch', '--all', '-q']
             )
@@ -177,17 +177,16 @@ class UpdateManifest:
         Update all submodules in the repo, ensuring it succeeds
         (abort otherwise)
         """
-        print('Syncing and updating submodules in {}...'.format(repo_name))
         with remember_cwd():
             os.chdir(self.projects[repo_name]['path'])
             try:
+                print('Syncing submodules in {}...'.format(repo_name))
                 subprocess.check_call(
-                    ['git', 'submodule', 'sync', '--recursive'],
-                    stdout=subprocess.PIPE
+                    ['git', 'submodule', 'sync', '--recursive']
                 )
+                print('Updating submodules in {}...'.format(repo_name))
                 subprocess.check_call(
-                    ['git', 'submodule', 'update', '--init', '--recursive'],
-                    stdout=subprocess.PIPE
+                    ['git', 'submodule', 'update', '--init', '--recursive']
                 )
             except subprocess.CalledProcessError:
                 print('Unable to update submodules in repo "{}", '
