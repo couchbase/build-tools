@@ -1,53 +1,26 @@
 #!/bin/bash -ex
 
-SCRIPT_DIR=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
+script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
-ARTIFACT_URL=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-image_${VERSION}-${BLD_NUM}.tgz
-VANILLA_IMAGE=build-docker.couchbase.com/couchbase/${PRODUCT}:${VERSION}-${BLD_NUM}
-OPENSHIFT_IMAGE=build-docker.couchbase.com/couchbase/${PRODUCT}-rhel:${VERSION}-${BLD_NUM}
-NAUGHTY_IMAGE=index.docker.io/couchbase/${PRODUCT}-internal:rhel-${VERSION}-${BLD_NUM}
+source ${script_dir}/util/utils.sh
 
-echo "Downloading ${PRODUCT} ${VERSION}-${BLD_NUM} artifacts..."
-curl -O "${ARTIFACT_URL}"
+chk_set PRODUCT
+chk_set VERSION
+chk_set BLD_NUM
 
-echo "Extracting"
-tar xvf *.tgz
+# First build the images into the local cb-xxxxx organizations
+${script_dir}/util/build-k8s-images.sh ${PRODUCT} ${VERSION} ${BLD_NUM} 1
 
-pushd ${PRODUCT}
-
-########################
-# Vanilla docker build #
-########################
-
-${SCRIPT_DIR}/update-base.sh Dockerfile
-echo "Building 'plain' Docker image for ${PRODUCT}"
-docker build -f Dockerfile -t "${VANILLA_IMAGE}" .
-
-echo "Pushing to internal docker registry"
-docker push "${VANILLA_IMAGE}"
-
-docker rmi "${VANILLA_IMAGE}"
-
-
-#########################
-# Openshift image build #
-#########################
-
-${SCRIPT_DIR}/update-base.sh Dockerfile.rhel
-echo "Building OpenShift Docker image for ${PRODUCT}"
-docker build -f Dockerfile.rhel \
-   --build-arg PROD_VERSION=${VERSION} \
-   --build-arg PROD_BUILD=${BLD_NUM} \
-   --build-arg OS_BUILD=${OS_BUILD} \
-   -t "${OPENSHIFT_IMAGE}" \
-   -t "${NAUGHTY_IMAGE}" \
-   .
-
-echo "Pushing to internal Docker registry and Docker Hub"
-docker push "${OPENSHIFT_IMAGE}"
-docker push "${NAUGHTY_IMAGE}"
-
-docker rmi "${OPENSHIFT_IMAGE}" "${NAUGHTY_IMAGE}"
-
-
-popd
+# Now retag and push to internal and gitlab registries
+short_product=${PRODUCT/couchbase-/}
+tag=${VERSION}-${BLD_NUM}
+for org in cb-vanilla cb-rhcc; do
+    local_org_image=${org}/${short_product}:${tag}
+    for registry in build-docker.couchbase.com registry.gitlab.com; do
+        remote_org_image=${registry}/${org}/${short_product}:${tag}
+        docker tag ${local_org_image} ${remote_org_image}
+        docker push ${remote_org_image}
+        docker rmi ${remote_org_image}
+    done
+    docker rmi ${local_org_image}
+done
