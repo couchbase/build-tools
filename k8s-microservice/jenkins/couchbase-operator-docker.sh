@@ -15,14 +15,14 @@ build_and_push() {
     naughty_image=$4
 
     pushd ${directory}
-    ${SCRIPT_DIR}/update-base.sh Dockerfile
+    ${SCRIPT_DIR}/util/update-base.sh Dockerfile
     echo "Building vanilla '${directory}' Docker image"
     docker build -f Dockerfile -t ${vanilla_image} .
 
     echo "Pushing to Docker Hub"
     docker push ${vanilla_image}
 
-    ${SCRIPT_DIR}/update-base.sh Dockerfile.rhel
+    ${SCRIPT_DIR}/util/update-base.sh Dockerfile.rhel
     echo "Building OpenShift '${directory}' Docker image"
     docker build -f Dockerfile.rhel \
        --build-arg PROD_VERSION=${VERSION} \
