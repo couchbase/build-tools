@@ -11,9 +11,6 @@
 
 [ "$2" = "" ] && (echo "Usage: ./go.sh [version] [release]" ; exit 1)
 
-# Amazon linux versions currently have to be added manually
-amazon_versions=( 2 )
-
 if [[ -n $3 ]]; then
     STAGING="yes"
     STAGE_EXT="-staging"
@@ -37,10 +34,11 @@ heading "Discovering targets"
 
 # Derive targeted platform versions from files in product-metadata/couchbase-server/repo_upload
 yum_json=$(curl -L --silent https://raw.githubusercontent.com/couchbase/product-metadata/master/couchbase-server/repo_upload/yum.json)
-centos_versions=$(jq -r .os_versions[] <<< $yum_json)
-
 apt_json=$(curl -L --silent https://raw.githubusercontent.com/couchbase/product-metadata/master/couchbase-server/repo_upload/apt.json)
+
 apt_versions=$(jq -r '.os_versions[] .full' <<< $apt_json)
+amazon_versions=$(jq -r .amzn[] <<< $yum_json)
+centos_versions=$(jq -r .centos[] <<< $yum_json)
 
 # debian based distribution names - this is used to replace template
 # strings in deb/debian_control_files/DEBIAN/{postinst,preinst}
@@ -105,8 +103,8 @@ rm -rf deb/couchbase-release*
 # glibc-langpack-en is required on CentOS 8 to prevent yum showing a warning
 centos_test="export LANG=en_US.UTF-8 && \
 export LANGUAGE=en_US.UTF-8 && \
-( yum ${yum_quiet} install -y glibc-langpack-en ${redirect_all} || : ) && \
-rpm -ivh couchbase-release${STAGE_EXT}-${version}-${release}*.rpm ${redirect_all} ; \
+yum install -y /app/couchbase-release${STAGE_EXT}-${version}-${release}*.rpm ${redirect_all} ; \
+cat /etc/yum.repos.d/couchbase-Base.repo ${redirect_all} ; \
 yum ${yum_quiet} list available '*couchbase*' --showduplicates"
 
 # Debian and Ubuntu use the same test string

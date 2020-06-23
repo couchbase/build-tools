@@ -7,7 +7,7 @@ Currently the application supports the following types of repositories
     APT
     Yum
 
-The enterprise and community builds are always handled separately,
+The enterprise, community and beta builds are always handled separately,
 along with each repository type.  For each it essentially builds a new
 local repository on the system it's being run on, then syncs the files
 to S3, allowing any new packages to now be available.
@@ -20,11 +20,7 @@ import logging
 import pathlib
 import sys
 
-
-# Set up logging and handler
-logger = logging.getLogger('repo_upload')
-logger.setLevel(logging.INFO)
-
+from repo_upload.repos.logger import logger
 
 def main():
     """
@@ -48,14 +44,15 @@ def main():
                         choices=['apt', 'yum'],
                         help='Type of repository for upload')
     parser.add_argument('-e', '--edition', required=True,
-                        choices=['community', 'enterprise'],
+                        choices=['beta', 'community', 'enterprise'],
                         help='Version of software being uploaded')
 
     args = parser.parse_args()
-
     # Set logging to debug level on stream handler if --debug was set
     if args.debug:
         logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
     # Verify config data directory exists
     config_datadir = pathlib.Path(args.config_datadir)

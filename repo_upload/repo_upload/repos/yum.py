@@ -16,7 +16,8 @@ from pkg_resources import resource_filename
 
 import pexpect
 
-from repo_upload.repos.base import RepositoryBase
+from .base import RepositoryBase, Status
+from .logger import logger
 
 
 class YumRepository(RepositoryBase):
@@ -32,10 +33,26 @@ class YumRepository(RepositoryBase):
 
         super().__init__(args, common_info, config_datadir)
 
-        data = self.load_config('yum.json')
+        self.os_versions = list(self.get_versions())
+        self.repo_dir = self.local_repo_root / self.edition
 
-        self.os_versions = data['os_versions']
-        self.repo_dir = self.local_repo_root / self.edition / 'rpm'
+    @staticmethod
+    def path_partial(distro):
+        """
+        The s3 keys for centos packages/metadata contain an 'rpm' substring
+        this method is responsible for populating rpm for centos, or distro
+        name for others
+        """
+
+        return 'rpm' if distro == 'centos' else distro
+
+    def get_versions(self):
+        """
+        Generates a list of [distro, version] pairs from yum.json
+        """
+        for distro, versions in self.load_config('yum.json').items():
+            for version in versions:
+                yield([distro, version])
 
     def start_yumapi_server(self):
         """
@@ -62,13 +79,14 @@ class YumRepository(RepositoryBase):
         yield
         self.stop_yumapi_server()
 
-    def write_source_file(self, os_version, edition):
+    def write_source_file(self, distro_path, distro_version, edition):
         """
         Create the Yum .repo file used for a given version
         """
 
         src_file_dir = (
-            self.local_repo_root / 'yum.repos.d' / os_version / edition
+            self.local_repo_root / 'yum.repos.d' /
+            f"{distro_path}/{distro_version}" / edition
         )
         src_file = src_file_dir / 'couchbase-server.repo'
 
@@ -82,6 +100,7 @@ class YumRepository(RepositoryBase):
             src_tmpl = string.Template(open(tmpl_file).read())
             data = {
                 'curr_date': self.curr_date,
+                'dir': distro_path,
                 'edition': edition,
                 'gpg_file': self.gpg_file,
                 'http_pkg_root': self.http_package_root,
@@ -95,8 +114,9 @@ class YumRepository(RepositoryBase):
         """
 
         for edition in self.editions:
-            for os_version in self.os_versions:
-                self.write_source_file(os_version, edition)
+            for distro, version in self.os_versions:
+                self.write_source_file(
+                    self.path_partial(distro), version, edition)
 
     def prepare_local_repos(self):
         """
@@ -109,7 +129,7 @@ class YumRepository(RepositoryBase):
         self.write_gpg_keys()
         self.write_sources()
 
-        print(
+        logger.info(
             f'Ready to seed RedHat repositories at {self.local_repo_root}'
         )
 
@@ -119,11 +139,11 @@ class YumRepository(RepositoryBase):
         into them
         """
 
-        print(f'Creating local {self.edition} RedHat repositories '
-              f'at {self.repo_dir}...')
-
-        for os_version in self.os_versions:
-            conf_dir = self.repo_dir / os_version / 'x86_64'
+        logger.info(f'Creating local {self.edition} RedHat repositories '
+                    f'at {self.repo_dir}...')
+        for distro, version in self.os_versions:
+            conf_dir = self.repo_dir / \
+                self.path_partial(distro) / version / 'x86_64'
             os.makedirs(conf_dir, exist_ok=True)
 
             proc = subprocess.run(
@@ -132,21 +152,21 @@ class YumRepository(RepositoryBase):
             )
 
             if proc.returncode:
-                raise RuntimeError(
-                    f'Unable to create RedHat repository {os_version}/x86_64'
+                logger.fatal(
+                    f'Unable to create RedHat repository {self.path_partial(distro)}/{version}/x86_64'
                 )
+                exit(1)
 
-        print(
+        logger.info(
             f'RedHat repositories ready for import at {self.local_repo_root}'
         )
 
-    def get_s3_path(self, os_version):
+    def get_s3_path(self, os_path_partial):
         """
         Determine the path on S3 to the current repository
         """
 
-        return (f'{self.s3_package_base}/{self.edition}/rpm/'
-                f'{os_version}/x86_64')
+        return os.path.join(self.s3_package_base, self.edition, os_path_partial, 'x86_64')
 
     @staticmethod
     def is_signed(pkg):
@@ -179,17 +199,19 @@ class YumRepository(RepositoryBase):
                 '-D', f'_gpg_name {self.rpm_key}',
                 str(self.pkg_dir / pkg_name)]
 
-        print(f'    Signing {self.pkg_dir / pkg_name}...')
+        logger.info(f'    Signing {self.pkg_dir / pkg_name}...')
         try:
             child = pexpect.spawn(cmd, args)
+            child.timeout = 300
             child.expect('Enter pass phrase: ')
             child.sendline('')
             child.expect(pexpect.EOF)
         except pexpect.EOF:
-            raise RuntimeError(
+            logger.fatal(
                 f'Unable to sign package {self.pkg_dir / pkg_name}: '
                 f'{child.before}'
             )
+            exit(1)
 
     def import_packages(self):
         """
@@ -201,55 +223,63 @@ class YumRepository(RepositoryBase):
         if not self.pkg_dir.exists():
             os.makedirs(self.pkg_dir)
 
-        print(f'Importing into local {self.edition} repositories '
-              f'at {self.repo_dir}')
+        logger.info(
+            f'Importing into local {self.edition} repositories at {self.repo_dir}')
+
+        # Beta is treated as a distinct edition for simplicity, we need to compose the file
+        # names with enterprise though
+        edition = 'enterprise' if self.edition == 'beta' else self.edition
 
         for release in self.supported_releases.get_releases():
-            version, in_dev = release
+            version, status = release
 
             # If aren't doing a staging run and we have
             # a development version, skip it
-            if not self.staging and in_dev:
+            if not self.staging and status == Status.DEVELOPMENT:
                 continue
 
-            for os_version in self.os_versions:
-                pkg_name = (f'couchbase-server-{self.edition}-{version}-'
-                            f'centos{os_version}.x86_64.rpm')
+            for distro, distro_version in self.os_versions:
+                pkg_name = (f'couchbase-server-{edition}-{version}-'
+                            f'{distro}{distro_version}.x86_64.rpm')
 
-                if self.fetch_package(pkg_name, release, os_version):
-                    print(
+                if self.fetch_package(pkg_name, release, f'{self.path_partial(distro)}/{version}'):
+                    logger.info(
                         f'    Copying file {pkg_name} to RedHat repository '
-                        f'{os_version}/x86_64...'
+                        f'{self.path_partial(distro)}/{distro_version}/x86_64...'
                     )
-                    pkg_basepath = self.repo_dir / os_version / 'x86_64'
+                    pkg_basepath = self.repo_dir / \
+                        self.path_partial(distro) / distro_version / 'x86_64'
                     shutil.copy(self.pkg_dir / pkg_name, pkg_basepath)
-
                     if not self.is_signed(pkg_basepath / pkg_name):
                         self.sign_rpm(pkg_basepath / pkg_name)
 
-        print(f'RedHat repositories ready for signing')
+        logger.info(f'RedHat repositories ready for signing')
 
     def finalize_local_repos(self):
         """
         Sign the local repositories in preparation for the upload to S3
         """
 
-        print(f'Signing local {self.edition} repositories at {self.repo_dir}')
+        logger.info(
+            f'Signing local {self.edition} repositories at {self.repo_dir}')
 
-        for os_version in self.os_versions:
-            conf_dir = self.repo_dir / os_version / 'x86_64'
+        for distro, version in self.os_versions:
+            conf_dir = self.repo_dir / \
+                self.path_partial(distro) / version / 'x86_64'
             repomd_file = conf_dir / 'repodata' / 'repomd.xml'
             signed_repomd_file = f'{repomd_file}.asc'
 
+            logger.debug(f'createrepo --update {conf_dir}')
             proc = subprocess.run(
                 ['createrepo', '--update', conf_dir],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
 
             if proc.returncode:
-                raise RuntimeError(
-                    f'Unable to update RedHat repository {os_version}/x86_64'
+                logger.fatal(
+                    f'Unable to update RedHat repository {self.path_partial(distro)}/{version}/x86_64'
                 )
+                exit(1)
 
             signed_data = self.gpg.sign_file(
                 open(repomd_file, 'rb'), keyid=self.rpm_key, detach=True,
@@ -257,13 +287,14 @@ class YumRepository(RepositoryBase):
             )
 
             if signed_data.status != 'signature created':
-                raise RuntimeError(
+                logger.fatal(
                     f'    Unable to sign local {self.edition} repository '
                     f'at {conf_dir}'
                 )
+                exit(1)
 
-        print(f'   Done signing local {self.edition} repositories '
-              f'at {self.repo_dir}')
+        logger.info(f'   Done signing local {self.edition} repositories '
+                    f'at {self.repo_dir}')
 
     def upload_local_repos(self):
         """
@@ -271,12 +302,14 @@ class YumRepository(RepositoryBase):
         into their desired locations on S3
         """
 
-        self.s3_upload(self.repo_dir, os.path.join(self.edition, 'rpm'))
+        for distro, _ in self.os_versions:
+            self.s3_upload(f'{self.repo_dir}/{self.path_partial(distro)}',
+                           f'{self.edition}/{self.path_partial(distro)}')
 
-        for meta_dir in ['keys', 'yum.repos.d']:
-            base_dir = self.local_repo_root / meta_dir
+            for meta_dir in ['keys', 'yum.repos.d']:
+                base_dir = self.local_repo_root / meta_dir
 
-            self.s3_upload(base_dir, meta_dir)
+                self.s3_upload(base_dir, meta_dir)
 
     def update_repository(self):
         """

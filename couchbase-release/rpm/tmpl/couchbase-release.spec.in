@@ -11,18 +11,12 @@ Source1:        couchbase-Base.repo
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildArch:     x86_64
+BuildArch:      x86_64
 
 %description
 A package that configures access to Couchbase Yum repository.
 
 %global debug_package %{nil}
-
-%pre
-if grep -q -i ^"Amazon Linux release 2" /etc/system-release >/dev/null 2>&1; then
-  echo "This package cannot be installed on Amazon Linux 2"
-  exit 1
-fi
 
 %prep
 %setup -q  -c -T
@@ -45,17 +39,29 @@ rm -rf $RPM_BUILD_ROOT
 
 %post
 
+DISTRO_PATH=rpm
+
 if [ -f /etc/redhat-release ]; then
   SERVER_VERSION=$((grep -Eo "release [0-9]+" | awk '{print $2}') < /etc/redhat-release)
-  [ "${SERVER_VERSION}" = "6" ] && SDK_VERSION=6.2 || SDK_VERSION=${SERVER_VERSION}
+  if [ "${SERVER_VERSION}" = "6" ]
+  then
+    SDK_VERSION=6.2
+  else
+    SDK_VERSION=${SERVER_VERSION}
+  fi
 elif [ -f /etc/system-release ]; then
-  if grep -q -i ^"Amazon Linux AMI" /etc/system-release >/dev/null 2>&1; then
+  if grep -q -i "^Amazon Linux AMI" /etc/system-release >/dev/null 2>&1; then
     SDK_VERSION=6.2
     SERVER_VERSION=6
+  elif grep -q -i "^Amazon Linux release 2" /etc/system-release >/dev/null 2>&1; then
+    DISTRO_PATH=amzn
+    SDK_VERSION=amzn2
+    SERVER_VERSION=2
   fi
 fi
 
-sed -e "s/%SDK_VERSION%/${SDK_VERSION}/g" \
+sed -e "s/%DISTRO_PATH%/${DISTRO_PATH}/g" \
+    -e "s/%SDK_VERSION%/${SDK_VERSION}/g" \
     -e "s/%SERVER_VERSION%/${SERVER_VERSION}/g" \
     -i /etc/yum.repos.d/couchbase-Base.repo
 
@@ -67,6 +73,9 @@ sed -e "s/%SDK_VERSION%/${SDK_VERSION}/g" \
 /etc/pki/rpm-gpg/*
 
 %changelog
+* Fri Jun 19 2020 Blair Watt <blair.watt@couchbase.com>
+- Add support for Amazon Linux 2
+
 * Fri Feb 14 2020 Blair Watt <blair.watt@couchbase.com>
 - Add support for CentOS 8
 

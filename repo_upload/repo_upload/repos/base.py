@@ -15,11 +15,19 @@ from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
 from pkg_resources import resource_filename
+from enum import Enum
 
 import boto3
 import botocore.exceptions
 import gnupg
 import requests
+
+from .logger import logger
+
+
+class Status(Enum):
+    RELEASED = 1
+    DEVELOPMENT = 2
 
 
 class Releases:
@@ -36,13 +44,16 @@ class Releases:
         """
 
         self.releases = list()
-        Release = namedtuple('Release', ['version', 'in_dev'])
+        Release = namedtuple('Release', ['version', 'status'])
 
         for version in release_info[edition]['released']:
-            self.releases.append(Release(version=version, in_dev=False))
+            self.releases.append(
+                Release(version=version, status=Status.RELEASED))
 
-        for version in release_info[edition]['development']:
-            self.releases.append(Release(version=version, in_dev=True))
+        if 'development' in release_info[edition]:
+            for version in release_info[edition]['development']:
+                self.releases.append(
+                    Release(version=version, status=Status.DEVELOPMENT))
 
     def get_releases(self):
         """
@@ -51,7 +62,7 @@ class Releases:
         """
 
         for release in self.releases:
-            yield release.version, release.in_dev
+            yield release.version, release.status
 
 
 class RepositoryBase(metaclass=abc.ABCMeta):
@@ -65,7 +76,6 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         Load in common data from JSON file and initialize various
         common parameters
         """
-
         self.config_datadir = config_datadir
         data = self.load_config('base.json')
 
@@ -84,7 +94,7 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         self.http_package_root = self.s3_package_root.replace('s3', 'http')
         self.releases_url = common_info['releases_url']
         self.gpg = gnupg.GPG()
-        self.gpg_file = Path.home() / '.ssh' / common_info['gpg_file']
+        self.gpg_file = common_info['gpg_file']
         self.gpg_keys = data['gpg_keys']
         self.pkg_dir = Path('packages')
         self.key = common_info['gpg_key']
@@ -102,9 +112,11 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         try:
             conf_file = self.config_datadir / filename
         except FileNotFoundError:
-            raise RuntimeError('Config file {conf_file} not found')
+            logger.fatal('Config file {conf_file} not found')
+            exit(1)
         except json.decoder.JSONDecodeError:
-            raise RuntimeError('Config file {conf_file} not valid JSON')
+            logger.fatal('Config file {conf_file} not valid JSON')
+            exit(1)
         else:
             return json.load(open(conf_file))
 
@@ -124,7 +136,8 @@ class RepositoryBase(metaclass=abc.ABCMeta):
                 result = self.gpg.import_keys(open(key_file, 'rb').read())
 
                 if not result.count:
-                    raise RuntimeError(f'Unable to import GPG key {key}')
+                    logger.fatal(f'Unable to import GPG key {key}')
+                    exit(1)
 
     @staticmethod
     def get_md5(filename):
@@ -147,7 +160,8 @@ class RepositoryBase(metaclass=abc.ABCMeta):
 
         gpg_keys_dir = self.local_repo_root / 'keys'
         os.makedirs(gpg_keys_dir, exist_ok=True)
-        shutil.copy(self.gpg_file, str(gpg_keys_dir.resolve()))
+        shutil.copy(Path.home() / '.ssh' / self.gpg_file,
+                    str(gpg_keys_dir.resolve()))
 
     @abc.abstractmethod
     def handle_repo_server(self):
@@ -190,13 +204,14 @@ class RepositoryBase(metaclass=abc.ABCMeta):
 
         s3_path = f'{self.get_s3_path(os_version)}/{pkg_name}'
 
-        print(f'    Retrieving {s3_path} from {self.s3_bucket}...')
+        logger.info(f'    Retrieving {s3_path} from {self.s3_bucket}...')
         bucket = self.s3.Bucket(self.s3_bucket)
 
         try:
             bucket.download_file(s3_path, f'{str(self.pkg_dir)}/{pkg_name}')
         except botocore.exceptions.ClientError:
-            print(f'    Unable to retrieve {s3_path} from {self.s3_bucket}')
+            logger.debug(
+                f'    Unable to retrieve {s3_path} from {self.s3_bucket}')
             return False
         else:
             return True
@@ -208,12 +223,16 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         """
 
         release_url = f'{self.releases_url}/{version}'
-        print(f'    Fetching {pkg_name} from {release_url}...')
-        req = requests.get(f'{release_url}/{pkg_name}', stream=True)
+        logger.info(f'    Fetching {pkg_name} from {release_url}...')
+        try:
+            req = requests.get(f'{release_url}/{pkg_name}', stream=True)
+        except requests.exceptions.ConnectionError as e:
+            logger.fatal(str(e))
+            exit(1)
 
         if req.status_code != 200:
-            print(f'    Unable to download file {pkg_name} '
-                  f'from {release_url}')
+            logger.debug(f'    Unable to download file {pkg_name} '
+                         f'from {release_url}')
             return False
 
         with open(self.pkg_dir / pkg_name, 'wb') as fh:
@@ -231,16 +250,15 @@ class RepositoryBase(metaclass=abc.ABCMeta):
               returning success or failure
         """
 
-        version, in_dev = release
-
-        if not in_dev and self.s3_download_file(pkg_name, os_version):
+        version, status = release
+        if status != Status.DEVELOPMENT and self.s3_download_file(pkg_name, os_version):
             return True
 
         return self.lb_download_file(pkg_name, version)
 
     def fetch_package(self, pkg_name, release, os_version):
         """
-        For a given package name and release and OS versiona, acquire
+        For a given package name and release and OS versions, acquire
         the package from a generated URL but only if the package is not
         already in the local storage area
         """
@@ -248,10 +266,11 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         pkg = self.pkg_dir / pkg_name
 
         if not Path(pkg).exists():
-            print(f'Attempting to fetch {pkg_name}')
+            logger.info(
+                f'Attempting to fetch {pkg_name} for {os_version} ({release[0]})')
             return self.download_file(pkg_name, release, os_version)
         else:
-            print(f'Already have {pkg_name} locally, skipping...')
+            logger.debug(f'Already have {pkg_name} locally, skipping fetch...')
             return True
 
     @abc.abstractmethod
@@ -276,7 +295,7 @@ class RepositoryBase(metaclass=abc.ABCMeta):
 
         """
 
-        print(f'Searching {s3_path} in {self.s3_bucket}')
+        logger.info(f'Searching {s3_path} in {self.s3_bucket}')
         obj = self.s3.Object(self.s3_bucket, s3_path)
 
         # If the loading of the object fails, it doesn't exist
@@ -287,21 +306,21 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         try:
             obj.load()
         except botocore.exceptions.ClientError:
-            print(f'  Path {s3_path} not found, uploading...')
+            logger.info(f'  Path {s3_path} not found, uploading...')
             obj.upload_file(
                 local_path,
                 ExtraArgs={'ACL': 'public-read',
                            'Metadata': {'md5': local_path_md5}}
             )
         else:
-            print(f'  Path {s3_path} exists, checking MD5...')
+            logger.info(f'  Path {s3_path} exists, checking MD5...')
 
             if ('md5' in obj.metadata and
                     obj.metadata['md5'] == local_path_md5):
-                print(f'        It matches, skipping...')
+                logger.info(f'        It matches, skipping...')
             else:
-                print(f'        It does not exist or differs, '
-                      f'uploading...')
+                logger.info(f'        It does not exist or differs, '
+                            f'uploading...')
                 obj.upload_file(
                     local_path,
                     ExtraArgs={'ACL': 'public-read',
@@ -315,6 +334,8 @@ class RepositoryBase(metaclass=abc.ABCMeta):
         and speed up the synchronization
         """
 
+        logger.debug(f'Uploading {base_dir} -> {rel_base_dir}')
+
         for root, dirs, files in os.walk(base_dir):
             for filename in files:
                 local_path = os.path.join(root, filename)
@@ -323,7 +344,6 @@ class RepositoryBase(metaclass=abc.ABCMeta):
                 s3_path = os.path.join(
                     self.s3_package_base, rel_base_dir, relative_path
                 )
-
                 self.s3_upload_file(local_path, local_path_md5, s3_path)
 
     @abc.abstractmethod

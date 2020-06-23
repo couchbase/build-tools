@@ -22,8 +22,8 @@ REL_NAME="couchbase-release${STAGE_EXT}-${VERSION}-${RELEASE}"
 
 rm -rf deb/${REL_NAME}
 
-sed -e "s/%DISTRO_CODENAMES%/${distro_codenames}/g" deb/debian_control_files/DEBIAN/postinst.in > deb/debian_control_files/DEBIAN/postinst
-sed -e "s/%DISTRO_CODENAMES%/${distro_codenames}/g" deb/debian_control_files/DEBIAN/preinst.in > deb/debian_control_files/DEBIAN/preinst
+sed -e "s/%DISTRO_CODENAMES%/${DISTRO_CODENAMES}/g" deb/debian_control_files/DEBIAN/postinst.in > deb/debian_control_files/DEBIAN/postinst
+sed -e "s/%DISTRO_CODENAMES%/${DISTRO_CODENAMES}/g" deb/debian_control_files/DEBIAN/preinst.in > deb/debian_control_files/DEBIAN/preinst
 
 sed -e "s/%STAGING%/${STAGE_EXT}/g" \
     -e "s/%VERSION%/${VERSION}/g" \

@@ -1,6 +1,6 @@
 [couchbase-server]
 name=Couchbase Server
-baseurl=http://packages%STAGING%.couchbase.com/releases/couchbase-server/enterprise/rpm/%SERVER_VERSION%/$basearch/
+baseurl=http://packages%STAGING%.couchbase.com/releases/couchbase-server/enterprise/%DISTRO_PATH%/%SERVER_VERSION%/$basearch/
 enabled=1
 s3_enabled=1
 gpgcheck=1
@@ -8,8 +8,16 @@ gpgkey=file:///etc/pki/rpm-gpg/GPG-KEY-COUCHBASE-1.0
 
 [couchbase-server-community]
 name=Couchbase Server (Community Edition)
-baseurl=http://packages%STAGING%.couchbase.com/releases/couchbase-server/community/rpm/%SERVER_VERSION%/$basearch/
+baseurl=http://packages%STAGING%.couchbase.com/releases/couchbase-server/community/%DISTRO_PATH%/%SERVER_VERSION%/$basearch/
 enabled=1
+s3_enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/GPG-KEY-COUCHBASE-1.0
+
+[couchbase-server-beta]
+name=Couchbase Server (Beta Edition)
+baseurl=http://packages%STAGING%.couchbase.com/releases/couchbase-server/beta/%DISTRO_PATH%/%SERVER_VERSION%/$basearch/
+enabled=0
 s3_enabled=1
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/GPG-KEY-COUCHBASE-1.0

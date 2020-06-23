@@ -21,7 +21,8 @@ from pathlib import Path
 
 import requests
 
-from repo_upload.repos.base import RepositoryBase
+from .base import RepositoryBase, Status
+from .logger import logger
 
 
 class AptRepository(RepositoryBase):
@@ -50,7 +51,8 @@ class AptRepository(RepositoryBase):
     def handler(_signum, _frame):
         """Timeout handler for Aptly API server"""
 
-        print('Unable to start Aptly API server in specified time')
+        logger.fatal('Unable to start Aptly API server in specified time')
+        exit(1)
 
     def start_aptly_api_server(self):
         """
@@ -142,14 +144,12 @@ class AptRepository(RepositoryBase):
         Create the sources.list file used for a given version
         """
 
-        src_file_dir = (
-            self.local_repo_root / 'sources.list.d' / os_version / edition
-        )
+        src_file_dir = (self.local_repo_root /
+                        'sources.list.d' / os_version / edition)
         src_file = src_file_dir / 'couchbase-server.list'
         distro = self.os_versions[os_version]['distro']
         sec_url = self.distro_info[distro]['security_url']
-        sec_path = \
-            self.distro_info[distro]['security_path'].format(os_version)
+        sec_path = self.distro_info[distro]['security_path'].format(os_version)
 
         os.makedirs(src_file_dir, exist_ok=True)
 
@@ -158,7 +158,11 @@ class AptRepository(RepositoryBase):
                 resource_filename('repo_upload', 'conf'),
                 'sources.list.tmpl'
             )
-            src_tmpl = string.Template(open(tmpl_file).read())
+            try:
+                src_tmpl = string.Template(open(tmpl_file).read())
+            except FileNotFoundError:
+                logger.fatal(f'File not found: {tmpl_file}')
+                exit(1)
             data = {
                 'curr_date': self.curr_date,
                 'edition': edition,
@@ -191,24 +195,20 @@ class AptRepository(RepositoryBase):
         self.write_gpg_keys()
         self.write_sources()
 
-        print(
-            f'Ready to seed Debian repositories at {self.local_repo_root}'
-        )
+        logger.debug(
+            f'Ready to seed Debian repositories at {self.local_repo_root}')
 
-    def seed_local_repos(self):
+    def write_distro_file_header(self):
         """
-        Create the local repositories to allow packages to be imported
-        into them
+        Creates couchbase-server/[edition]/deb/conf/distributions file
+        populated with header text
         """
-
-        print(f'Creating local {self.edition} Debian repositories '
-              f'at {self.repo_dir}...')
 
         conf_dir = self.repo_dir / 'conf'
         os.makedirs(conf_dir, exist_ok=True)
         distro_file = conf_dir / 'distributions'
 
-        print(f'Writing {str(distro_file)}...')
+        logger.debug(f'Writing {str(distro_file)}...')
 
         with open(distro_file, 'w') as fh:
             fh.write(f'# {self.curr_date}\n#\n')
@@ -217,38 +217,71 @@ class AptRepository(RepositoryBase):
             fh.write(f'# See https://wiki.debian.org/DebianRepository/'
                      f'Format#A.22Release.22_files\n# for more information\n')
 
-            for distro in self.os_versions:
-                tmpl_file = os.path.join(
-                    resource_filename('repo_upload', 'conf'),
-                    'distributions.tmpl'
-                )
-                dist_tmpl = string.Template(open(tmpl_file).read())
-                data = {
-                    'distro': distro,
-                    'edition_name': self.edition_name,
-                    'key': self.key,
-                    'version': self.os_versions[distro]['version'],
-                }
-                fh.write(dist_tmpl.substitute(data))
+    def write_distro_file_section(self, distro, edition):
+        """
+        Adds distro details to couchbase-server/[edition]/deb/conf/distributions
+        """
 
-                payload = {
-                    'Name': distro,
-                    'DefaultDistribution': distro,
-                    'DefaultComponent': f'{distro}/main',
-                }
-                headers = {'Content-Type': 'application/json'}
+        conf_dir = self.repo_dir / 'conf'
+        distro_file = conf_dir / 'distributions'
+        tmpl_file = os.path.join(
+            resource_filename('repo_upload', 'conf'),
+            'distributions.tmpl'
+        )
 
-                req = requests.post(
-                    'http://localhost:8080/api/repos', headers=headers,
-                    data=json.dumps(payload)
-                )
+        logger.debug(
+            f'Writing {str(distro_file)} section: {distro} / {edition}...')
 
-                if req.status_code != 201:
-                    raise RuntimeError(
-                        f'Unable to create Debian repository {distro}'
-                    )
+        dist_tmpl = string.Template(open(tmpl_file).read())
+        data = {
+            'distro': distro,
+            'edition_name': edition,
+            'repo_class': 'main',
+            'key': self.key,
+            'version': self.os_versions[distro]['version'],
+        }
 
-        print(
+        with open(distro_file, 'a') as fh:
+            fh.write(dist_tmpl.substitute(data))
+
+    def seed_local_repo(self, distro, edition):
+        """
+        Create a local repo, and add distribution/component to distro file
+        """
+
+        self.write_distro_file_section(distro, edition)
+
+        headers = {'Content-Type': 'application/json'}
+        payload = {
+            'Name': distro,
+            'DefaultDistribution': distro,
+            'DefaultComponent': f'{distro}/main',
+        }
+
+        req = requests.post(
+            'http://localhost:8080/api/repos', headers=headers,
+            data=json.dumps(payload)
+        )
+
+        if req.status_code != 201 and not json.loads(req.content)['error'].startswith('local repo with name'):
+            logger.fatal(f'Unable to create Debian repository {distro}')
+            exit(1)
+
+    def seed_local_repos(self):
+        """
+        Create the local repositories to allow packages to be imported
+        into them
+        """
+
+        logger.debug(f'Creating local {self.edition} Debian repositories '
+                     f'at {self.repo_dir}...')
+
+        self.write_distro_file_header()
+
+        for distro in self.os_versions:
+            self.seed_local_repo(distro, self.edition)
+
+        logger.debug(
             f'Debian repositories ready for import at {self.local_repo_root}'
         )
 
@@ -257,8 +290,7 @@ class AptRepository(RepositoryBase):
         Determine the path on S3 to the current repository
         """
 
-        return (f'{self.s3_package_base}/{self.edition}/deb/'
-                f'pool/{os_version}/main/c/couchbase-server')
+        return os.path.join(self.s3_package_base, self.edition, 'deb/pool', os_version, 'main/c/couchbase-server')
 
     def import_packages(self):
         """
@@ -270,25 +302,30 @@ class AptRepository(RepositoryBase):
         if not self.pkg_dir.exists():
             os.makedirs(self.pkg_dir)
 
-        print(f'Importing into local {self.edition} repository '
-              f'at {self.repo_dir}')
+        repo_dir = self.repo_dir
+
+        logger.debug(f'Importing into local {self.edition} repository '
+                     f'at {repo_dir}')
 
         for release in self.supported_releases.get_releases():
-            version, in_dev = release
+            version, status = release
 
             # If aren't doing a staging run and we have
             # a development version, skip it
-            if not self.staging and in_dev:
+            if not self.staging and status == Status.DEVELOPMENT:
                 continue
 
             for distro in self.os_versions:
-                pkg_name = (f'couchbase-server-{self.edition}_{version}-'
+                # we treat beta as an edition for simplicity's sake, but the filenames begin with
+                # couchbase-server-enterprise
+                edition = 'enterprise' if self.edition == 'beta' else self.edition
+
+                pkg_name = (f'couchbase-server-{edition}_{version}-'
                             f'{self.os_versions[distro]["full"]}_amd64.deb')
 
                 if self.fetch_package(pkg_name, release, distro):
-                    print(
-                        f'Uploading file {pkg_name} to aptly upload area...'
-                    )
+                    logger.debug(
+                        f'Uploading file {self.pkg_dir / pkg_name} to aptly upload area...')
                     files = {'file': open(self.pkg_dir / pkg_name, 'rb')}
                     req = requests.post(
                         f'http://localhost:8080/api/files/{self.pkg_dir}',
@@ -296,23 +333,24 @@ class AptRepository(RepositoryBase):
                     )
 
                     if req.status_code != 200:
-                        raise RuntimeError(
+                        logger.fatal(
                             f'Failed to upload file {pkg_name} to aptly '
                             f'upload area'
                         )
+                        exit(1)
 
-                    print(f'Adding file {pkg_name} to Debian repository '
-                          f'{distro}')
+                    logger.debug(f'Adding file {pkg_name} to Debian repository '
+                                 f'{distro}')
                     req = requests.post(
                         f'http://localhost:8080/api/repos/{distro}/'
                         f'file/{self.pkg_dir}/{pkg_name}'
                     )
 
                     if req.status_code != 200:
-                        raise RuntimeError(
-                            f'Failed to add file {pkg_name} to Debian '
-                            f'repository {distro}'
+                        logger.fatal(
+                            f'Failed to add file {pkg_name} to Debian repository {distro}: {req.text}'
                         )
+                        exit(1)
 
     def finalize_local_repos(self):
         """
@@ -320,6 +358,28 @@ class AptRepository(RepositoryBase):
         directories into the top level of the repository area, clearing
         out unneeded directories in preparation for the upload to S3
         """
+
+        for distro in self.os_versions:
+            sources = [{'Component': f'{distro}/main', 'Name': distro}]
+            payload = {
+                'SourceKind': 'local',
+                'Sources': sources,
+                'Architectures': ['amd64'],
+                'Distribution': distro,
+            }
+            headers = {'Content-Type': 'application/json'}
+
+            logger.debug(f'    Publishing local Debian repository {distro}...')
+
+            req = requests.post(
+                f'http://localhost:8080/api/publish',
+                headers=headers, data=json.dumps(payload)
+            )
+
+            if req.status_code != 201:
+                logger.fatal(
+                    f'Unable to publish local Debian repository {distro}: {req.text}')
+                exit(1)
 
         public_repo_dir = self.repo_dir / 'public'
         public_repo_dists_dir = public_repo_dir / 'dists'
@@ -329,41 +389,20 @@ class AptRepository(RepositoryBase):
         repo_db_dir = self.repo_dir / 'db'
         repo_pool_dir = self.repo_dir / 'pool'
 
-        print(f'Publishing into local Debian repositories at '
-              f'{public_repo_dir}...')
+        logger.debug(
+            f'Moving published Debian repositories into local repository area at {self.repo_dir}...')
 
-        for distro in self.os_versions:
-            payload = {
-                'SourceKind': 'local',
-                'Sources': [{'Component': f'{distro}/main', 'Name': distro}],
-                'Architectures': ['amd64'],
-                'Distribution': distro,
-            }
-            headers = {'Content-Type': 'application/json'}
-
-            print(f'    Publishing local Debian repository {distro}...')
-
-            req = requests.post(
-                f'http://localhost:8080/api/publish',
-                headers=headers, data=json.dumps(payload)
-            )
-
-            if req.status_code != 201:
-                raise RuntimeError(
-                    f'Unable to publish local Debian repository {distro}'
-                )
-
-        print(f'Moving published Debian repositories into local repository '
-              f'area at {self.repo_dir}...')
-
-        for repo_dir in [repo_conf_dir, repo_db_dir, repo_pool_dir]:
-            shutil.rmtree(repo_dir)
+        for local_repo_dir in [repo_conf_dir, repo_db_dir, repo_pool_dir, self.repo_dir / 'dists']:
+            try:
+                shutil.rmtree(local_repo_dir)
+            except FileNotFoundError as e:
+                pass
 
         public_repo_dists_dir.rename(self.repo_dir / 'dists')
         public_repo_pool_dir.rename(repo_pool_dir)
         public_repo_dir.rmdir()
-
-        print(f'Published local Debian repositories ready at {self.repo_dir}')
+        logger.debug(
+            f'Published local Debian repositories ready at {self.repo_dir}')
 
     def upload_local_repos(self):
         """
@@ -371,13 +410,14 @@ class AptRepository(RepositoryBase):
         into their desired locations on S3
         """
 
+        logger.info(
+            f'Uploading to s3: {self.repo_dir} {os.path.join(self.edition, "deb")}')
         self.s3_upload(self.repo_dir, os.path.join(self.edition, 'deb'))
 
-        # NOTE: Both community and enterprise sources.list files are
-        # copied; maybe not necessary?
         for meta_dir in ['keys', 'sources.list.d']:
             base_dir = self.local_repo_root / meta_dir
 
+            logger.info(f'Uploading to s3: {base_dir} {meta_dir}')
             self.s3_upload(base_dir, meta_dir)
 
     def update_repository(self):
