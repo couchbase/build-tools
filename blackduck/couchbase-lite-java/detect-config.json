@@ -3,6 +3,10 @@
         "detect.excluded.detector.types": "MAVEN,NUGET",
         "detect.detector.search.depth": 9,
         "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.gradle.included.configurations": "implementation,implementationDependenciesMetadata,releaseCompileClasspath,releaseImplementationDependenciesMetadata,releaseRuntimeClasspath",
         "detect.tools.excluded": "SIGNATURE_SCAN"
-    }
+    },
+    "source_paths": [
+        "cbl-java/ee/java"
+    ]
 }
