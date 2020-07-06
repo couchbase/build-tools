@@ -18,9 +18,8 @@ docker run --rm -u couchbase \
     -w $(pwd) \
     -v /home/couchbase/jenkinsdocker-ssh:/home/couchbase/.ssh \
     -v /home/couchbase/check_builds:/home/couchbase/check_builds \
-    -v /home/couchbase/check_builds/check_builds.ini:/etc/check_builds.ini \
-    -v /home/couchbase/latestbuilds:/home/couchbase/latestbuilds \
+    -v /latestbuilds:/latestbuilds \
     couchbasebuild/check-builds \
         check_builds \
-        -c /etc/check_builds.ini \
+        -c /home/couchbase/check_builds.ini \
         product-metadata/*/check_builds/pkg_data.json

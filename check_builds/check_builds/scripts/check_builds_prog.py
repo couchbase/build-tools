@@ -205,10 +205,12 @@ def main():
         build_age = int(time.time()) - build.timestamp
 
         if build_age > 28 * 24 * 60 * 60:  # 28 days
-            build.set_metadata('builds_complete', 'unknown')
+            #build.set_metadata('builds_complete', 'unknown')
+            print('set complete: unknown')
             continue
 
         if build.product not in conf_data:
+            print('product not in conf_data')
             continue
 
         prodver_path = f'{build.product}/{build.release}/{build.build_num}'
@@ -223,23 +225,26 @@ def main():
         missing_files = list(needed_files.difference(existing_files))
 
         if not missing_files:
-            build.set_metadata('builds_complete', 'complete')
+            #build.set_metadata('builds_complete', 'complete')
+            print('set complete: complete')
             continue
 
         if build_age > 2 * 60 * 60:  # 2 hours
-            if not build.metadata.setdefault('email_notification', False):
-                curr_bld = \
-                    f'{build.product}-{build.version}-{build.build_num}'
-                message = {
-                    'subject': f'Build {curr_bld} not complete after 2 hours',
-                    'body': generate_mail_body(lb_url, missing_files)
-                }
-                receivers = miss_info['receivers'].split(',')
-                send_email(miss_info['smtp_server'], receivers, message)
-                build.set_metadata('email_notification', True)
+            print('2hrs')
+            # if not build.metadata.setdefault('email_notification', False):
+            #     curr_bld = \
+            #         f'{build.product}-{build.version}-{build.build_num}'
+            #     message = {
+            #         'subject': f'Build {curr_bld} not complete after 2 hours',
+            #         'body': generate_mail_body(lb_url, missing_files)
+            #     }
+            #     receivers = miss_info['receivers'].split(',')
+            #     send_email(miss_info['smtp_server'], receivers, message)
+            #     build.set_metadata('email_notification', True)
 
         if build_age > 12 * 60 * 60:  # 12 hours
-            build.set_metadata('builds_complete', 'incomplete')
+            # build.set_metadata('builds_complete', 'incomplete')
+            print('12hrs')
 
 
 if __name__ == '__main__':
