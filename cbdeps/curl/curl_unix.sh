@@ -71,4 +71,5 @@ rm -f ${INSTALL_DIR}/lib/libcurl.la
 if [[ $(uname -s) == "Darwin" ]]; then
     install_name_tool -id @rpath/libcurl.4.dylib ${INSTALL_DIR}/lib/libcurl.4.dylib
     install_name_tool -change ${INSTALL_DIR}/lib/libcurl.4.dylib @executable_path/../lib/libcurl.4.dylib ${INSTALL_DIR}/bin/curl
+    install_name_tool -add_rpath @executable_path/../lib ${INSTALL_DIR}/bin/curl
 fi
