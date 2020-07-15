@@ -52,6 +52,12 @@ fi
 
 repo manifest -r > manifest.xml
 
+echo "Removing any broken symlinks"
+echo ============================
+# Since we dereference symlinks below, any broken symlinks will cause tar to
+# fail with a mysterious "file deleted before we read it" error. Seems
+# probably best just to remove them.
+find . -xtype l -delete
 
 echo "Creating source tarball"
 echo =======================
