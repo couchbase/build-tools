@@ -1,0 +1,8 @@
+{
+    "detect_opts": {
+        "detect.excluded.detector.types": "NUGET",
+        "detect.detector.search.depth": 9,
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.npm.include.dev.dependencies": "false"
+    }
+}

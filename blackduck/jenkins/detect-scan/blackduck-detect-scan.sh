@@ -117,3 +117,11 @@ case ${#manifest[@]} in
   *) do-manual-manifest
      ;;
 esac
+
+# setup parent/sub project dependency if  sub-project.json exists
+if [ -f "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/sub-project.json" ]; then
+  "${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan/add_subproject.py" \
+    ${PRODUCT} \
+    ${VERSION} \
+    ${WORKSPACE}/build-tools/blackduck/${PRODUCT}/sub-project.json
+fi
