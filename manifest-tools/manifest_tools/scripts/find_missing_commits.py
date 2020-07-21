@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import contextlib
+import traceback
 from distutils.spawn import find_executable
 
 import dulwich.patch
@@ -88,9 +89,13 @@ class MissingCommits:
                 jira_ticket = self.jira.issue(ticket)
                 for issuelink in jira_ticket.raw["fields"]["issuelinks"]:
                     if issuelink["type"]["outward"] == "is a backport of":
-                        backports.append(issuelink["outwardIssue"]["key"])
-            except Exception:
-                print("Jira ticket retrieval failed")
+                        # Ensure we're looking at the actual backport ticket,
+                        # not a ticket that was itself backported
+                        if "outwardIssue" in issuelink:
+                            backports.append(issuelink["outwardIssue"]["key"])
+            except Exception as exc:
+                traceback.print_exc()
+                print(f"Jira ticket retrieval failed for {ticket}")
                 sys.exit(1)
 
         return backports
