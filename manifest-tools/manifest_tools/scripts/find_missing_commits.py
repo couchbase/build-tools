@@ -64,7 +64,6 @@ class MissingCommits:
         self.pre_merge = pre_merge
         self.post_merge = post_merge
         self.merge_map = merge_map
-        self.new_branch = new_manifest.name.split('.')[0]
 
         # Projects we don't care about
         self.ignore_projects = ['testrunner']
@@ -313,7 +312,8 @@ class MissingCommits:
                   f'failed: {exc.stdout}')
             sys.exit(1)
 
-        project_has_missing_commits = False
+        backport_message = ""
+        missing_message = ""
 
         if new_results:
             for commit in new_results.strip().split('\n'):
@@ -335,9 +335,8 @@ class MissingCommits:
                     with pushd(self.product_dir / repo_path):
                         with open('.git/HEAD') as f:
                             head = f.read().strip()
-                        remote = subprocess.check_output(["git", "remote"]).decode("utf-8").strip()
                         gitlog = subprocess.Popen(
-                            ['git', 'log', '--oneline', f'{remote}/{self.new_branch}'], stdout=subprocess.PIPE)
+                            ['git', 'log', '--oneline', new_commit], stdout=subprocess.PIPE)
                         try:
                             matches = subprocess.check_output(
                                 ["grep", "-E"] + ['|'.join(backports)], stdin=gitlog.stdout).decode("ascii").strip().split("\n")
@@ -350,28 +349,44 @@ class MissingCommits:
                             else:
                                 print("Exception:", exc.output)
 
-                # At this point we know we have something to report. Set a
-                # flag. If this is the first time, print the project header.
-                if not project_has_missing_commits:
-                    print(f'Project {repo_path}:')
-                    project_has_missing_commits = True
-                if match:
-                    print(
-                        f'    [Possible commit match] {sha[:7]} {comment}')
-                    print(f'        Check commit: {rev_sha[:7]} '
-                          f'{rev_comment}')
-                elif is_a_backport:
-                    print(
-                        f'               [Backport] {sha[:8]} {comment}')
-                    print(f'                      of:',
-                          '\n                         '.join(matches))
-                else:
-                    print(f'        [No commit match] {sha[:7]} '
-                          f'{comment}')
+                # If it's a backport, keep log for later but don't count it as
+                # a missing commit
+                if is_a_backport:
+                    backport_message += (
+                        f'                 [Backport] {sha[:8]} {comment:.80}\n'
+                        f'                        of: '
+                    )
+                    backport_message += '\n                            '.join(
+                        [f'{x:.80}' for x in matches]
+                    )
+                    backport_message += '\n'
+                    continue
 
-            if project_has_missing_commits:
+                # At this point we know we have something to report. Save the
+                # message.
+                if match:
+                    missing_message += (
+                        f'    [Possible commit match] {sha[:8]} {comment:.80}\n'
+                        f'              Check commit: {rev_sha[:8]} {rev_comment:.80}\n'
+                    )
+                else:
+                    missing_message += (
+                        f'          [No commit match] {sha[:8]} {comment:.80}\n'
+                    )
+
+            # Print project header, if anything to report
+            if missing_message != "" or backport_message != "":
                 print()
+                print(f'Project {repo_path}:')
+
+            if missing_message != "":
+                print()
+                print(missing_message)
                 self.missing_commits_found = True
+
+            if backport_message != "":
+                print()
+                print(backport_message)
 
     def determine_diffs(self):
         """
@@ -436,7 +451,7 @@ class MissingCommits:
                     self.show_needed_commits(repo_path, change_info)
 
         if not self.missing_commits_found:
-            self.log.info("No missing commits discovered!")
+            self.log.info("No missing commits discovered!\n")
         self.log.info("")
 
 

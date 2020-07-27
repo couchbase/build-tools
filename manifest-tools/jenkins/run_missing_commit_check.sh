@@ -81,7 +81,7 @@ failed=0
 
 for previous_manifest in $(cat previous-manifests.txt); do
     echo "Checking ${previous_manifest}"
-    find_missing_commits \
+    PYTHONUNBUFFERED=1 find_missing_commits \
         --manifest_repo ${manifest_repo} \
         --reporef_dir ${reporef_dir} \
         -i ok-missing-commits.txt \
