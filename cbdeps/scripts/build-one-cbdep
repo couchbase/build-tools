@@ -19,6 +19,11 @@ if [ -z "${PLATFORM}" ]; then
     exit 1
 fi
 
+if [ -z "${PROFILE}" ]; then
+    echo "Must set PROFILE in environment"
+    exit 1
+fi
+
 # Hacky support for cross-compiling Windows
 if [[ "${PLATFORM}" =~ -windowscrosscompile$ ]]; then
     echo "CROSS COMPILING FOR WINDOWS!"
@@ -33,6 +38,11 @@ if [ "${PLATFORM}" == "macos" ]; then
     export PLATFORM=macosx
 fi
 
+# Backwards compatibility for old naming of Server cbdeps
+if [ "${PROFILE}" != "server" ]; then
+    export BLD_NUM="${PROFILE}${BLD_NUM}"
+fi
+
 TARBALL_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.tgz
 MD5_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.md5
 
@@ -44,7 +54,7 @@ ROOT_DIR="$( cd "$SCRIPT_DIR/../../.." && pwd )" # root of repo sync
 INSTALL_DIR=${WORKDIR}/install
 rm -rf ${INSTALL_DIR}
 mkdir -p ${INSTALL_DIR}
-${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${RELEASE} ${VERSION} ${BLD_NUM}
+${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${PROFILE}
 
 echo "Preparing for package..."
 PACKAGE=${PACKAGE_DIR}/package
