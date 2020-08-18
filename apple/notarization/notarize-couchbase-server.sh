@@ -67,7 +67,7 @@ fi
 
 DMG_URL_DIR=http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}
 
-DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
+DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64-unnotarized.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_x86_64-unnotarized.dmg)
 
 # Check files exist
 for file in ${DMGS[*]}; do
@@ -127,6 +127,8 @@ while true; do
                 echo "Stapling notarization ticket to ${UNNOTARIZED[$i]}"
                 echo =========================================
                 xcrun stapler staple ${UNNOTARIZED[$i]}
+                notarized_file_name=`echo ${UNNOTARIZED[$i]} |sed "s/-unnotarized.dmg/.dmg/"`
+                mv ${UNNOTARIZED[$i]} $notarized_file_name
                 # Don't check this one anymore
                 unset REQUESTS[$i]
                 echo
