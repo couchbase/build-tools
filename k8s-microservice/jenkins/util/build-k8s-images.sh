@@ -29,7 +29,7 @@ OPENSHIFT_BUILD=$4
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
-source ${script_dir}/utils.sh
+source ${script_dir}/../../../utilities/shell-utils.sh
 
 chk_set PRODUCT
 chk_set VERSION

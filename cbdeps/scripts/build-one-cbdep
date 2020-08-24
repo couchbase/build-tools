@@ -2,27 +2,27 @@
 
 set -ex
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source ${SCRIPT_DIR}/../../utilities/shell-utils.sh
+
+chk_set PRODUCT
+chk_set PLATFORM
+chk_set PROFILE
+chk_set RELEASE
+chk_set VERSION
+chk_set BLD_NUM
+
 PROD_NAME=${PRODUCT#"cbdeps::"}
 PROD_PATH=${PRODUCT//::/\/}
 
+# Un-tarred build source tarball expected to live in this directory.
+# Output will be put into ${WORKDIR}/install and ${WORKDIR}/packages.
 if [ -z "${WORKSPACE}" ]; then
     WORKDIR=$(pwd)
 else
     WORKDIR="${WORKSPACE}"
 fi
 cd "${WORKDIR}"
-
-env
-
-if [ -z "${PLATFORM}" ]; then
-    echo "Must set PLATFORM in environment"
-    exit 1
-fi
-
-if [ -z "${PROFILE}" ]; then
-    echo "Must set PROFILE in environment"
-    exit 1
-fi
 
 # Hacky support for cross-compiling Windows
 if [[ "${PLATFORM}" =~ -windowscrosscompile$ ]]; then
@@ -47,14 +47,12 @@ TARBALL_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.tgz
 MD5_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.md5
 
 echo "Performing build..."
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PACKAGE_DIR="$( cd "$SCRIPT_DIR/../${PROD_NAME}" && pwd )" # build-tools/cbdeps/PACKAGE
-ROOT_DIR="$( cd "$SCRIPT_DIR/../../.." && pwd )" # root of repo sync
 
 INSTALL_DIR=${WORKDIR}/install
 rm -rf ${INSTALL_DIR}
 mkdir -p ${INSTALL_DIR}
-${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${PROFILE}
+${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${WORKDIR} ${PLATFORM} ${PROFILE} ${RELEASE} ${VERSION} ${BLD_NUM}
 
 echo "Preparing for package..."
 PACKAGE=${PACKAGE_DIR}/package

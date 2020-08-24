@@ -2,7 +2,7 @@
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
-source ${script_dir}/util/utils.sh
+source ${script_dir}/../../utilities/shell-utils.sh
 
 chk_set PRODUCT
 chk_set PUBLIC_TAG

@@ -65,7 +65,7 @@ set target_arch=%ARCH%
 call %SCRIPT_DIR%\win32-environment.bat %tools_version% || goto error
 @echo on
 cd %PACKAGE_DIR% || goto error
-call %PROD_NAME%_windows.bat %INSTALL_DIR% %ROOT_DIR% %PLATFORM% %PROFILE% || goto error
+call %PROD_NAME%_windows.bat %INSTALL_DIR% %ROOT_DIR% %PLATFORM% %PROFILE% %RELEASE% %VERSION% %BLD_NUM% || goto error
 cd %PACKAGE_DIR% || goto error
 @echo on
 

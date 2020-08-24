@@ -24,7 +24,7 @@ LATEST=$5
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
-source ${script_dir}/utils.sh
+source ${script_dir}/../../../utilities/shell-utils.sh
 
 chk_set PRODUCT
 chk_set INTERNAL_TAG
