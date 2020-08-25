@@ -1,4 +1,0 @@
-[main]
-gerrit_url = http://review.couchbase.org
-username = myuser
-password = abcdefghijklmnopqrstuvwxyz0123456789012345
