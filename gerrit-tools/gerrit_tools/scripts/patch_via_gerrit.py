@@ -30,6 +30,11 @@ logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 logger.addHandler(ch)
 
+class InvalidUpstreamException(Exception):
+    def __init__(self, project):
+        self.project = project
+        self.message = f'Project {project} has an invalid upstream in manifest - is it locked to a sha?'
+        super().__init__(self.message)
 
 @contextlib.contextmanager
 def cd(path):
@@ -83,6 +88,7 @@ class GerritChange:
 
         self.status = data['status']
         self.project = data['project']
+        self.branch = data['branch']
         self.change_id = data['change_id']
         self.topic = data.get('topic')
         self.curr_revision = data['current_revision']
@@ -112,7 +118,7 @@ class GerritPatches:
     be applied to the repo sync
     """
 
-    def __init__(self, gerrit_url, user, passwd):
+    def __init__(self, gerrit_url, user, passwd, repo_source):
         """Initial Gerrit connection and set base options"""
 
         auth = HTTPBasicAuth(user, passwd)
@@ -121,6 +127,21 @@ class GerritPatches:
             'CURRENT_REVISION', 'CURRENT_COMMIT', 'DOWNLOAD_COMMANDS'
         ]
         self.seen_reviews = set()
+        self.repo_source = repo_source
+        self.projects = dict()
+        self.get_projects()
+
+    def get_projects(self):
+        with cd(self.repo_source):
+            manifest_content = subprocess.check_output(['repo', 'manifest', '-r'])
+            manifest = EleTree.fromstring(manifest_content)
+
+            for project in manifest.findall('project'):
+                self.projects[project.attrib['name']] = {
+                    'branch': project.attrib['upstream'] \
+                        if 'upstream' in project.attrib and not project.attrib['upstream'].startswith('refs/tags') \
+                        else None
+                }
 
     def query(self, query_string, options=None):
         """
@@ -179,7 +200,7 @@ class GerritPatches:
 
         reviews = dict()
 
-        if not review.parents:
+        if not review or not review.parents:
             return reviews
 
         # Search recursively up via the parents until no more
@@ -198,7 +219,7 @@ class GerritPatches:
             reviews.update(self.get_open_parents(p_review[p_review_id]))
 
         logger.debug('Found parents: {}'.format(
-            ', '.join([r.keys()[0] for r in reviews]))
+            ', '.join([str(r) for r in reviews]))
         )
 
         return reviews
@@ -220,19 +241,21 @@ class GerritPatches:
             reviews = getattr(
                 self, 'get_changes_via_{}_id'.format(id_type)
             )(initial_arg)
-
             review_ids = [r_id for r_id in reviews.keys()]
             logger.debug('Initial review IDs: {}'.format(
                 ', '.join([str(r_id) for r_id in review_ids])
             ))
+
             stack.extend(review_ids)
 
         # From the stack, check each entry and add to the final set
         # of reviews if not already there, keeping track of which
         # have been seen so far.  For each review, also look for any
         # related reviews via change ID and topic, along with any
-        # still open parents, adding to the stack as needed.  All
-        # relevant reviews will have been found once the stack is empty.
+        # still open parents, adding to the stack as needed as long
+        # as they are for the same branch as listed for that project
+        # in the manifest.  All relevant reviews will have been found
+        # once the stack is empty.
         while stack:
             review_id = stack.pop()
             reviews = self.get_changes_via_review_id(review_id)
@@ -241,12 +264,23 @@ class GerritPatches:
                 if new_id in self.seen_reviews:
                     continue
 
-                all_reviews[new_id] = review
+                # if no upstream was listed in `repo manifest -r` or
+                # upstream starts with refs/tags, raise an error
+                if not self.projects[review.project]['branch']:
+                    raise InvalidUpstreamException(review.project)
+
+                # only add reviews for processing if they are for the
+                # same branch of the project listed as the upstream
+                # in `repo manifest -r`
+                if review.branch == self.projects[review.project]['branch']:
+                    all_reviews[new_id] = review
+
                 self.seen_reviews.add(new_id)
 
                 change_reviews = self.get_changes_via_change_id(
                     review.change_id
                 )
+
                 stack.extend(
                     [r_id for r_id in change_reviews.keys()
                      if r_id not in self.seen_reviews]
@@ -271,6 +305,35 @@ class GerritPatches:
         ))
 
         return all_reviews
+
+
+    def patch_repo_sync(self, review_ids, id_type):
+        """ Patch the repo sync with the list of patch commands """
+        reviews = self.get_reviews(review_ids, id_type)
+        try:
+            with cd(self.repo_source):
+                mf = EleTree.parse('.repo/manifest.xml')
+
+                for review_id in sorted(reviews.keys()):
+                    review = reviews[review_id]
+                    logger.debug('Project to patch: {}'.format(review.project))
+                    proj_info = mf.find(
+                        './/project[@name="{}"]'.format(review.project)
+                    )
+
+                    try:
+                        with cd(proj_info.attrib.get('path', review.project)):
+                            subprocess.check_call(review.patch_command,
+                                                shell=True)
+                    except subprocess.CalledProcessError as exc:
+                        raise RuntimeError(
+                            'Patch for review {} failed: {}'.format(
+                                review_id, exc.output
+                            )
+                        )
+        except RuntimeError as exc:
+            logger.error(exc)
+            sys.exit(1)
 
 
 def main():
@@ -334,7 +397,7 @@ def main():
 
     # Initialize class to allow connection to Gerrit URL, determine
     # type of starting parameters and then find all related reviews
-    gerrit_patches = GerritPatches(gerrit_url, user, passwd)
+    gerrit_patches = GerritPatches(gerrit_url, user, passwd, args.repo_source)
 
     if args.review_ids:
         id_type = 'review'
@@ -348,34 +411,12 @@ def main():
 
     logger.debug('Review IDs: {}'.format(', '.join(review_ids)))
     logger.debug('Review type: {}'.format(id_type))
-    reviews = gerrit_patches.get_reviews(review_ids, id_type)
 
-    # Now patch the repo sync with the list of patch commands
-    try:
-        with cd(args.repo_source):
-            mf = EleTree.parse('.repo/manifest.xml')
-
-            for review_id in sorted(reviews.keys()):
-                review = reviews[review_id]
-                logger.debug('Project to patch: {}'.format(review.project))
-                proj_info = mf.find(
-                    './/project[@name="{}"]'.format(review.project)
-                )
-
-                try:
-                    with cd(proj_info.attrib.get('path', review.project)):
-                        subprocess.check_call(review.patch_command,
-                                              shell=True)
-                except subprocess.CalledProcessError as exc:
-                    raise RuntimeError(
-                        'Patch for review {} failed: {}'.format(
-                            review_id, exc.output
-                        )
-                    )
-    except RuntimeError as exc:
-        logger.error(exc)
-        sys.exit(1)
-
+    gerrit_patches.patch_repo_sync(review_ids, id_type)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except InvalidUpstreamException as e:
+        print(e)
+        sys.exit(1)
