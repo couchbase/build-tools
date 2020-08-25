@@ -40,7 +40,7 @@ repo sync --jobs=24 --quiet
 if [ ! -z "${OPTS}" ]; then
     PATCH=../patch_via_gerrit
     curl -L -o ${PATCH} \
-    http://latestbuilds.service.couchbase.com/builds/latestbuilds/python_tools/patch_via_gerrit/1.0.0/9/centos6/patch_via_gerrit
+    http://latestbuilds.service.couchbase.com/builds/latestbuilds/python_tools/patch_via_gerrit/1.0.0/10/centos6/patch_via_gerrit
     chmod +x ${PATCH}
     ${PATCH} -d -c ${HOME}/.ssh/patch_via_gerrit.ini ${OPTS} -s ${WORKSPACE}/src
 
