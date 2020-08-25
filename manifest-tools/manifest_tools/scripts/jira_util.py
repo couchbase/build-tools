@@ -14,6 +14,7 @@ def connect_jira():
     build_jira.json - JSON block with "access_token", "access_token_secret",
        and "consumer_key" fields as generated per above URL
   """
+
   with open("{}/.ssh/build_jira.pem".format(os.environ["HOME"]), "r") as key_cert_file:
     key_cert_data = key_cert_file.read()
   with open("{}/.ssh/build_jira.json".format(os.environ["HOME"]), "r") as oauth_file:
@@ -24,6 +25,12 @@ def connect_jira():
 
 def get_tickets(message):
   """
-  Returns a list of ticket IDs mentioned in a string.
+  Returns a list of ticket IDs mentioned in a string. Filter out any "foreign"
+  projects like ASTERIXDB.
   """
-  return re.findall("[A-Z]{2,5}-[0-9]{1,6}", message)
+
+  foreign = ['ASTERIXDB']
+  return (
+    x.group(0) for x in re.finditer("([A-Z]{2,9})-[0-9]{1,6}", message)
+      if x.group(1) not in foreign
+  )
