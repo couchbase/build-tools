@@ -17,8 +17,11 @@ if NOT "%PROFILE%" == "server" (
   set BLD_NUM=%PROFILE%%BLD_NUM%
 )
 
+if not defined ARCH (
+  set ARCH=amd64
+)
+
 echo "Determine package name information..."
-set ARCH=amd64
 set TARBALL_NAME=%PROD_NAME%-%PLATFORM%-%ARCH%-%VERSION%-%BLD_NUM%.tgz
 set MD5_NAME=%PROD_NAME%-%PLATFORM%-%ARCH%-%VERSION%-%BLD_NUM%.md5
 
@@ -65,7 +68,7 @@ set target_arch=%ARCH%
 call %SCRIPT_DIR%\win32-environment.bat %tools_version% || goto error
 @echo on
 cd %PACKAGE_DIR% || goto error
-call %PROD_NAME%_windows.bat %INSTALL_DIR% %ROOT_DIR% %PLATFORM% %PROFILE% %RELEASE% %VERSION% %BLD_NUM% || goto error
+call %PROD_NAME%_windows.bat %INSTALL_DIR% %ROOT_DIR% %PLATFORM% %PROFILE% %RELEASE% %VERSION% %BLD_NUM% %ARCH% || goto error
 cd %PACKAGE_DIR% || goto error
 @echo on
 
