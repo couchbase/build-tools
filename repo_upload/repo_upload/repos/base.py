@@ -71,13 +71,15 @@ class RepositoryBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def __init__(self, edition, common_info, config_datadir):
+    def __init__(self, edition, common_info, config_datadir, config_datafile):
         """
         Load in common data from JSON file and initialize various
         common parameters
         """
         self.config_datadir = config_datadir
-        data = self.load_config('base.json')
+        data = self.load_config(config_datafile)
+
+        self.acl = 'private' if config_datafile == 'beta.json' else 'public-read'
 
         self.editions = data['editions']
         self.edition = edition
@@ -309,7 +311,7 @@ class RepositoryBase(metaclass=abc.ABCMeta):
             logger.info(f'  Path {s3_path} not found, uploading...')
             obj.upload_file(
                 local_path,
-                ExtraArgs={'ACL': 'public-read',
+                ExtraArgs={'ACL': self.acl,
                            'Metadata': {'md5': local_path_md5}}
             )
         else:
@@ -323,7 +325,7 @@ class RepositoryBase(metaclass=abc.ABCMeta):
                             f'uploading...')
                 obj.upload_file(
                     local_path,
-                    ExtraArgs={'ACL': 'public-read',
+                    ExtraArgs={'ACL': self.acl,
                                'Metadata': {'md5': local_path_md5}}
                 )
 

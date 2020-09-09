@@ -1,4 +1,4 @@
 deb [ arch=amd64 ] http://packages%STAGING%.couchbase.com/releases/couchbase-server/enterprise/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
 deb [ arch=amd64 ] http://packages%STAGING%.couchbase.com/releases/couchbase-server/community/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-# deb [ arch=amd64 ] http://packages%STAGING%.couchbase.com/releases/couchbase-server/beta/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-deb http://packages.couchbase.com/ubuntu %DCODE_SDK% %DCODE_SDK%/main
+# deb [ arch=amd64 ] http://beta-packages%STAGING%.couchbase.com/releases/couchbase-server/enterprise/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
+# deb [ arch=amd64 ] http://beta-packages%STAGING%.couchbase.com/releases/couchbase-server/community/deb/ %DCODE_SERVER% %DCODE_SERVER%/main

@@ -40,11 +40,14 @@ def main():
     parser.add_argument('-D', '--datadir', dest='config_datadir',
                         required=True,
                         help='Directory for JSON configuration files')
+    parser.add_argument('-f', '--datafile', dest='config_datafile',
+                        required=True,
+                        help='Data file in datadir')
     parser.add_argument('-r', '--repo-type', required=True,
                         choices=['apt', 'yum'],
                         help='Type of repository for upload')
     parser.add_argument('-e', '--edition', required=True,
-                        choices=['beta', 'community', 'enterprise'],
+                        choices=['community', 'enterprise'],
                         help='Version of software being uploaded')
 
     args = parser.parse_args()
@@ -100,7 +103,7 @@ def main():
 
     try:
         upload = getattr(mod, upload_class)(
-            args.edition, common_info, config_datadir
+            args.edition, common_info, config_datadir, args.config_datafile
         )
         upload.update_repository()
     except RuntimeError as exc:

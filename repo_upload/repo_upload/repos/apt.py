@@ -30,13 +30,13 @@ class AptRepository(RepositoryBase):
     Manages creating and uploading APT package repositories
     """
 
-    def __init__(self, args, common_info, config_datadir):
+    def __init__(self, args, common_info, config_datadir, config_datafile):
         """
         Load in APT-specific data from JSON file and initialize various
         common parameters and generate the Aptly configuration file
         """
 
-        super().__init__(args, common_info, config_datadir)
+        super().__init__(args, common_info, config_datadir, config_datafile)
 
         data = self.load_config('apt.json')
 
@@ -316,11 +316,7 @@ class AptRepository(RepositoryBase):
                 continue
 
             for distro in self.os_versions:
-                # we treat beta as an edition for simplicity's sake, but the filenames begin with
-                # couchbase-server-enterprise
-                edition = 'enterprise' if self.edition == 'beta' else self.edition
-
-                pkg_name = (f'couchbase-server-{edition}_{version}-'
+                pkg_name = (f'couchbase-server-{self.edition}_{version}-'
                             f'{self.os_versions[distro]["full"]}_amd64.deb')
 
                 if self.fetch_package(pkg_name, release, distro):

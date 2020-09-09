@@ -25,13 +25,13 @@ class YumRepository(RepositoryBase):
     Manages creating and uploading APT package repositories
     """
 
-    def __init__(self, args, common_info, config_datadir):
+    def __init__(self, args, common_info, config_datadir, config_datafile):
         """
         Load in Yum-specific data from JSON file and initialize various
         common parameters
         """
 
-        super().__init__(args, common_info, config_datadir)
+        super().__init__(args, common_info, config_datadir, config_datafile)
 
         self.os_versions = list(self.get_versions())
         self.repo_dir = self.local_repo_root / self.edition
@@ -226,10 +226,6 @@ class YumRepository(RepositoryBase):
         logger.info(
             f'Importing into local {self.edition} repositories at {self.repo_dir}')
 
-        # Beta is treated as a distinct edition for simplicity, we need to compose the file
-        # names with enterprise though
-        edition = 'enterprise' if self.edition == 'beta' else self.edition
-
         for release in self.supported_releases.get_releases():
             version, status = release
 
@@ -239,7 +235,7 @@ class YumRepository(RepositoryBase):
                 continue
 
             for distro, distro_version in self.os_versions:
-                pkg_name = (f'couchbase-server-{edition}-{version}-'
+                pkg_name = (f'couchbase-server-{self.edition}-{version}-'
                             f'{distro}{distro_version}.x86_64.rpm')
 
                 if self.fetch_package(pkg_name, release, f'{self.path_partial(distro)}/{version}'):

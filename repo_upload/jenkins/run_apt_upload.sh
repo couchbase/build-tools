@@ -14,10 +14,19 @@ echo
 echo "Uploading Debian packages for Couchbase Server releases..."
 echo
 
+if [ "${BETA}" = "false" ]
+then
+    CONF_FILE="repo_upload_${LOCATION}.ini"
+    PRODUCT_FILE="base.json"
+else
+    CONF_FILE="repo_upload_${LOCATION}.beta.ini"
+    PRODUCT_FILE="beta.json"
+fi
+
 docker run --rm -u couchbase \
     -w /home/couchbase/repo_upload \
     -v /home/couchbase/jenkinsdocker-ssh:/ssh \
     -v /home/couchbase/repo_upload:/home/couchbase/repo_upload \
-    -v /home/couchbase/repo_upload/repo_upload_${LOCATION}.ini:/etc/repo_upload.ini \
+    -v /home/couchbase/repo_upload/${CONF_FILE}:/etc/repo_upload.ini \
     couchbasebuild/ubuntu-1604-apt-upload \
-        -e ${EDITION} -D ${CONFDIR}
+        -e ${EDITION} -D ${CONFDIR} -f ${PRODUCT_FILE}
