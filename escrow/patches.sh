@@ -38,12 +38,43 @@ patch_v8  () {
 }
 
 patch_tlm_openssl() {
-  if [ "${dep}" = "libevent" ] || [ "${dep}" = "grpc" ]
+  # We have several dependencies which specify openssl as a dependency in their CMakeLists where the version is liable
+  # to diverge from that in manifest.cmake over time. To account for this and ensure we are using the cached version of
+  # openssl, we ensure the product's CMakeLists specify openssl deps match those present in manifest.cmake
+  if [ "${dep}" = "erlang" ] || [ "${dep}" = "folly" ] || [ "${dep}" = "grpc" ] || [ "${dep}" = "libevent" ]
   then
-    echo "# Patch: TLM OpenSSL version -> 1.1.1d"
-    sed -i'' -e "s/openssl VERSION 1.1.1b-cb3/openssl VERSION 1.1.1d-cb2/g" /home/couchbase/tlm/deps/manifest.cmake
-    sed -i'' -e "s/openssl VERSION 1.1.1b-cb2/openssl VERSION 1.1.1d-cb2/g" /home/couchbase/tlm/deps/packages/libevent/CMakeLists.txt
-    sed -i'' -e "s/openssl VERSION 1.1.1b-cb[3-4]/openssl VERSION 1.1.1d-cb2/g" /home/couchbase/tlm/deps/packages/grpc/CMakeLists.txt
-    sed -i'' -e "s/OPENSSL_VERS=1.1.1b-cb[3-4]/OPENSSL_VERS=1.1.1d-cb2/g" /home/couchbase/tlm/deps/packages/grpc/CMakeLists.txt
+    echo "# Patch: Ensure ${dep} OpenSSL versions match manifest.cmake"
+    python3 - <<-EOF
+import re
+import urllib.request
+
+# Read manifest.cmake at tip of master and create list containing only the declare_dep openssl lines
+with open('${ROOT}/src/tlm/deps/manifest.cmake') as manifest:
+  manifest_lines = manifest.readlines()
+openssl_deps = [dep.strip() for dep in manifest_lines if re.match('[\s]*declare_dep[\s]*\([\s]*openssl', dep, flags=re.IGNORECASE)]
+
+cmakelist_lines = open('deps/packages/${dep}/CMakeLists.txt', 'r').readlines()
+
+# Find the first line where openssl is declare_dep'd to use as offset for insertion
+for i, line in enumerate(cmakelist_lines):
+  if re.match("[\s]*declare_dep[\s]*\([\s]*openssl", line, flags=re.IGNORECASE):
+    ssl_offset = i+1
+    break
+
+# Create list of lines in cmakelist, minus declare_dep openssl sections
+cmakelist_clean_lines = re.sub('declare_dep[\s]*\([\s]*openssl[^\)]*\)', '', ''.join(cmakelist_lines), flags=re.IGNORECASE).split('\n')
+
+# Create new patched content and write to disk
+cmakelist_patched = '\n'.join(cmakelist_clean_lines[0:ssl_offset] + openssl_deps + cmakelist_clean_lines[ssl_offset:])
+
+f = open('deps/packages/${dep}/CMakeLists.txt', "w")
+f.write(cmakelist_patched)
+EOF
+
+  if [ -f /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.tgz -a -f /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.md5 ]
+  then
+    echo "Creating legacy .tgz.md5"
+    cp /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.md5 /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.tgz.md5
+  fi
   fi
 }

@@ -12,6 +12,7 @@ RUN curl -Lo /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86
 
 RUN useradd -ms /bin/bash couchbase
 RUN mkdir -p /home/couchbase/.ssh && ssh-keyscan github.com >> /home/couchbase/.ssh/known_hosts
+RUN apt install -y python3 python3-pip && pip3 install pyyaml
 
 COPY . /app
 RUN chmod +x /app/build_escrow.sh

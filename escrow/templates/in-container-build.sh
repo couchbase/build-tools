@@ -29,6 +29,8 @@ else
   PLATFORM="${DOCKER_PLATFORM}"
 fi
 
+export PLATFORM
+
 heading() {
   echo
   echo ::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -38,7 +40,7 @@ heading() {
 }
 
 # Global directories
-ROOT="${WORKDIR}/escrow"
+export ROOT="${WORKDIR}/escrow"
 CACHE="${WORKDIR}/.cbdepscache"
 TLMDIR="${WORKDIR}/tlm"
 
@@ -77,8 +79,8 @@ do
   then
     echo "Copying"
     mkdir -p "${CACHE}/cbdep/${cbdep_ver}/"
-    cp -aL /escrow/deps/cbdep-*-${cbdeps_platform} "${CACHE}/cbdep/${cbdep_ver}/"
-    cp -aL /escrow/deps/cbdep-*-${cbdeps_platform} "${CACHE}/cbdep/${cbdep_ver}/"
+    cp -aL /escrow/deps/cbdep-${cbdep_ver}-${cbdeps_platform} "${CACHE}/cbdep/${cbdep_ver}/"
+    cp -aL /escrow/deps/cbdep-${cbdep_ver}-${cbdeps_platform} "${CACHE}/cbdep/${cbdep_ver}/"
   fi
 done
 
@@ -133,7 +135,7 @@ build_cbdep() {
   echo "Copying ${dep} to local cbdeps cache..."
   tarball=$( ls ${TLMDIR}/deps/packages/build/deps/${dep}/*/*.tgz )
   cp "${tarball}" "${CACHE}"
-  cp "${tarball/tgz/md5}" "${CACHE}/$( basename ${tarball} ).md5"
+  cp "${tarball/tgz/md5}" "${CACHE}/$( basename ${tarball/tgz/md5} )"
   rm -rf "${TLMDIR}/deps/packages/build/deps/${dep}"
 }
 
@@ -171,7 +173,7 @@ build_cbdep_v2() {
   echo "Copying dependency ${dep} to local cbdeps cache..."
   tarball=$( ls ${TLMDIR}/deps/packages/${dep}/*/*/*/*/*.tgz )
   cp ${tarball} ${CACHE}
-  cp ${tarball/tgz/md5} ${CACHE}/$( basename ${tarball} ).md5
+  cp "${tarball/tgz/md5}" "${CACHE}/$( basename ${tarball/tgz/md5} )"
   rm -rf ${TLMDIR}/deps/packages/${dep}
 }
 

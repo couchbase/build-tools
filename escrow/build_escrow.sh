@@ -14,13 +14,6 @@ pushd $1
 ROOT=$(pwd)
 popd
 
-# Compute list of platforms from Docker image names
-# (will need to change this algorithm if we change the
-# Docker image naming convention)
-PLATFORMS=$(
-  perl -e 'print join(" ", map { m@couchbasebuild/server-(.*)-build@ && $1} @ARGV)' ${IMAGES}
-)
-
 # Functions
 fatal() {
   echo "FATAL: $@"
@@ -68,7 +61,7 @@ get_cbdeps2_src() {
 
   cd "${ESCROW}/deps"
 
-    mkdir "${dep}" || :
+    mkdir -p "${dep}"
     cd "${dep}"
     heading "Downloading cbdep2 ${manifest} at ${sha} ..."
     repo init -u git://github.com/couchbase/build-manifests -g all -m "cbdeps/${manifest}" -b "${sha}"
@@ -133,11 +126,10 @@ cache_deps() {
       (
 
         cd $cache
-        if [ ! -f "./$dependency-${platform}-x86_64-${version}.tgz.md5" ]
+        if [ ! -f "./$dependency-${platform}-x86_64-${version}.md5" ]
         then
           curl -O "http://packages.couchbase.com/couchbase-server/deps/$dependency/${version}/$dependency-${platform}-x86_64-${version}.{md5,tgz}" \
             || fatal "Package download failed"
-          mv "$dependency-${platform}-x86_64-${version}.md5" "$dependency-${platform}-x86_64-${version}.tgz.md5"
         fi
       )
     done
@@ -155,16 +147,6 @@ cache_openjdk() {
   do
     "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n openjdk "${openjdk_version}" || fatal "OpenJDK install failed"
   done
-
-  # mkdir -p ${ESCROW}/src/build/tlm/deps/openjdk-rt.exploded
-  # local manifest=$(curl -Lvs https://raw.githubusercontent.com/couchbase/tlm/master/deps/manifest.cmake 2>/dev/null)
-  # local openjdk_rt_versions=$(echo "$manifest" | awk "/openjdk-rt .*${PLATFORM}/ {print \$4}") \
-  #   || fatal "Couldn't get openjdk-rt versions"
-  # for openjdk_rt_version in $openjdk_rt_versions
-  # do
-  #   "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache openjdk-rt ${openjdk_rt_version}
-  #   cp -rp ${ESCROW}/deps/.cbdepscache/openjdk-rt-${openjdk_rt_version}/openjdk-rt.jar ${ESCROW}/src/build/tlm/deps/openjdk-rt.exploded/openjdk-rt.jar
-  # done
 }
 
 cache_analytics() {
@@ -183,7 +165,6 @@ cache_analytics() {
     else
       analytics_version=$version
     fi
-    analytics_version=${analytics_version/-*/}
     chmod +x ${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux
     "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n analytics-jars "${analytics_version}" || fatal "Failed to cache analytics jars"
     "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache analytics-jars "${analytics_version}" || fatal "Failed to cache analytics jars"
@@ -218,7 +199,7 @@ get_cbdeps_versions() {
   # Interrogate CBDownloadDeps and curl_unix.sh style build scripts to generate a deduplicated array
   # of cbdeps versions.
   local versions=$(find "${1}/build-manifests/python_tools/cbdep" -name "*.xml" |  grep -Eo "[0-9\.]+.xml" | sed 's/\.[^.]*$//')
-  versions=$(echo $versions | tr ' ' '\n' | sort -u | tr '\n' ' ')
+  versions=$(echo $versions | tr ' ' '\n' | sort -uV | tr '\n' ' ')
   echo $versions
 }
 
@@ -236,34 +217,72 @@ mkdir -p "${ESCROW}" 2>/dev/null || :
 
 appdir="$(pwd)"
 
-# Save copies of all Docker build images
-heading "Saving Docker images..."
-mkdir -p "${ESCROW}/docker_images" 2>/dev/null || :
-pushd "${ESCROW}/docker_images"
-for img in ${IMAGES}
-do
-  heading "Saving Docker image ${img}"
-  if [ "$(docker image ls -q ${img})" == "" ]
-  then
-    echo "... Pulling ${img}..."
-    docker pull "${img}"
-  else
-    echo "... Image already pulled"
-  fi
+# Retrieve list of current Docker image/tags from stackfile
+stackfile=$(curl -L --fail https://raw.githubusercontent.com/couchbase/build-infra/master/docker-stacks/couchbase-server/server-jenkins-buildslaves.yml)
 
-  output=$(basename "${img}").tar.gz
-  if [ ! -f ${output} ]
-  then
-    echo "... Saving local copy of ${img}..."
-    if [ ! -s "${output}" ]
+# Retrieve list of platform - these correspond to the available Docker buildslave images for a given release.
+PLATFORMS=$(python3 - <<EOF
+import yaml
+
+stack = yaml.safe_load("""${stackfile}""")
+
+platforms = list()
+
+def get_labels(env):
+    for line in env:
+      if line.startswith('JENKINS_SLAVE_LABELS='):
+        return line.replace('JENKINS_SLAVE_LABELS=', '').split(' ')
+
+for name, service in stack['services'].items():
+    if '${RELEASE}' in get_labels(service['environment']):
+      platforms.append(name)
+
+print(' '.join(platforms))
+EOF
+)
+
+IMAGES=$(python3 - <<EOF
+import yaml
+
+stack = yaml.safe_load("""${stackfile}""")
+distros = "${PLATFORMS}"
+
+for distro in distros.split():
+    print(stack['services'][distro]['image'])
+EOF
+)
+
+
+copy_container_images() {
+  # Save copies of all Docker build images
+  heading "Saving Docker images..."
+  mkdir -p "${ESCROW}/docker_images" 2>/dev/null || :
+  pushd "${ESCROW}/docker_images"
+  for img in ${IMAGES}
+  do
+    heading "Saving Docker image ${img}"
+    if [ "$(docker image ls -q ${img})" == "" ]
     then
-      docker save "${img}" | gzip > "${output}"
+      echo "... Pulling ${img}..."
+      docker pull "${img}"
+    else
+      echo "... Image already pulled"
     fi
-  else
-    echo "... Local copy already exists (${output})"
-  fi
-done
-popd
+
+    output=$(basename "${img}").tar.gz
+    if [ ! -f ${output} ]
+    then
+      echo "... Saving local copy of ${img}..."
+      if [ ! -s "${output}" ]
+      then
+        docker save "${img}" | gzip > "${output}"
+      fi
+    else
+      echo "... Local copy already exists (${output})"
+    fi
+  done
+  popd
+}
 
 # Get the source code
 heading "Downloading released source code for ${PRODUCT} ${VERSION}..."
@@ -375,6 +394,8 @@ cache_deps
 cache_analytics
 cache_openjdk
 copy_cbdepcache
+
+copy_container_images
 
 curl -Lo "${ESCROW}/deps/rsync" https://github.com/JBBgameich/rsync-static/releases/download/continuous/rsync-x86
 

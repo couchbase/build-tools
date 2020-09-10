@@ -49,7 +49,7 @@ IMAGE=couchbasebuild/$( basename -s .tar.gz $( ls server-${PLATFORM}* ) )
 if [[ -z "`docker images -q ${IMAGE}`" ]]
 then
   heading "Loading Docker image ${IMAGE}..."
-  gzip -dc ${PLATFORM}* | docker load
+  gzip -dc server-${PLATFORM}* | docker load
 fi
 
 # Run Docker buildslave

@@ -2,7 +2,7 @@
 
 source ./escrow_config
 
-[ -z $2 ] && (echo "Usage: ./go.sh [ssh_key] [output_path]" && exit 1)
+[ -z $2 ] && echo "Usage: ./go.sh [ssh_key] [output_path]" && exit 1
 # `ssh_key` must have access to relevant repositories and
 # should not have a passphrase to allow this process
 # to run non-interactively
