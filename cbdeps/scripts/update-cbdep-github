@@ -39,5 +39,5 @@ elif [ ${PROJECT} = "breakpad" ]; then
 fi
 
 git remote add upstream ${upstream_url}
-git fetch --all
+git fetch --all --tags
 git push --tags origin 'refs/remotes/upstream/*:refs/heads/*'
