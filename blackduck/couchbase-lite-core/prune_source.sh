@@ -3,6 +3,6 @@
 pwd
 
 # cleanup unwanted stuff - test files, build scripts, etc.
-for i in fleece Docs doc test tests docs googletest third_party cbbuild tlm; do
+for i in fleece Docs doc test tests docs googletest third_party cbbuild tlm libstemmer_c; do
      find . -type d -name $i | xargs rm -rf
 done
