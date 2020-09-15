@@ -73,6 +73,7 @@ class UpdateComponents:
             self.comp_map[comp_name].add(comp.get('componentVersionName', ""))
             self.comp_urls[comp_name] = comp['component']
         logging.debug(f"Final comp_map: {self.comp_map}")
+        logging.debug(f"Final comp_urls: {self.comp_urls}")
 
     def add_manifest(self, manifest):
         """
@@ -135,15 +136,26 @@ class UpdateComponents:
         hits = self.hub.search_components(component, limit=100).get('items', [])[0].get('hits', [])
         logging.debug(f"Found {len(hits)} hits")
         for hit in hits:
-            component_name = hit['fields']['name']
+            component_name = hit['fields']['name'][0]
             score = float(hit['fields']['score'][0])
-            if score < 0.4:
+            if score < 0.8:
                 logging.debug(f"Skipping {component_name} because score is too low ({score})")
                 continue
             component_url = hit['component']
             component_version = self.find_version_for_component(component_name, component_url, version)
-            if component_version is not None:
-                return component_version
+            if component_version is None:
+                logging.debug(f"Skipping {component_name} because it does not have a version {version}")
+                continue
+            # This might be the best match, but if it doesn't exactly match the
+            # name from the manifest we have to skip it for now
+            if component_name.lower() != component:
+                logging.warn(f"When searching for '{component}' version '{version}', we found "
+                    f"'{component_name}' version '{version}' which might be the best match. "
+                    "However, since the names are not identical we skipped it. "
+                    "If this job fails to find a better match, you must update the "
+                    "*-black-duck-manifest.yaml file to specify the full component name.")
+                continue
+            return component_version
         logging.fatal(f"Found no component-version for {component} {version}!")
         sys.exit(4)
 
@@ -265,5 +277,5 @@ if __name__ == "__main__":
     )
     for manifest in args.manifest:
         updater.add_manifest(yaml.safe_load(manifest))
-    logging.debug(f"Final manifest: {updater.manifest}")
+    logging.debug(f"Final input manifest: {updater.manifest}")
     updater.apply_manifests()
