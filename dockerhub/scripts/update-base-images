@@ -1,0 +1,113 @@
+#!/bin/bash -e
+
+# Pushes an empty to commit to git branches of the github.com/couchbase/docker
+# repository to force Docker Hub autobuild to rebuild the image with newer
+# base image.
+
+script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
+
+status() {
+    echo "-- $@"
+}
+
+# Once a branch is identified as "potentially interesting", this function
+# does the heavy lifting of checking it out; checking the base image of
+# the Dockerfile on that branch for updates; and pushing a commit upstream
+# if an update is needed.
+check_and_update() {
+    branch=$1
+    image=$2
+    tag=$3
+
+    git checkout -B ${branch} remotes/origin/${branch}
+
+    if ${script_dir}/is-base-uptodate branch/Dockerfile ${image}:${tag}; then
+        status "Image ${image}:${tag}'s base is up-to-date"
+        return 0
+    fi
+
+    status "Image ${image}:${tag} needs updating - triggering autobuild"
+
+    git commit --allow-empty -m "Touching branch ${branch} for Docker Hub autobuild"
+    git push origin HEAD:refs/heads/${branch}
+}
+
+
+# Start by cloning / updating Docker repository
+if [ ! -e docker ]; then
+    status "Cloning docker repo"
+    git clone "ssh://git@github.com/couchbase/docker" docker
+else
+    status "Updating docker repo"
+    (cd docker && git checkout master && git pull)
+fi
+cd docker
+git config user.email "build-team@couchbase.com"
+git config user.name "Couchbase Build Team"
+
+# Iterate through all git branches looking for "interesting" ones
+
+for ref in $(git for-each-ref --format='%(refname)' refs/remotes/origin); do
+    branch=$(cut -d/ -f 4- <<<"${ref}")
+
+    # Split branch name apart on hyphens
+    IFS=- bits=(${branch})
+    unset IFS
+
+    # First two components are product name
+    product="${bits[0]}-${bits[1]}"
+
+    # Next two components are version and edition
+    version=${bits[2]}
+    edition=${bits[3]}
+
+    # We only care about branches for couchbase-server or sync-gateway (so far)
+    case "${product}" in
+        couchbase-server)
+            image=couchbase/server
+            tag="${edition}-${version}"
+            ;;
+        sync-gateway)
+            image=couchbase/sync-gateway
+            tag="${version}-${edition}"
+            ;;
+        *)
+            status "Skipping unrecognized branch ${branch}"
+            continue
+    esac
+
+    # The "version" component might actually be one of 'top-level' tags
+    # (enterprise, community, or latest). We always want to check those.
+    case "${version}" in
+        latest|community|enterprise)
+            check_and_update ${branch} ${image} ${version}
+            continue
+    esac
+
+    # We also only care about GA branches, so anything that wound up with
+    # eg "beta2" in the fourth slot rather than "enterprise" or "community"
+    # can be skipped
+    case "${edition}" in
+        community|enterprise)
+            ;;
+        *)
+            status "Skipping non-GA branch ${branch}"
+            continue
+            ;;
+    esac
+
+    # Last filter: couchbase-server < 5.0.0 we don't update. We could add
+    # other version checks here in future.
+    case "${product}" in
+        couchbase-server)
+            if [[ "${version}" =~ ^4.* ]]; then
+                status "Skipping too-old branch ${branch}"
+                continue
+            fi
+            ;;
+    esac
+
+    # Ok, this is a branch to check. A bit annoyingly, the tag is spelled
+    # differently for sync-gateway and couchbase-server
+    check_and_update ${branch} ${image} ${tag}
+done

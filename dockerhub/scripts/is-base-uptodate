@@ -1,0 +1,40 @@
+#!/bin/bash -e
+
+# Given a Dockerfile and a Docker image name including tag,
+# will pull that image and then check to see if the base
+# image (specified in the Dockerfile) has been updated since
+# the Docker image was built.
+
+DOCKERFILE=$1
+IMAGE=$2
+
+script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
+
+# Find the last FROM line in the Dockerfile and cut off the image name
+base=$(tac ${DOCKERFILE} | grep -m1 '^FROM' | cut -d' ' -f2)
+
+if [ "${base}" = "scratch" ]; then
+    echo "'scratch' base image implicitly up-to-date"
+    exit 0
+fi
+
+echo "Updating base image ${base}"
+docker pull ${base}
+
+echo "Computing lower-layer SHA for base image"
+base_sha=$(
+    docker inspect ${base} --format '{{ json .RootFS.Layers }}' |
+    jq --raw-output '.[-1]'
+)
+
+echo "Pulling derived image ${IMAGE}"
+docker pull ${IMAGE}
+
+echo "Checking to see if base SHA is different"
+if docker inspect ${IMAGE} --format '{{ json .RootFS.Layers }}' | grep --quiet ${base_sha}; then
+    echo "Image does not need rebuilding to update base"
+    exit 0
+else
+    echo "Image needs to be rebuilt with newer base image"
+    exit 1
+fi
