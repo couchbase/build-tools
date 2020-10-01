@@ -63,7 +63,7 @@ find . -name .repo -print0 | xargs -0 rm -rf
 
 # Product-specific script for pruning unwanted sources
 if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ]; then
-  "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ${RELEASE}
+  "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ${RELEASE} ${VERSION} ${BLD_NUM}
 fi
 
 # Product-specific config for Synopsys Detect

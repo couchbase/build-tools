@@ -1,6 +1,8 @@
 #!/bin/bash -ex
 
 RELEASE=$1
+VERSION=$2
+BLD_NUM=$3
 
 shopt -s extglob
 
@@ -64,3 +66,14 @@ WIN='example *msvc* *vcproj* *vcxproj* visual vstudio dot_net_example example cs
 for windir in ${WIN}; do
     find . -name analytics -prune -o -type d -name "$windir" -print0 | xargs -0 rm -rf
 done
+
+# Horrible annoying hacks below!
+# Black Duck sometimes gives dependency components new names. This screws up
+# our "manually added dependencies" manifests, which matters when we need to run
+# scans for historical GA versions. So here we patch them. Yay.
+if [ "${VERSION}" == "6.6.0" ]; then
+    sed -i \
+        -e 's/bd-name: Boost C++ Libraries/bd-name: Boost C++ Libraries - boost/' \
+        -e 's/svn-r0/r835/' \
+        tlm/deps/couchbase-server-black-duck-manifest.yaml
+fi
