@@ -6,7 +6,7 @@ ROOT_DIR=$2
 cd ${ROOT_DIR}/curl
 
 # Openssl dependency
-OPENSSL_VER=1.1.1d-cb2
+OPENSSL_VER=1.1.1h-1
 CBDEP_TOOL_VERS=0.9.15
 
 # Download openssl via cbdeps tool
