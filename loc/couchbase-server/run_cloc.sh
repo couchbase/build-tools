@@ -23,7 +23,18 @@ rm -rf third_party
 
 # Third-party go code, including Bleve
 rm -rf godeps/src/golang.org
-rm -rf godeps/src/github.com/!(couchbase)
+rm -rf godeps/src/github.com/!(couchbase|couchbaselabs)
+
+# Anything under goproj is presumed to be necessary to count.
+# However, some things in goproj are ALSO mapped elsewhere due
+# to Go modules transition. So let's prune those.
+for project in *; do
+    oldgodir="goproj/src/github.com/couchbase/${project}"
+    if [ -d "${oldgodir}" ]; then
+        echo "Removing double-mapped project ${oldgodir}"
+        rm -rf ${oldgodir}
+    fi
+done
 
 # Third-party AsterixDB code
 rm -rf analytics/asterixdb
