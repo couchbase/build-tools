@@ -7,7 +7,7 @@ INSTALL_DIR=$1
 PHPVER=$2
 BLD_NUM=$3
 
-IGBINARY_VER=2.0.8
+PHPUNIT_VER=9.4.3
 
 DLDIR=build/dl
 mkdir -p $DLDIR
@@ -28,23 +28,43 @@ build_php() {
 
     ZTSARG=''
     if [ "$VARIANT" = 'zts' ]; then
-      ZTSARG='--enable-maintainer-zts'
+        case "$PHPVER" in
+            7.*)
+                ZTSARG='--enable-maintainer-zts'
+                ;;
+            *)
+                ZTSARG='--enable-zts'
+                ;;
+        esac
     fi
+    JSON_OPT=''
+    case "$PHPVER" in
+        7.*)
+            JSON_OPT='--enable-json'
+            ;;
+        *)
+            # always enabled since 8.0
+            ;;
+    esac
 
     PREFIX=$INSTALL_DIR/$OUTDIR
     mkdir -p $PREFIX
     # figure out which option enables libxml
     LIBXML_OPT=--with-libxml
     ./configure --help | grep disable-libxml && LIBXML_OPT=--enable-libxml
-    ./configure --disable-all --with-zlib ${LIBXML_OPT} --enable-xml --with-pear --enable-sockets --enable-pcntl --enable-phar=shared --enable-json --enable-cli --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3
-    $CFLAGS" && make -j8 && make install install-sapi install-headers
-    (
-      cd igbinary-${IGBINARY_VER}
-      $PREFIX/bin/phpize
-      ./configure --with-php-config=$PREFIX/bin/php-config $($PREFIX/bin/php-config --configure-options) --enable-igbinary CFLAGS="-ggdb3 $CFLAGS"
-      make -j4 && make install install-sapi install-headers
-    )
-
+    ./configure --disable-all \
+        --enable-option-checking=fatal \
+        --enable-sockets \
+        --enable-pcntl \
+        --enable-phar \
+        ${JSON_OPT} \
+        --enable-cli \
+        --with-zlib \
+        ${LIBXML_OPT} --enable-xml \
+        --with-pear \
+        --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3 $CFLAGS"
+    make -j8
+    make install install-sapi install-headers
     popd
 }
 
@@ -58,11 +78,6 @@ build_php_variant() {
     if [ ! -e $SRCDIR/$OUTDIR ]; then
       tar -xjf $DLDIR/php-src-$PHPVER.tar.bz2 -C $TMPDIR
       mv $TMPDIR/php-$PHPVER $SRCDIR/$OUTDIR
-    fi
-    echo "Extracting IGBINARY extension sources for $VARIANT"
-    if [ ! -e $SRCDIR/$OUTDIR/igbinary-${IGBINARY_VER} ]; then
-      tar -xzf $DLDIR/igbinary-${IGBINARY_VER}.tgz -C $TMPDIR
-      mv $TMPDIR/igbinary-${IGBINARY_VER} $SRCDIR/$OUTDIR/igbinary-${IGBINARY_VER}
     fi
     echo "Building $VARIANT"
     if [ ! -e $INSTALL_DIR/$OUTDIR ]; then
@@ -83,8 +98,7 @@ build_php_variant() {
 
 echo "Downloading PHP $PHPVER"
 [ ! -e  $DLDIR/php-src-$PHPVER.tar.bz2 ]  && curl -Lo $DLDIR/php-src-$PHPVER.tar.bz2 "http://php.net/get/php-$PHPVER.tar.bz2/from/this/mirror"
-[ ! -e  $DLDIR/php-phpunit.phar ]         && curl -Lo $DLDIR/php-phpunit.phar "https://phar.phpunit.de/phpunit-5.7.phar"
-[ ! -e  $DLDIR/igbinary-${IGBINARY_VER}.tgz ] && curl -Lo $DLDIR/igbinary-${IGBINARY_VER}.tgz "https://pecl.php.net/get/igbinary-${IGBINARY_VER}"
+[ ! -e  $DLDIR/php-phpunit.phar ]         && curl -Lo $DLDIR/php-phpunit.phar "https://phar.phpunit.de/phpunit-$PHPUNIT_VER.phar"
 
 build_php_variant $PHPVER zts
 build_php_variant $PHPVER nts

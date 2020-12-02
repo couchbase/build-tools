@@ -6,14 +6,12 @@ rem cb-specific rebuild number
 set BLD_NUM=%2
 rem zts or nts
 set TS=%3
-rem with igbinary = 1, without = 0
-set IGBINARY=%4
 rem Path to work in (will just create "php-sdk" dir here)
-set WORKDIR=%5
+set WORKDIR=%4
 rem Path to produce output in (will create full tagged directories)
-set INSTALLDIR=%6
+set INSTALLDIR=%5
 
-set IGBINARY_VER=2.0.8
+set PHPUNIT_VER=9.4.3
 set STARTDIR=%CD%
 
 if "%TS%" == "zts" (
@@ -22,15 +20,7 @@ if "%TS%" == "zts" (
   set tsarg=--disable-zts
 )
 
-if %IGBINARY% == 1 (
-  set igtag=igbinary
-  set igarg=--enable-igbinary=shared
-) else (
-  set igtag=default
-  set igarg=
-)
-
-set PHPTAG=php-%TS%-%igtag%-%PHPVER%-cb%BLD_NUM%
+set PHPTAG=php-%TS%-default-%PHPVER%-cb%BLD_NUM%
 rmdir /s /q %WORKDIR%\%PHPTAG%
 
 rem Create working directory
@@ -54,38 +44,28 @@ call phpsdk_deps -u || goto :error
 rem Get our extra dependencies
 pushd ..\deps
 if not exist php-phpunit.phar (
-  curl --insecure -L https://phar.phpunit.de/phpunit-5.7.phar -o php-phpunit.phar
+  curl --insecure -L https://phar.phpunit.de/phpunit-%PHPUNIT_VER%.phar -o php-phpunit.phar
 )
 if not exist php-phpdoc.phar (
   curl --insecure -L https://phpdoc.org/phpDocumentor.phar -o php-phpdoc.phar
 )
 popd
 
-rem Get igbinary if necessary
-set igpath=..\deps\igbinary-%IGBINARY_VER%.tgz
-if %IGBINARY% == 1 (
-  if not exist "%igpath%" (
-    curl --insecure -L https://pecl.php.net/get/igbinary-%IGBINARY_VER%.tgz -o %igpath% || goto :error
-  )
-  7z x -tgzip -so ..\deps\igbinary-%IGBINARY_VER%.tgz | 7z x -y -ttar -si -oext\ || goto :error
-  move /y ext\igbinary-%IGBINARY_VER% ext\igbinary || goto :error
-)
-
-rem Compute whether we can safely enable pcntl (>= 7.3)
-echo %PHPVER% | findstr /r /c:"^7\.[012]\."
+rem Compute whether we can safely enable json (< 8.0)
+echo %PHPVER% | findstr /r /c:"^7\.[34]\."
 if errorlevel 1 (
-    set enablepcntl=--enable-pcntl
+    set enablejson=--enable-json
 ) else (
-    set enablepcntl=
+    set enablejson=
 )
 
 rem Configure and build
 call buildconf || goto :error
 @echo on
-call configure --disable-all --enable-sockets %enablepcntl% ^
-  --enable-session --enable-json --enable-cli ^
+call configure --disable-all --enable-sockets --enable-pcntl ^
+  --enable-session %enablejson% --enable-cli ^
   --enable-phar=shared ^
-  %igarg% %tsarg% ^
+  %tsarg% ^
   --with-prefix=%INSTALLDIR%\%PHPTAG% || goto :error
 @echo on
 nmake && nmake install || goto :error
@@ -97,7 +77,7 @@ xcopy /c /q /y /s /i %CURDIR%\php-sdk-binary-tools\msys2 %INSTALLDIR%\%PHPTAG%\m
 
 rem Packaging
 pushd %INSTALL_DIR%
-cmake -E tar czf php-%TS%-%igtag%-windows-amd64-%PHPVER%-cb%BLD_NUM%.tgz %PHPTAG% || goto :error
+cmake -E tar czf php-%TS%-default-windows-amd64-%PHPVER%-cb%BLD_NUM%.tgz %PHPTAG% || goto :error
 popd
 
 :eof
