@@ -51,19 +51,12 @@ if not exist php-phpdoc.phar (
 )
 popd
 
-rem Compute whether we can safely enable json (< 8.0)
-echo %PHPVER% | findstr /r /c:"^7\.[34]\."
-if errorlevel 1 (
-    set enablejson=--enable-json
-) else (
-    set enablejson=
-)
-
 rem Configure and build
 call buildconf || goto :error
 @echo on
-call configure --disable-all --enable-sockets --enable-pcntl ^
-  --enable-session %enablejson% --enable-cli ^
+call configure --disable-all --enable-sockets ^
+  --with-iconv --with-xml --with-libxml --with-xmlwriter ^
+  --enable-session --enable-json --enable-cli ^
   --enable-phar=shared ^
   %tsarg% ^
   --with-prefix=%INSTALLDIR%\%PHPTAG% || goto :error
