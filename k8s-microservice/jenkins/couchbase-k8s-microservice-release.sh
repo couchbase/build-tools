@@ -28,6 +28,7 @@ ${script_dir}/util/publish-k8s-images.sh ${PRODUCT} ${VERSION}-${BLD_NUM} ${publ
 release_dir=/releases/${PRODUCT}/${public_tag}
 mkdir -p ${release_dir}
 cd ${release_dir}
+shopt -s nullglob
 for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
     if [[ $file =~ .*source.tar.gz ]]; then
         echo Skipping source file $file
