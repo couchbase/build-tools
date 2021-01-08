@@ -8,7 +8,7 @@ shopt -s extglob
 
 # NPM-related stuff - see CBD-3365
 
-if [ "$RELEASE" = "mad-hatter" ]; then
+if [ "$RELEASE" = "alice" -o "$RELEASE" = "mad-hatter" ]; then
     # Can't scan package.json files with NPM detector unless we also
     # have package-lock.json, which we don't in mad-hatter, so...
     rm goproj/src/github.com/couchbase/cbgt/rest/static/lib/angular-bootstrap/package.json
