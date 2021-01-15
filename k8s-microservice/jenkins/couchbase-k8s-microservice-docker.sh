@@ -29,7 +29,16 @@ fi
 pushd images
 for product in *; do
     short_product=${product/couchbase-/}
-    for org in cb-vanilla cb-rhcc; do
+
+    # There is no RHEL build for service broker
+    if [ "${PRODUCT}" = "couchbase-service-broker" ]
+    then
+        orgs="cb-vanilla"
+    else
+        orgs="cb-vanilla cb-rhcc"
+    fi
+
+    for org in $orgs; do
         local_org_image=${org}/${short_product}:${version_build}
         for registry in build-docker.couchbase.com registry.gitlab.com; do
             for tag in ${tags}; do

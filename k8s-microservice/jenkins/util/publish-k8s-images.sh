@@ -83,16 +83,20 @@ tag_and_publish cb-vanilla \
 
 ################## RHCC
 
-# This bit of code is shared with files in the redhat-openshift repository
-conf_dir=/home/couchbase/openshift/${PRODUCT}
-project_id=$(cat ${conf_dir}/project_id)
-# Need to login for production (Red Hat) registry
-set +x
-docker login -u unused-login -p "$(cat ${conf_dir}/registry_key)" scan.connect.redhat.com
-set -x
+# There is no RHEL build for service broker
+if [ "${PRODUCT}" = "couchbase-service-broker" ]
+then
+    # This bit of code is shared with files in the redhat-openshift repository
+    conf_dir=/home/couchbase/openshift/${PRODUCT}
+    project_id=$(cat ${conf_dir}/project_id)
+    # Need to login for production (Red Hat) registry
+    set +x
+    docker login -u unused-login -p "$(cat ${conf_dir}/registry_key)" scan.connect.redhat.com
+    set -x
 
-# Never push :latest tag to RHCC
-LATEST=false
+    # Never push :latest tag to RHCC
+    LATEST=false
 
-tag_and_publish cb-rhcc \
-    ${rhcc_registry}/${project_id}/unused-image:${PUBLIC_TAG}-${OPENSHIFT_BUILD}
+    tag_and_publish cb-rhcc \
+        ${rhcc_registry}/${project_id}/unused-image:${PUBLIC_TAG}-${OPENSHIFT_BUILD}
+fi

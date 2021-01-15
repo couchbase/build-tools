@@ -19,6 +19,8 @@
 # It is up to the calling code to re-tag those images depending on where they
 # are to be published and what they are to be named, and then remove all
 # cb-* images when then are done.
+#
+# Note: couchbase-service-broker is excluded from rhcc builds
 
 shopt -s extglob
 
@@ -80,15 +82,18 @@ for local_product in *; do
         -t cb-vanilla/${short_product}:${tag} \
         .
 
-    heading "Building RHCC image for ${short_product}..."
-    ${script_dir}/update-base.sh Dockerfile.rhel
-    docker build -f Dockerfile.rhel \
-        -t cb-rhcc/${short_product}:${tag} \
-        --build-arg PROD_VERSION=${VERSION} \
-        --build-arg PROD_BUILD=${BLD_NUM} \
-        --build-arg OS_BUILD=${OPENSHIFT_BUILD} \
-        .
-
+    # There is no RHEL build for service broker
+    if [ "${PRODUCT}" != "couchbase-service-broker" ]
+    then
+        heading "Building RHCC image for ${short_product}..."
+        ${script_dir}/update-base.sh Dockerfile.rhel
+        docker build -f Dockerfile.rhel \
+            -t cb-rhcc/${short_product}:${tag} \
+            --build-arg PROD_VERSION=${VERSION} \
+            --build-arg PROD_BUILD=${BLD_NUM} \
+            --build-arg OS_BUILD=${OPENSHIFT_BUILD} \
+            .
+    fi
     popd
 done
 
