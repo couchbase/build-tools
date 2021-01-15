@@ -28,7 +28,7 @@ do
                 -F "binary_locations=bin" \
                 -F "bundle=${bundle}" \
                 -F "content=@${file}" \
-                -F "token=$(cat /ssh/notarizer_token)" \
+                -F "token=$(cat ~/.ssh/notarizer_token)" \
                 http://172.23.113.4:7000/zip/${file//dist\//}
         ;;
     esac
