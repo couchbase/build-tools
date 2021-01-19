@@ -30,3 +30,8 @@ pip3 download -r requirements.txt -d deps/
 # add .zip to the .whl files if that helps it detect
 # stuff.
 popd
+
+# setup.py depends on packages from this, but that dooesn't
+# appear to be documented in the source code anywhere. Just
+# make sure it's available.
+pip3 install -U sphinx
