@@ -61,6 +61,13 @@ find . -name analytics -prune -o -type d -name benchmarks -print0 | xargs -0 rm 
 # godeps-specific pruning (hopefully eliminated after switching entirely to Go modules)
 rm -rf godeps/src/golang.org/x/tools/cmd/heapview/client
 
+# We don't need to pull in all transitive dependencies of godeps (if they're under
+# godeps, by definition we're building them using GOPATH rather than Go modules, so
+# only stuff that's actually here will be compiled). However, things from couchbase
+# or couchbaselabs under godeps (in particular gocb) might be referenced by other
+# projects' go.mod via replace directives, so we need to leave those there.
+find godeps -name 'couchbase*' -prune -o -name go.mod -print0 | xargs -0 rm -f
+
 # Remove all msvc, vcs* window projects
 WIN='example *msvc* *vcproj* *vcxproj* visual vstudio dot_net_example example csharp vc7ide'
 for windir in ${WIN}; do
