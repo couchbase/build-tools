@@ -20,8 +20,11 @@ trigger_filename = os.path.abspath("trigger.properties")
 if os.path.exists(trigger_filename):
   os.remove(trigger_filename)
 
-# Initialize previous-check state file
-state_filename = os.path.abspath("last-check.json")
+# Initialize previous-check state file (use NAS if available)
+if os.access("/buildteam/statefiles", os.W_OK):
+  state_filename = os.path.abspath("/buildteam/statefiles/scan-manifests-state.json")
+else:
+  state_filename = os.path.abspath("last-check.json")
 if os.path.exists(state_filename):
   with open(state_filename, "r") as state:
     check_states = json.load(state)
@@ -66,4 +69,3 @@ else:
 with open(state_filename, "w") as state:
   json.dump(check_states, state)
 print ("\n----------------------------------\n")
-
