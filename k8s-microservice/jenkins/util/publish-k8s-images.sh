@@ -84,7 +84,7 @@ tag_and_publish cb-vanilla \
 ################## RHCC
 
 # There is no RHEL build for service broker
-if [ "${PRODUCT}" = "couchbase-service-broker" ]
+if [ "${PRODUCT}" != "couchbase-service-broker" ]
 then
     # This bit of code is shared with files in the redhat-openshift repository
     conf_dir=/home/couchbase/openshift/${PRODUCT}
