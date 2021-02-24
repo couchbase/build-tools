@@ -376,10 +376,12 @@ class ManifestBuilder:
             output = run(['repo', 'diffmanifests', '--raw',
                           self.build_manifest_filename],
                          check=True, stdout=PIPE).stdout
-            # Strip out non-project lines as well as testrunner project
+            # Strip out non-project lines as well as projects that we
+            # do not wish to trigger new builds
             lines = [x for x in output.splitlines()
                      if not (x.startswith(b' ')
                          or x.startswith(b'C testrunner')
+                         or x.startswith(b'C product-metadata')
                          or x.startswith(b'C mobile-testkit'))]
 
             if not lines:
