@@ -18,8 +18,9 @@ status() {
 
 # Read and verify command-line parameters
 UPDATE_EDITION=
+FORCE=false
 REPO=ssh://git@github.com/couchbase/docker
-while getopts ":p:v:e:ur:" opt; do
+while getopts ":p:v:e:ufr:" opt; do
   case ${opt} in
     p)
       PRODUCT=${OPTARG}
@@ -32,6 +33,9 @@ while getopts ":p:v:e:ur:" opt; do
       ;;
     u)
       UPDATE_EDITION=true
+      ;;
+    f)
+      FORCE=true
       ;;
     \?)
       usage
@@ -62,6 +66,15 @@ fi
 
 cd docker
 DOCKERFILE_DIR=${EDITION}/${PRODUCT}/${VERSION}
+
+# Work-around for the fact that the generator assumes a Dockerfile will
+# be immutable after creation. (Which to be fair *should* be true 99% of
+# the time, but things like "beta refresh" break that rule.)
+if [ "${FORCE}" = "true" ]; then
+    echo "FORCE enabled - wiping out old Dockerfile!"
+    rm -rf "${DOCKERFILE_DIR}"
+fi
+
 if [ -d "${DOCKERFILE_DIR}" ]; then
     echo "${DOCKERFILE_DIR} already exists! Skipping creation"
 else
@@ -85,7 +98,14 @@ else
     mkdir -p "${DOCKERFILE_DIR}"
     ${GO} run generate/generator/generate.go $(pwd)
     git add "${DOCKERFILE_DIR}"
-    git commit -m "Adding ${PRODUCT} ${EDITION} ${VERSION}"
+    if [ "${FORCE}" = "true" ]; then
+        VERB="Force-recreating"
+    else
+        VERB="Adding"
+    fi
+    # Only commit this change if it actually changed something
+    git diff-index --quiet HEAD || \
+        git commit -m "${VERB} ${PRODUCT} ${EDITION} ${VERSION}"
     git push origin HEAD:refs/heads/master
 fi
 
