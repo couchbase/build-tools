@@ -120,7 +120,10 @@ class ReportsDownloader:
         """
 
         logger.info(f"Requesting creation of Notices file")
-        response = self.hub.create_version_notices_report(self.version, 'TEXT')
+        response = self.hub.create_version_notices_report(
+            self.version,
+            'TEXT',
+            include_copyright_info=False)
         if response.status_code != 201:
             logger.debug(response.content)
             raise Exception(f"Error {response.status_code} creating Notices file")
