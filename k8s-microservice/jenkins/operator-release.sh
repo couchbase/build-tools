@@ -53,6 +53,8 @@ for file in /latestbuilds/couchbase-operator/${VERSION}/${BLD_NUM}/*${BLD_NUM}*;
   filename=$(basename ${file/${VERSION}-${BLD_NUM}/${PUBLIC_TAG}})
   cp -av ${file} ${filename}
   sha256sum ${filename} > ${filename}.sha256
-  s3cmd -c ~/.ssh/live.s3cfg put -P ${filename} ${filename}.sha256 \
-    s3://packages.couchbase.com/kubernetes/${PUBLIC_TAG}/
+  aws s3 cp ${filename} \
+    s3://packages.couchbase.com/kubernetes/${PUBLIC_TAG}/${filename} --acl public-read
+  aws s3 cp --content-type "text/plain" ${filename}.sha256 \
+    s3://packages.couchbase.com/kubernetes/${PUBLIC_TAG}/${filename}.sha256 --acl public-read
 done

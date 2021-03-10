@@ -16,6 +16,6 @@ tar cvzf ../analytics-jars-${VERSION}-${BLD_NUM}.tar.gz *.jar
 popd
 
 # Publish to S3
-s3cmd -c ~/.ssh/live.s3cfg \
-  put -P analytics-jars-${VERSION}-${BLD_NUM}.tar.gz \
-  s3://packages.couchbase.com/releases/${VERSION}/
+aws s3 cp analytics-jars-${VERSION}-${BLD_NUM}.tar.gz \
+  s3://packages.couchbase.com/releases/${VERSION}/analytics-jars-${VERSION}-${BLD_NUM}.tar.gz \
+  --acl public-read
