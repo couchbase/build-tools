@@ -1,3 +1,6 @@
+rem this file has odd permissions, which prevents virus scan running successfully
+del "C:\Program Files\Couchbase\Server\lib\python\runtime\Scripts\wheel.exe" 2>NUL
+
 set CLAMDIR=C:\clamav
 set CLAM_FILENAME=clamav-%CLAMAV_VERSION%-win-x64-portable.zip
 set CLAM_DL=%CLAMDIR%\downloads\%CLAM_FILENAME%
