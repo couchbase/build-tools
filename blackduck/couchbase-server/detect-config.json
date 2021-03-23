@@ -3,7 +3,7 @@
         "detect.detector.search.depth": 9,
         "detect.blackduck.signature.scanner.exclusion.name.patterns": "analytics",
         "logging.level.com.synopsys.integration": "DEBUG",
-        "detect.excluded.detector.types": "GRADLE,HEX,PEAR,PIP,NUGET",
+        "detect.excluded.detector.types": "GRADLE,HEX,PEAR,PIP,NUGET,CONAN",
         "detect.maven.included.scopes": "compile,runtime",
         "detect.maven.included.modules": "cbas-install",
         "detect.maven.build.command": "--batch-mode",

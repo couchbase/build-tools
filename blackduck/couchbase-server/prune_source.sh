@@ -3,6 +3,7 @@
 RELEASE=$1
 VERSION=$2
 BLD_NUM=$3
+TOOLS_DIR=$4
 
 shopt -s extglob
 
@@ -29,6 +30,9 @@ fi
 # Server doesn't use asterix's dashboard, so prune that
 rm analytics/asterixdb/asterixdb/asterix-dashboard/src/node/package.json
 
+# This is build-time only, not shipped
+rm -f query-ui/query-ui/n1ql_parser/package.json
+
 # Server doesn't use any of bleve-mapping-ui's NPM components, so eliminate them
 rm -rf godeps/src/github.com/blevesearch/bleve-mapping-ui/bower_components
 
@@ -51,7 +55,7 @@ find . -name analytics -prune -o -type d -name testdata -print0 | xargs -0 rm -r
 find . -name analytics -prune -o -type d -name gtest -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name testing -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name \*tests -print0 | xargs -0 rm -rf
-find . -name analytics -prune -o -type d -name data -print0 | xargs -0 rm -rf
+find . -name analytics -prune -o -name backup -prune -o -name indexing -prune -o -type d -name data -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name docs -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name example -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name examples -print0 | xargs -0 rm -rf
@@ -67,6 +71,20 @@ rm -rf godeps/src/golang.org/x/tools/cmd/heapview/client
 # or couchbaselabs under godeps (in particular gocb) might be referenced by other
 # projects' go.mod via replace directives, so we need to leave those there.
 find godeps -name 'couchbase*' -prune -o -name go.mod -print0 | xargs -0 rm -f
+
+# If we find any go.mod files with zero "require" statements, they're probably one
+# of the stub go.mod files we introduced to make other Go projects happy. Black Duck
+# still wants to run "go mod why" on them, which means they need a full set of
+# replace directives.
+for stubmod in $(find . -name go.mod \! -execdir grep --quiet require '{}' \; -print); do
+    cat ${TOOLS_DIR}/go-mod-replace.txt >> ${stubmod}
+done
+
+# Need to fake the generated go file in eventing-ee
+if [ -d goproj/src/github.com/couchbase/eventing-ee/gen ]; then
+    mkdir -p goproj/src/github.com/couchbase/eventing-ee/gen/nftp/client
+    touch goproj/src/github.com/couchbase/eventing-ee/gen/nftp/client/evaluator.pb.go
+fi
 
 # Remove all msvc, vcs* window projects
 WIN='example *msvc* *vcproj* *vcxproj* visual vstudio dot_net_example example csharp vc7ide'
