@@ -23,7 +23,7 @@ else
     rm -rf ns_server/priv/public
 
     for pkg in angular-bootstrap angular-route angular; do
-        rm -rf goproj/src/github.com/couchbase/cbgt/rest/static/lib/${pkg}/!(package*.json)
+        rm -rf cbgt/rest/static/lib/${pkg}/!(package*.json)
     done
 fi
 
@@ -80,10 +80,16 @@ for stubmod in $(find . -name go.mod \! -execdir grep --quiet require '{}' \; -p
     cat ${TOOLS_DIR}/go-mod-replace.txt >> ${stubmod}
 done
 
-# Need to fake the generated go file in eventing-ee
+# Need to fake the generated go files in eventing and eventing-ee
 if [ -d goproj/src/github.com/couchbase/eventing-ee/gen ]; then
-    mkdir -p goproj/src/github.com/couchbase/eventing-ee/gen/nftp/client
-    touch goproj/src/github.com/couchbase/eventing-ee/gen/nftp/client/evaluator.pb.go
+    for dir in auditevent flatbuf/cfg flatbuf/header flatbuf/payload flatbuf/response parser version; do
+        mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
+        touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
+    done
+    for dir in nftp/client; do
+        mkdir -p goproj/src/github.com/couchbase/eventing-ee/gen/${dir}
+        touch goproj/src/github.com/couchbase/eventing-ee/gen/${dir}/foo.go
+    done
 fi
 
 # Remove all msvc, vcs* window projects
