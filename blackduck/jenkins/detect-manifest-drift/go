@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -e
+
+if [ -d tlm ]; then
+    (cd tlm && git fetch --all && git reset --hard origin/master)
+else
+    git clone https://github.com/couchbase/tlm
+fi
+
+if [ ! -f ./env/bin/activate ]
+then
+    python3 -m venv env
+    source ./env/bin/activate
+    pip3 install -r requirements.txt
+else
+    source ./env/bin/activate
+fi
+
+./main.py
