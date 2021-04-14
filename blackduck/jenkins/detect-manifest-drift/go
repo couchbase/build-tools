@@ -16,4 +16,4 @@ else
     source ./env/bin/activate
 fi
 
-./main.py
+python3 main.py
