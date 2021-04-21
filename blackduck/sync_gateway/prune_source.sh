@@ -13,3 +13,11 @@ rm -rf godeps/src/github.com/matttproud/golang_protobuf_extensions
 
 # nothing in the build repo should affect third-party reports
 rm -rf cbbuild
+
+#MB-43341, remove couchbase CB components from blackduck report
+#use *couchbase*/$i to ensure these are from couchbase
+
+for i in cbauth cbgt go-couchbase go-blip gocbconnstr gocb gocbcore gocbconnstr gomemcached goutils
+do
+  find . -type d -regex ".*couchbase.*\/$i.*" -exec rm -rf {} +
+done
