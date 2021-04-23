@@ -1,4 +1,5 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
 
 source ./escrow_config || exit 1
 
@@ -10,6 +11,7 @@ then
 fi
 
 # Make sure we're using an absolute path
+mkdir -p $1
 pushd $1
 ROOT=$(pwd)
 popd
@@ -19,6 +21,13 @@ fatal() {
   echo "FATAL: $@"
   exit 1
 }
+
+if [[ "$OSTYPE" == "darwin"* ]]
+then
+  OS=darwin
+else
+  OS=linux
+fi
 
 get_cbdep_git() {
   local dep=$1
@@ -120,15 +129,15 @@ cache_deps() {
       elif [ "${platform}" = "ubuntu16" ]
       then
         platform="ubuntu16.04"
+      elif [ "${platform}" = "ubuntu20" ]
+      then
+        platform="ubuntu20.04"
       fi
-      local version=$(awk "/$dependency .*${platform}/ {print \$4}" "${ESCROW}/src/tlm/deps/manifest.cmake") \
-        || fatal "Couldn't get version of $dependency in cache_deps"
-      (
-
+      local version=$(awk "/$dependency .*${platform}/ {print \$4}" "${ESCROW}/src/tlm/deps/manifest.cmake") && (
         cd $cache
-        if [ ! -f "./$dependency-${platform}-x86_64-${version}.md5" ]
+        if [ ! -f "./$dependency-${platform}-x86_64-${version}.md5" -a "${version}" != "" ]
         then
-          curl -O "http://packages.couchbase.com/couchbase-server/deps/$dependency/${version}/$dependency-${platform}-x86_64-${version}.{md5,tgz}" \
+          curl -fO "https://packages.couchbase.com/couchbase-server/deps/$dependency/${version}/$dependency-${platform}-x86_64-${version}.{md5,tgz}" \
             || fatal "Package download failed"
         fi
       )
@@ -137,15 +146,14 @@ cache_deps() {
 }
 
 cache_openjdk() {
-  echo "# Caching openjdk + openjdk_rt"
-  sleep 5
+  echo "# Caching openjdk"
 
   local openjdk_versions=$(awk '/SET \(_jdk_ver / {print substr($3, 1, length($3)-1)}' ${ESCROW}/src/analytics/cmake/Modules/FindCouchbaseJava.cmake) \
     || fatal "Couldn't get openjdk versions"
   echo "openjdk_versions: $openjdk_versions"
   for openjdk_version in $openjdk_versions
   do
-    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n openjdk "${openjdk_version}" || fatal "OpenJDK install failed"
+    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-${OS}" -p linux install -d ${ESCROW}/deps/.cbdepscache -n openjdk "${openjdk_version}" || fatal "OpenJDK install failed"
   done
 }
 
@@ -161,38 +169,60 @@ cache_analytics() {
     if [[ $version == \$\{*\} ]]; # if it's a parameter, we need to figure out what its value is
     then
       param=${version:2:${#version}-3}
-      analytics_version=$(grep "SET ($param " "${ESCROW}/src/analytics/CMakeLists.txt" | cut -d'"' -f2)
+      _v=$(grep "SET ($param " "${ESCROW}/src/analytics/CMakeLists.txt" | cut -d'"' -f2)
     else
-      analytics_version=$version
+      _v=$version
     fi
-    chmod +x ${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux
-    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -n analytics-jars "${analytics_version}" || fatal "Failed to cache analytics jars"
-    "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-linux" install -d ${ESCROW}/deps/.cbdepscache analytics-jars "${analytics_version}" || fatal "Failed to cache analytics jars"
+    analytics_version=$(echo $_v | sed 's/-.*//')
+    analytics_build=$(echo $_v | sed 's/.*-//')
+
+    if [ ! -f "${ESCROW}/deps/.cbdepscache/analytics-jars-${analytics_version}-${analytics_build}.tar.gz" ]
+    then
+      (
+        # .cbdepscache gets copied into the build container - this target is a
+        # convenience to make sure the files are available later
+        cd ${ESCROW}/deps/.cbdepscache
+        curl --fail -LO https://packages.couchbase.com/releases/${analytics_version}/analytics-jars-${analytics_version}-${analytics_build}.tar.gz
+      )
+    fi
   done
 
   mkdir -p ${ESCROW}/src/analytics/cbas/cbas-install/target/cbas-install-1.0.0-SNAPSHOT-generic/cbas/repo/compat/60x
-  sed -i 's/PWD/pwd/g' "${ESCROW}/src/analytics/scripts/link_duplicates.sh"
 }
 
 copy_cbdepcache() {
-  cp -rp ~/.cbdepcache/* ${ESCROW}/deps/.cbdepcache
+  if [ "${OS}" = "linux" ]; then cp -rp ~/.cbdepcache/* ${ESCROW}/deps/.cbdepcache; fi
 }
 
 sort_manifests() {
   echo "# Patch: Sort manifests: ${dep_manifest} ${dep_v2_manifest}"
   # sort -u to remove redundant cbdeps
-  sort -u < "${dep_manifest}" > dep_manifest.tmp
-  mv dep_manifest.tmp "${dep_manifest}"
-  sort -u < "${dep_v2_manifest}" > dep_v2_manifest.tmp
-  mv dep_v2_manifest.tmp "${dep_v2_manifest}"
-
-  ### Ensure openssl build first, then rocksdb and folly built last
-  grep -E openssl "${dep_manifest}" > "${ESCROW}/deps/dep2.txt"
-  grep -Ev "^rocksdb|^folly|^openssl" "${dep_manifest}" >> "${ESCROW}/deps/dep2.txt"
-  grep -E "^rocksdb|^folly" "${dep_manifest}" >> "${ESCROW}/deps/dep2.txt"
-  mv "${ESCROW}/deps/dep2.txt" "${dep_manifest}"
-  echo "dep_manifest=${dep_manifest}"
-  echo "dep_v2_manifest=${dep_v2_manifest}"
+  if [ -e ${dep_manifest} ];
+  then
+    sort -u < "${dep_manifest}" > dep_manifest.tmp
+    mv dep_manifest.tmp "${dep_manifest}"
+    set +e
+    ### Ensure openssl build first, then rocksdb and folly built last (v1)
+    grep -E "^openssl" "${dep_manifest}" > "${ESCROW}/deps/dep2.txt"
+    grep -Ev "^rocksdb|^folly|^openssl|^v8" "${dep_manifest}" >> "${ESCROW}/deps/dep2.txt"
+    grep -E "^rocksdb|^folly" "${dep_manifest}" >> "${ESCROW}/deps/dep2.txt"
+    mv "${ESCROW}/deps/dep2.txt" "${dep_manifest}"
+    echo "dep_manifest=${dep_manifest}"
+    set -e
+  fi
+  if [ -e ${dep_v2_manifest} ];
+  then
+    sort -u < "${dep_v2_manifest}" > dep_v2_manifest.tmp
+    mv dep_v2_manifest.tmp "${dep_v2_manifest}"
+    set +e
+    ### Ensure openssl build first, then rocksdb and folly built last (v2)
+    grep -E "^openssl" "${dep_v2_manifest}" > "${ESCROW}/deps/dep2.txt"
+    grep -Ev "^rocksdb|^folly|^openssl|^v8" "${dep_v2_manifest}" >> "${ESCROW}/deps/dep2.txt"
+    grep -E "^rocksdb|^folly" "${dep_v2_manifest}" >> "${ESCROW}/deps/dep2.txt"
+    mv "${ESCROW}/deps/dep2.txt" "${dep_v2_manifest}"
+    echo "dep_v2_manifest=${dep_v2_manifest}"
+    set -e
+  fi
 }
 
 get_cbdeps_versions() {
@@ -213,7 +243,7 @@ heading() {
 
 ESCROW="${ROOT}/${PRODUCT}-${VERSION}"
 echo "ESCROW=$ESCROW"
-mkdir -p "${ESCROW}" 2>/dev/null || :
+mkdir -p "${ESCROW}/deps" 2>/dev/null || :
 
 appdir="$(pwd)"
 
@@ -235,7 +265,9 @@ def get_labels(env):
 
 for name, service in stack['services'].items():
     if '${RELEASE}' in get_labels(service['environment']):
-      platforms.append(name)
+        distro = name.replace('-clang9','').replace('-${RELEASE}', '')
+        if distro not in ['suse11', 'suse12']:
+            platforms.append(distro)
 
 print(' '.join(platforms))
 EOF
@@ -251,7 +283,6 @@ for distro in distros.split():
     print(stack['services'][distro]['image'])
 EOF
 )
-
 
 copy_container_images() {
   # Save copies of all Docker build images
@@ -303,6 +334,7 @@ mkdir -p "${ESCROW}/deps"
 # Determine set of cbdeps used by this build, per platform.
 for platform in ${PLATFORMS}
 do
+  platform=$(echo ${platform} | sed 's/-.*//')
   add_packs=$(
     grep "${platform}" "${ESCROW}/src/tlm/deps/packages/folly/CMakeLists.txt" | grep -v V2 \
     | awk '{sub(/\(/, "", $2); print $2 ":" $4}';
@@ -353,17 +385,29 @@ CBDEPS_VERSIONS="$(get_cbdeps_versions "${ESCROW}")"
 heading "Downloading cbdep versions: ${CBDEPS_VERSIONS}"
 for cbdep_ver in ${CBDEPS_VERSIONS}
 do
-  [ ! -f "${ESCROW}/deps/cbdep-${cbdep_ver}-linux" ] && \
-    curl -o "${ESCROW}/deps/cbdep-${cbdep_ver}-linux" "http://packages.couchbase.com/cbdep/${cbdep_ver}/cbdep-${cbdep_ver}-linux"
-  chmod +x "${ESCROW}/deps/cbdep-${cbdep_ver}-linux"
+  if [ ! -f "${ESCROW}/deps/cbdep-${cbdep_ver}-linux" ]
+  then
+    curl --fail -o "${ESCROW}/deps/cbdep-${cbdep_ver}-linux" "https://packages.couchbase.com/cbdep/${cbdep_ver}/cbdep-${cbdep_ver}-linux"
+    chmod +x "${ESCROW}/deps/cbdep-${cbdep_ver}-linux"
+  fi
 done
 
 cbdep_ver_latest=$(echo ${CBDEPS_VERSIONS} | tr ' ' '\n' | tail -1)
 
+# If running on a mac, we'll need to get the mac version of cbdep for things we need to cache here
+if [ "${OS}" = "darwin" ]
+then
+  heading "Pulling latest macos cbdep"
+
+  [ ! -f "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-${OS}" ] && \
+     curl --fail -o "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-${OS}" "https://packages.couchbase.com/cbdep/${cbdep_ver_latest}/cbdep-${cbdep_ver_latest}-${OS}"
+  chmod +x "${ESCROW}/deps/cbdep-${cbdep_ver_latest}-${OS}"
+fi
+
 mkdir -p ${ESCROW}/deps/.cbdepcache
 
 # Walk makelists to get go versions in use
-GOVERS=$(echo $(find "${ESCROW}" -name CMakeLists.txt | xargs cat | awk '/GOVERSION [0-9]/ {print $2}' | grep -Eo "[0-9\.]+") | tr ' ' '\n' | sort -u | tr '\n' ' ')
+GOVERS="$(echo $(find "${ESCROW}" -name CMakeLists.txt | xargs cat | awk '/GOVERSION [0-9]/ {print $2}' | grep -Eo "[0-9\.]+") | tr ' ' '\n' | sort -u | tr '\n' ' ') $EXTRA_GOLANG_VERSIONS"
 
 heading "Downloading Go installers: ${GOVERS}"
 mkdir -p "${ESCROW}/golang"
@@ -397,6 +441,7 @@ copy_cbdepcache
 
 copy_container_images
 
-curl -Lo "${ESCROW}/deps/rsync" https://github.com/JBBgameich/rsync-static/releases/download/continuous/rsync-x86
+echo "Downloading rsync to ${ESCROW}/deps/rsync"
+curl -fLo "${ESCROW}/deps/rsync" https://github.com/JBBgameich/rsync-static/releases/download/continuous/rsync-x86
 
 heading "Done!"

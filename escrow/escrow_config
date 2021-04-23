@@ -1,13 +1,15 @@
 # Need to update/sync latest required dependencies
 
 # Escrow Product
-VERSION=7.0.0
+VERSION=6.6.0
 PRODUCT=couchbase-server
-RELEASE=cheshire-cat
-MANIFEST_FILE=${PRODUCT}/${RELEASE}.xml
+RELEASE=mad-hatter
+MANIFEST_FILE=${PRODUCT}/${RELEASE}/${VERSION}.xml
 
 # cbdeps to copy from released version rather than build
-CACHED_DEPS=( v8 openjdk-rt )
+CACHED_DEPS=( v8 )
+
+EXTRA_GOLANG_VERSIONS="1.11 1.13.8 1.13.12"
 
 # Version of docker cli tools to use in container running go.sh
 DOCKER_VERSION=19.03.5

@@ -1,11 +1,24 @@
 # This file should contain any runtime patches that are applied during in-container-build
 
+patch_tlm_folly() {
+  if [ "${dep}" = "folly" ]
+    then
+    echo "# Patch: Remove hard set folly compilers"
+    sed -i'' \
+        -e "/-DCMAKE_C_COMPILER:STRING=clang/d" \
+        -e "/-DCMAKE_CXX_COMPILER:STRING=clang\+\+/d" \
+        /home/couchbase/tlm/deps/packages/folly/CMakeLists.txt
+  fi
+}
+
 patch_curl() {
     # Fix for curl_unix.sh since globbing (as in CBDEP_OPENSSL_CACHE) doesn't work in [[ ]] conditionals.
   if [ "${dep}" = "curl" ]
   then
     echo "# Patch: Curl build conditional"
     sed -i'' -e "s/\[\[ \! -z \"\${LOCAL_BUILD}\" \&\& -f \${CBDEP_OPENSSL_CACHE} \]\]/\[ \! -z \"\${LOCAL_BUILD}\" -a -f \${CBDEP_OPENSSL_CACHE} \]/g" /home/couchbase/tlm/deps/packages/curl/build-tools/cbdeps/curl/curl_unix.sh
+    echo "# Patch: Curl openssl version"
+    sed -i'' -e "s/OPENSSL_VER=1\.1\.1d-cb2/OPENSSL_VER=1.1.1k-1/" /escrow/deps/curl/build-tools/cbdeps/curl/curl_unix.sh
   fi
 }
 
@@ -44,9 +57,8 @@ patch_tlm_openssl() {
   if [ "${dep}" = "erlang" ] || [ "${dep}" = "folly" ] || [ "${dep}" = "grpc" ] || [ "${dep}" = "libevent" ]
   then
     echo "# Patch: Ensure ${dep} OpenSSL versions match manifest.cmake"
-    python3 - <<-EOF
+    python - <<-EOF
 import re
-import urllib.request
 
 # Read manifest.cmake at tip of master and create list containing only the declare_dep openssl lines
 with open('${ROOT}/src/tlm/deps/manifest.cmake') as manifest:
@@ -70,11 +82,35 @@ cmakelist_patched = '\n'.join(cmakelist_clean_lines[0:ssl_offset] + openssl_deps
 f = open('deps/packages/${dep}/CMakeLists.txt', "w")
 f.write(cmakelist_patched)
 EOF
-
-  if [ -f /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.tgz -a -f /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.md5 ]
-  then
-    echo "Creating legacy .tgz.md5"
-    cp /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.md5 /home/couchbase/.cbdepscache/openssl-${PLATFORM}-x86_64-1.1.1d-cb2.tgz.md5
   fi
+}
+
+patch_md5s() {
+  if ls /home/couchbase/.cbdepscache/*.md5 1> /dev/null 2>&1
+  then
+    for f in /home/couchbase/.cbdepscache/*.md5
+    do
+        if [[ "$f" != *"tgz"* ]]
+        then
+            echo $f
+            fixedname="$(echo $f | sed 's/\(.*\.\)md5/\1tgz.md5/')"
+            rm -f "$fixedname"
+            cp "$f" "$fixedname"
+        fi
+    done
+  fi
+}
+
+patch_suse15_deps() {
+  if [ "$RELEASE" = "mad-hatter" ]
+  then
+    if ls /home/couchbase/.cbdepscache/*suse15.0* 1> /dev/null 2>&1
+    then
+      for f in /home/couchbase/.cbdepscache/*suse15.0*
+      do
+        fixedname="$(echo $f | sed 's/suse15\.0/suse15/')"
+        cp "$f" "$fixedname"
+      done
+    fi
   fi
 }

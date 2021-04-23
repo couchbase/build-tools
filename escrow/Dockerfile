@@ -1,8 +1,13 @@
-FROM ubuntu:16.04
+FROM ubuntu:20.04
 # Placeholder - this is overriden by escrow_config when a build is triggered using go.sh
 ARG DOCKER_VERSION=19.03.5
 
-RUN apt update && apt install -y curl git repo cmake
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y cmake curl git python
+
+RUN set -x \
+    && curl --fail https://storage.googleapis.com/git-repo-downloads/repo -o /usr/local/bin/repo \
+    && chmod a+x /usr/local/bin/repo
+
 RUN curl -Lo /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$DOCKER_VERSION.tgz \
     && cd /tmp \
     && tar -zxvf docker.tgz \

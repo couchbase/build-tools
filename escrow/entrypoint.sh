@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/sh -e
 
 # We pass the userid in at runtime and allocate it to the in-container user
 # to ensure files written to mountpoints are owned by the host user
