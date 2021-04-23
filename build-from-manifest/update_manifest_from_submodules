@@ -144,8 +144,11 @@ class UpdateManifest:
         with remember_cwd():
             os.chdir(repo_path)
             print('Updating git repository {}...'.format(repo_name))
+            # We only need to fetch *this* repository to get updated branch
+            # information right now. We don't want it to fetch submodules yet;
+            # that will be done by update_submodules.
             subprocess.check_call(
-                ['git', 'fetch', '--all', '-q']
+                ['git', 'fetch', '--all', '-q', '--recurse-submodules=no']
             )
 
             revision = self.projects[repo_name]['revision']
