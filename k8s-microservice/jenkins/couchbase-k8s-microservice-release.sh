@@ -38,7 +38,7 @@ for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
     cp -av ${file} ${filename}
     sha256sum ${filename} > ${filename}.sha256
     aws s3 cp ${filename} \
-      s3://packages.couchbase.com/kubernetes/${public_tag}/${filename} --acl public-read
+      s3://packages.couchbase.com/${PRODUCT}/${public_tag}/${filename} --acl public-read
     aws s3 cp --content-type "text/plain" ${filename}.sha256 \
-      s3://packages.couchbase.com/kubernetes/${public_tag}/${filename}.sha256 --acl public-read
+      s3://packages.couchbase.com/${PRODUCT}/${public_tag}/${filename}.sha256 --acl public-read
 done
