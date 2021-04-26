@@ -72,13 +72,24 @@ for prop, value in properties.items():
         "--" + prop + "=" + string.Template(str(value)).safe_substitute(os.environ)
     )
 
-# Iterate through code paths, calling scanner
+# Special sauce for Python - needs to use a specific bd-venv which must
+# have been pre-installed with all dependencies
+# https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631276245/Package+Manager+Information#The-Pip-detector
 source_root = os.path.join(os.environ.get("WORKSPACE", "."), "src")
+venv_path = os.path.join(source_root, "..", "bd-venv")
+if os.path.isdir(venv_path):
+    detect_args.extend([
+        "--detect.pip.path=" + os.path.join(venv_path, "bin", "pip"),
+        "--detect.python.path=" + os.path.join(venv_path, "bin", "python")
+    ])
+
+# Iterate through code paths, calling scanner
 first_path = True
 for i, path in enumerate(config.get("source_paths", ['.']), start=1):
     suffix = f"-{i}" if i > 1 else ""
+    source_path = os.path.join(source_root, path)
     path_args = [
-        "--detect.source.path=" + os.path.join(source_root, path),
+        "--detect.source.path=" + source_path,
         "--detect.code.location.name=" + "${PRODUCT}/${VERSION}" + suffix,
         "--detect.project.codelocation.unmap=" + f"{first_path}"
     ]
