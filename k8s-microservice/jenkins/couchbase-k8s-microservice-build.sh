@@ -5,6 +5,14 @@ script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 source ${script_dir}/../../utilities/shell-utils.sh
 
 chk_set PRODUCT
+chk_set VERSION
+chk_set BLD_NUM
+
+GOVERSION=$(repo forall build -c 'echo ${REPO__GOVERSION:-1.13.3}')
+GODIR=${HOME}/golang
+mkdir -p ${GODIR}
+cbdep install -d ${GODIR} golang ${GOVERSION}
+export PATH=${GODIR}/go${GOVERSION}/bin:${PATH}
 
 cd ${PRODUCT}
 make dist
