@@ -30,8 +30,10 @@ fi
 # Server doesn't use asterix's dashboard, so prune that
 rm analytics/asterixdb/asterixdb/asterix-dashboard/src/node/package.json
 
-# This is build-time only, not shipped
+# This is build-time only, not shipped. (The directory name has changed over
+# time.)
 rm -f query-ui/query-ui/n1ql_parser/package.json
+rm -f query-ui/query-ui/parser/antlr_runtime/package.json
 
 # Server doesn't use any of bleve-mapping-ui's NPM components, so eliminate them
 rm -rf godeps/src/github.com/blevesearch/bleve-mapping-ui/bower_components
