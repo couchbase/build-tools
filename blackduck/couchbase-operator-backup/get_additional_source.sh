@@ -11,13 +11,14 @@ pip install -r couchbase-operator-backup/requirements.txt
 rm -rf .repo
 
 # We need these repositories from the Server build as well.
-# couchbase-operator-backup RELEASE values always correspond to a released
-# VERSION of couchbase-server.
+# Use the Docker tag of the vanilla Dockerfile's FROM directive to
+# determine the corresponding Server version.
+VERSION=$(grep FROM couchbase-operator-backup/Dockerfile | sed -e 's/.*://')
 mkdir server_src
 cd server_src
 repo init \
     -u git://github.com/couchbase/manifest \
-    -m released/couchbase-server/${RELEASE}.xml \
+    -m released/couchbase-server/${VERSION}.xml \
     -g backup
 repo sync --jobs=8
 rm -rf forestdb
@@ -26,7 +27,7 @@ rm -rf forestdb
 # "couchbase" packages before doing Black Duck signature scan. In 7.0,
 # backup is built with Go modules, and the 'backup' group in the manifest
 # already prunes out everything we don't need.
-if [[ "${RELEASE}" =~ ^6 ]]; then
+if [[ "${VERSION}" =~ ^6 ]]; then
     rm -rf go*/src/*/couchbase*
     # Also delete any go.mod files - leads to false positives in BD
     find go* -name go.mod -print0 | xargs -0 rm
