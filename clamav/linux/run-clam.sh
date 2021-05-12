@@ -1,5 +1,9 @@
 #!/bin/bash -ex
 
+#upgrade clamav in case it is outdated
+sudo apt-get update
+sudo apt-get install -y clamav-base clamav-daemon clamav-freshclam clamdscan
+
 # Update clamav database
 sudo freshclam
 
