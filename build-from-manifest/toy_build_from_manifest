@@ -3,6 +3,10 @@
 env
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../utilities/shell-utils.sh"
+
+chk_set MANIFEST_REPO
+chk_set MANIFEST_FILE
 
 # Set and/or error-check build number
 if [ ! -z "${BLD_NUM_ARG}" ]; then
@@ -32,12 +36,35 @@ rm -rf src
 mkdir src
 pushd src
 
+# Initial repo sync
 echo "Syncing manifest $MANIFEST"
 echo ================================
 repo init --no-repo-verify --repo-url=git://github.com/couchbasedeps/git-repo ${MANIFEST_PARAMS} -g all --reference=~/reporef
 repo sync --jobs=24 --quiet
 
+# Have to run this script at the WORKSPACE level
+popd
+
+# Generate properties based on manifest - we can use repo's copy of the
+# manifest repo
+echo "Creating properties files"
+echo =========================
+"${SCRIPT_DIR}/props-for-manifest" \
+    -o build.properties \
+    -p src/.repo/manifests \
+    -b ${BLD_NUM} \
+    ${MANIFEST_FILE}
+
+# Load a few useful params from the properties file. This is kind of cheating...
+eval $(grep -e PROD_NAME -e VERSION -e RELEASE -e PRODUCT_PATH build.properties)
+
+# Back into the repo sync for remaining operations
+pushd src
+
+# Apply any changes from Gerrit
 if [ ! -z "${OPTS}" ]; then
+    echo "Applying changes from Gerrit"
+    echo ================================
     PATCH=../patch_via_gerrit
     curl -L -o ${PATCH} \
     http://latestbuilds.service.couchbase.com/builds/latestbuilds/python_tools/patch_via_gerrit/1.0.0/10/centos6/patch_via_gerrit
@@ -50,6 +77,28 @@ if [ ! -z "${OPTS}" ]; then
     fi
 fi
 
+# Update any submodules listed in module-projects, if there's a product-config.json to look at
+PRODUCT_CONFIG="../manifest/${PRODUCT_PATH}/product-config.json"
+if [ -e "${PRODUCT_CONFIG}" ]; then
+    for project in $(jq -r '.manifests."'${MANIFEST_FILE}'".module_projects | .[]' "${PRODUCT_CONFIG}"); do
+        echo "Updating submodules for ${project}"
+        echo ================================
+        project_dir=$(repo forall ${project} -c "pwd")
+        project_orig_sha=$(repo forall ${project} -c 'echo $REPO_LREV')
+        (
+            cd ${project_dir}
+            # Check out the original revision from the manifest, in case
+            # it was overwritten locally by a parent module_project. This
+            # roughly maintains the logic of the production builds from
+            # update_manifest_from_submodules.
+            git checkout ${project_orig_sha}
+            git submodule sync --recursive
+            git submodule update --init --recursive
+        )
+    done
+fi
+
+# Create build manifest for future reference
 repo manifest -r > manifest.xml
 
 echo "Removing any broken symlinks"
@@ -64,24 +113,11 @@ echo =======================
 # As with build_from_manifest.py, we dereference symlinks so .git directories
 # will work on Windows. As such, we don't actually need the .repo directory.
 tar --create --file ../source.tar.gz --gzip --dereference --exclude .repo .[A-z]* *
+
+# Create final deliverables at WORKSPACE level
 popd
 
-echo "Creating properties files"
-echo =========================
 cp src/manifest.xml manifest.xml
-
-# Generate properties based on manifest - we can use repo's copy of the
-# manifest repo
-"${SCRIPT_DIR}/props-for-manifest" \
-    -o build.properties \
-    -p src/.repo/manifests \
-    ${MANIFEST_FILE}
-
-# Append build number to properties file
-echo "BLD_NUM=${BLD_NUM}" >> build.properties
-
-# This is kind of cheating...
-eval $(grep -e PROD_NAME -e VERSION -e RELEASE build.properties)
 
 # Create build-specifically-named versions of the artifacts
 # QQQ Not *entirely* sure why we need both of these prefixes

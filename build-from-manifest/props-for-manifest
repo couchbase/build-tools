@@ -9,6 +9,8 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--manifest-project", type=str,
                         default="git://github.com/couchbase/manifest",
                         help="Alternate git URL for manifest repository")
+    parser.add_argument("-b", "--bld-num", type=str, default="9999",
+                        help="Build number to put into properties")
     parser.add_argument("-o", "--output-file", type=argparse.FileType('w'),
                         default="-",
                         help="File to output properties to (default: stdout)")
@@ -21,6 +23,7 @@ if __name__ == '__main__':
         f'PRODUCT={details.get("product")}\n'
         f'RELEASE={details.get("release")}\n'
         f'VERSION={details.get("version")}\n'
+        f'BLD_NUM={args.bld_num}\n'
         f'PROD_NAME={details.get("prod_name")}\n'
         f'PRODUCT_PATH={details.get("product_path")}\n'
         f'MANIFEST={args.manifest_file}\n'
