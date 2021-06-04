@@ -1,0 +1,84 @@
+#!/bin/bash -ex
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
+
+usage() {
+    echo "Usage: $0 -p PRODUCT -v VERSION -e EDITION -i IMAGENAME [ -f ] [ -u ]"
+    echo "   -f: Force recreation of Dockerfile if it exists"
+    echo "   -u: Upload to packages.couchbase.com"
+    exit 1
+}
+
+REPO=ssh://git@github.com/couchbase/docker
+FORCE=
+UPLOAD_TO_S3=
+while getopts ":p:i:v:e:fur:" opt; do
+  case ${opt} in
+    p)
+      PRODUCT=${OPTARG}
+      ;;
+    i)
+      IMAGE=${OPTARG}
+      ;;
+    v)
+      VERSION=${OPTARG}
+      ;;
+    e)
+      EDITION=${OPTARG}
+      ;;
+    f)
+      FORCE=true
+      ;;
+    u)
+      UPLOAD_TO_S3=true
+      ;;
+    \?)
+      usage
+      ;;
+    :)
+      echo "${OPTARG} requires an argument"
+      usage
+      ;;
+    r)
+      echo "Setting repository to ${OPTARG} for testing"
+      rm -rf docker
+      REPO=${OPTARG}
+      ;;
+  esac
+done
+
+if [ -z "${PRODUCT}" -o -z "${VERSION}" -o -z "${EDITION}" -o -z "${IMAGE}" ]; then
+    usage
+fi
+
+# Utility script to create the Dockerfile
+${SCRIPT_DIR}/generate-dockerfile \
+    -p ${PRODUCT} -v ${VERSION} -e ${EDITION} -r ${REPO} ${FORCE}
+
+DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}
+pushd ${DOCKER_DIR}
+IMAGENAME=${IMAGE}:${VERSION}
+docker build -t ${IMAGENAME} .
+popd
+
+OUTPUT=${PRODUCT}-${EDITION}_${VERSION}-docker.tar.gz
+docker save ${IMAGENAME} | gzip > ${OUTPUT}
+docker rmi ${IMAGENAME}
+sha256sum ${OUTPUT} > ${OUTPUT}.sha256
+
+# Hack for inconsistent product directory naming in releases
+if [ "${PRODUCT}" = "couchbase-server" ]; then
+  echo "PRODUCT_DIR=" > product-dir.properties
+else
+  echo "PRODUCT_DIR=${PRODUCT}/" > product-dir.properties
+fi
+. product-dir.properties
+
+# Publish to S3 if desired (Jenkins job will handle copying to
+# internal release mirror)
+if [ "${UPLOAD_TO_S3}" = "true" ]; then
+    S3_PATH=s3://packages.couchbase.com/releases/${PRODUCT_DIR}${VERSION}
+    aws s3 cp ${OUTPUT} ${S3_PATH}/${OUTPUT} --acl public-read
+    aws s3 cp ${OUTPUT}.sha256 ${S3_PATH}/${OUTPUT}.sha256 --acl public-read
+fi

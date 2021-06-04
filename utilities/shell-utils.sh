@@ -7,3 +7,7 @@ function chk_set {
         exit 1
     fi
 }
+
+status() {
+    echo "-- $@"
+}

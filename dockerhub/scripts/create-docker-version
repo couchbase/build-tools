@@ -1,24 +1,15 @@
 #!/bin/bash -e
 
-# Generates the Dockerfile and supporting scripts for a product in
-# the github.com/couchbase/docker repository, and then
-# creates an appropriate branch for Docker Hub autobuilds.
-# Assumes the running account has necessary SSH permissions to
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
+
+# Generates a Dockerfile, and then creates an appropriate branch for Docker
+# Hub autobuilds. Assumes the running account has necessary SSH permissions to
 # push to that repository.
 
-usage() {
-    echo "Usage: $0 -p PRODUCT -v VERSION -e EDITION [ -u ]"
-    echo "If -u is specified, will update :community or :enterprise/:latest tags also"
-    exit 1
-}
 
-status() {
-    echo "-- $@"
-}
-
-# Read and verify command-line parameters
 UPDATE_EDITION=
-FORCE=false
+FORCE=
 REPO=ssh://git@github.com/couchbase/docker
 while getopts ":p:v:e:ufr:" opt; do
   case ${opt} in
@@ -35,7 +26,7 @@ while getopts ":p:v:e:ufr:" opt; do
       UPDATE_EDITION=true
       ;;
     f)
-      FORCE=true
+      FORCE=-f
       ;;
     \?)
       usage
@@ -56,58 +47,23 @@ if [ -z "${PRODUCT}" -o -z "${VERSION}" -o -z "${EDITION}" ]; then
     usage
 fi
 
-if [ ! -e docker ]; then
-    status "Cloning docker repo"
-    git clone "${REPO}" docker
-else
-    status "Updating docker repo"
-    (cd docker && git checkout master && git pull)
-fi
+# Utility script to create the Dockerfile
+${SCRIPT_DIR}/generate-dockerfile \
+    -p ${PRODUCT} -v ${VERSION} -e ${EDITION} -r ${REPO} ${FORCE}
 
 cd docker
 DOCKERFILE_DIR=${EDITION}/${PRODUCT}/${VERSION}
 
-# Work-around for the fact that the generator assumes a Dockerfile will
-# be immutable after creation. (Which to be fair *should* be true 99% of
-# the time, but things like "beta refresh" break that rule.)
-if [ "${FORCE}" = "true" ]; then
-    echo "FORCE enabled - wiping out old Dockerfile!"
-    rm -rf "${DOCKERFILE_DIR}"
-fi
-
-if [ -d "${DOCKERFILE_DIR}" ]; then
-    echo "${DOCKERFILE_DIR} already exists! Skipping creation"
+git add "${DOCKERFILE_DIR}"
+if [ ! -z "${FORCE}" ]; then
+    VERB="Force-recreating"
 else
-
-    GO=go
-    type -P go > /dev/null 2>&1 || {
-        pushd ..
-        GO=$(pwd)/go/bin/go
-        if [ ! -x ${GO} ]; then
-            status Downloading golang
-            GODL=https://dl.google.com/go/go1.12.10.linux-amd64.tar.gz
-            if [ ! -e $(basename ${GODL}) ]; then
-                curl -LO ${GODL}
-            fi
-            tar xf $(basename ${GODL})
-        fi
-        popd
-    }
-
-    status "Creating new Dockerfile and scripts"
-    mkdir -p "${DOCKERFILE_DIR}"
-    ${GO} run generate/generator/generate.go $(pwd)
-    git add "${DOCKERFILE_DIR}"
-    if [ "${FORCE}" = "true" ]; then
-        VERB="Force-recreating"
-    else
-        VERB="Adding"
-    fi
-    # Only commit this change if it actually changed something
-    git diff-index --quiet HEAD || \
-        git commit -m "${VERB} ${PRODUCT} ${EDITION} ${VERSION}"
-    git push origin HEAD:refs/heads/master
+    VERB="Adding"
 fi
+# Only commit this change if it actually changed something
+git diff-index --quiet HEAD || \
+    git commit -m "${VERB} ${PRODUCT} ${EDITION} ${VERSION}"
+git push origin HEAD:refs/heads/master
 
 status "Checking Dockerhub autobuild branch"
 cp -a "${DOCKERFILE_DIR}" ../branch

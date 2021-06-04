@@ -1,0 +1,93 @@
+#!/bin/bash -ex
+
+# Generates the Dockerfile and supporting scripts for a product in
+# the github.com/couchbase/docker repository
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
+
+usage() {
+    echo "Usage: $0 -p PRODUCT -v VERSION -e EDITION"
+    exit 1
+}
+
+# Read and verify command-line parameters
+FORCE=false
+REPO=ssh://git@github.com/couchbase/docker
+while getopts ":p:v:e:fr:" opt; do
+  case ${opt} in
+    p)
+      PRODUCT=${OPTARG}
+      ;;
+    v)
+      VERSION=${OPTARG}
+      ;;
+    e)
+      EDITION=${OPTARG}
+      ;;
+    f)
+      FORCE=true
+      ;;
+    \?)
+      usage
+      ;;
+    :)
+      echo "${OPTARG} requires an argument"
+      usage
+      ;;
+    r)
+      echo "Setting repository to ${OPTARG} for testing"
+      rm -rf docker
+      REPO=${OPTARG}
+      ;;
+  esac
+done
+
+if [ -z "${PRODUCT}" -o -z "${VERSION}" -o -z "${EDITION}" ]; then
+    usage
+fi
+
+if [ ! -e docker ]; then
+    status "Cloning docker repo"
+    git clone "${REPO}" docker
+else
+    status "Updating docker repo"
+    (cd docker && git checkout master && git pull)
+fi
+
+cd docker
+DOCKERFILE_DIR=${EDITION}/${PRODUCT}/${VERSION}
+
+# Work-around for the fact that the generator assumes a Dockerfile will
+# be immutable after creation. (Which to be fair *should* be true 99% of
+# the time, but things like "beta refresh" break that rule.)
+if [ "${FORCE}" = "true" ]; then
+    echo "FORCE enabled - wiping out old Dockerfile!"
+    rm -rf "${DOCKERFILE_DIR}"
+fi
+
+if [ -d "${DOCKERFILE_DIR}" ]; then
+    echo "${DOCKERFILE_DIR} already exists! Skipping creation"
+else
+
+    GO=go
+    type -P go > /dev/null 2>&1 || {
+        pushd ..
+        mkdir -p golang
+        cd golang
+        GO=$(pwd)/go/bin/go
+        if [ ! -x ${GO} ]; then
+            status Downloading golang
+            GODL=https://dl.google.com/go/go1.15.11.linux-amd64.tar.gz
+            if [ ! -e $(basename ${GODL}) ]; then
+                curl --fail -LO ${GODL}
+            fi
+            tar xf $(basename ${GODL})
+        fi
+        popd
+    }
+
+    status "Creating new Dockerfile and scripts"
+    mkdir -p "${DOCKERFILE_DIR}"
+    ${GO} run generate/generator/generate.go $(pwd)
+fi
