@@ -66,7 +66,7 @@ class MissingCommits:
         self.merge_map = merge_map
 
         # Projects we don't care about
-        self.ignore_projects = ['testrunner']
+        self.ignore_projects = ['testrunner', 'libcouchbase']
 
         self.repo_bin = find_executable('repo')
 
@@ -74,7 +74,7 @@ class MissingCommits:
         try:
             self.jira = connect_jira()
         except Exception:
-            print("Jira connection failed")
+            self.log.critical("Jira connection failed")
             sys.exit(1)
 
 
@@ -94,7 +94,7 @@ class MissingCommits:
                             backports.append(issuelink["outwardIssue"]["key"])
             except Exception as exc:
                 traceback.print_exc()
-                print(f"Jira ticket retrieval failed for {ticket}")
+                self.log.error(f"Jira ticket retrieval failed for {ticket}")
                 sys.exit(1)
 
         return backports
@@ -110,12 +110,12 @@ class MissingCommits:
 
         # Create a 'product' directory to contain the repo checkout
         if self.product_dir.exists() and not self.product_dir.is_dir():
-            print(f'"{self.product_dir}" exists and is not a directory, '
+            self.log.warning(f'"{self.product_dir}" exists and is not a directory, '
                   f'removing...')
             try:
                 self.product_dir.unlink()
             except OSError as exc:
-                print(
+                self.log.error(
                     f'Unable to delete "{self.product_dir}" file/link: '
                     f'{exc.message}'
                 )
@@ -125,7 +125,7 @@ class MissingCommits:
             try:
                 self.product_dir.mkdir()
             except OSError as exc:
-                print(
+                self.log.error(
                     f'Unable to create "{self.product_dir}" directory: '
                     f'{exc.message}'
                 )
@@ -141,7 +141,7 @@ class MissingCommits:
                                     cwd=self.product_dir, stderr=subprocess.STDOUT
                                     )
         except subprocess.CalledProcessError as exc:
-            print(f'The "repo init" command failed: {exc.output}')
+            self.log.error(f'The "repo init" command failed: {exc.output}')
             sys.exit(1)
 
         # From now on, use the "repo" wrapper from the .repo directory,
@@ -156,7 +156,7 @@ class MissingCommits:
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             )
         except subprocess.CalledProcessError as exc:
-            print(f'The "repo sync" command failed: {exc.output}')
+            self.log.error(f'The "repo sync" command failed: {exc.output}')
             sys.exit(1)
 
         # This is needed for manifests with projects not locked down
@@ -168,7 +168,7 @@ class MissingCommits:
                     stdout=fh, cwd=self.product_dir
                 )
         except subprocess.CalledProcessError as exc:
-            print(f'The "repo manifest -r" command failed: {exc.output}')
+            self.log.error(f'The "repo manifest -r" command failed: {exc.output}')
             sys.exit(1)
 
     def diff_manifests(self):
@@ -187,7 +187,7 @@ class MissingCommits:
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
-            print(f'The "repo diffmanifests" command failed: {exc.output}')
+            self.log.error(f'The "repo diffmanifests" command failed: {exc.output}')
             sys.exit(1)
 
         return [
@@ -254,7 +254,7 @@ class MissingCommits:
                 cwd=self.product_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
-            print(f'The "repo forall" command failed: {exc.output}')
+            self.log.error(f'The "repo forall" command failed: {exc.output}')
             sys.exit(1)
 
         return commit_sha.strip()
@@ -276,6 +276,9 @@ class MissingCommits:
 
         if repo_path in self.ignore_projects:
             return
+        # Also don't care about third-party Go stuff
+        if repo_path.startswith("godeps"):
+            return
 
         old_commit, new_commit, old_diff, new_diff = change_info
         missing = [
@@ -293,7 +296,7 @@ class MissingCommits:
                 cwd=project_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
-            print(f'The "git log" command for project "{repo_path}" '
+            self.log.error(f'The "git log" command for project "{repo_path}" '
                   f'failed: {exc.stdout}')
             sys.exit(1)
 
@@ -308,7 +311,7 @@ class MissingCommits:
                 cwd=project_dir, stderr=subprocess.STDOUT
             ).decode()
         except subprocess.CalledProcessError as exc:
-            print(f'The "git log" command for project "{repo_path}" '
+            self.log.error(f'The "git log" command for project "{repo_path}" '
                   f'failed: {exc.stdout}')
             sys.exit(1)
 
@@ -347,7 +350,7 @@ class MissingCommits:
                                 # grep most likely failed to find a match.
                                 pass
                             else:
-                                print("Exception:", exc.output)
+                                self.log.warning("Exception:", exc.output)
 
                 # If it's a backport, keep log for later but don't count it as
                 # a missing commit
@@ -376,17 +379,21 @@ class MissingCommits:
 
             # Print project header, if anything to report
             if missing_message != "" or backport_message != "":
-                print()
-                print(f'Project {repo_path}:')
+                self.log.info("")
+                self.log.info(f'Project {repo_path}:')
 
             if missing_message != "":
-                print()
-                print(missing_message)
+                self.log.info("")
+                self.log.info(missing_message)
                 self.missing_commits_found = True
 
+            # We believe this to be working now, so stop outputting the
+            # message - makes it too hard to see actual issues.
+            # I'm leaving the code in place to display this if we want
+            # it again in future. - Ceej Jun 06 2021
             if backport_message != "":
-                print()
-                print(backport_message)
+                self.log.info("")
+                self.log.info("This project has backports that were correctly identified")
 
     def determine_diffs(self):
         """
@@ -451,6 +458,7 @@ class MissingCommits:
                     self.show_needed_commits(repo_path, change_info)
 
         if not self.missing_commits_found:
+            self.log.info("")
             self.log.info("No missing commits discovered!\n")
         self.log.info("")
 
