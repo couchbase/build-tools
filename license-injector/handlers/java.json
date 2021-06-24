@@ -1,0 +1,15 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "inline": ["//"],
+    "extensions": [
+        "java"
+    ],
+    "names": [
+        "org.apache.asterix.external.api.IRecordReaderFactory",
+        "org.apache.asterix.external.api.IDataParserFactory",
+        "src/main/resources/lang-extension/lang.txt"
+    ]
+}

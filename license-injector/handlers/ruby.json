@@ -1,0 +1,19 @@
+{
+    "block": {
+        "open": "=begin",
+        "close": "=end"
+    },
+    "inline": ["#"],
+    "extensions": [
+        "gemspec",
+        "rb"
+    ],
+    "shebangs": [
+        "^#[^\\s]*/env ruby",
+        "^#[^\\s]*/ruby"
+    ],
+    "names": [
+        "Gemfile",
+        "Rakefile"
+    ]
+}

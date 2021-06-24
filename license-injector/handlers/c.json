@@ -1,0 +1,28 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "inline": ["//"],
+    "extensions": [
+        "c",
+        "cc",
+        "cpp",
+        "cxx",
+        "cs",
+        "h",
+        "h.in",
+        "hh",
+        "hxx",
+        "hxx.in",
+        "m",
+        "re",
+        "stp.in"
+    ],
+    "names": [
+        "collections/kvstore.in"
+    ],
+    "after": [
+        "^\\/\\* -\\*- Mode:"
+    ]
+}

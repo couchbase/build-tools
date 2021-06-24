@@ -1,0 +1,13 @@
+{
+    "inline": ["#"],
+    "extensions": [
+        "sh",
+        "sh.in"
+    ],
+    "shebangs": [
+        "^#![^\\s]*/bash",
+        "^#![^\\s]*/gawk",
+        "^#![^\\s]*/sh",
+        "^#![^\\s]*/env bash"
+    ]
+}

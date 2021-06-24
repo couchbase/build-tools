@@ -1,0 +1,9 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "extensions": [
+        "n1ql"
+    ]
+}

@@ -1,0 +1,11 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "inline": ["//"],
+    "extensions": [
+        "js",
+        "tsx"
+    ]
+}

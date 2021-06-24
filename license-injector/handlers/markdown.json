@@ -1,0 +1,10 @@
+{
+    "enabled": false,
+    "block": {
+        "open": "<!---",
+        "close": "-->"
+    },
+    "extensions": [
+        "md"
+    ]
+}

@@ -1,0 +1,18 @@
+{
+    "inline": ["%"],
+    "extensions": [
+        "el",
+        "erl",
+        "hrl",
+        "src",
+        "t"
+    ],
+    "after": [
+        "%% -\\*- mode: erlang"
+    ],
+    "shebangs": [
+        "^#[^\\s]*/env escript",
+        "^#[^\\s]*/escript",
+        "^%% -\\*- mode: erlang -*-"
+    ]
+}

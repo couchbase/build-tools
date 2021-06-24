@@ -1,0 +1,15 @@
+{
+    "enabled": false,
+    "inline": ["#"],
+    "extensions": [
+        "am",
+        "ac"
+    ],
+    "names": [
+        "GNUmakefile",
+        "Makefile"
+    ],
+    "after": [
+        "# -\\*- Mode:"
+    ]
+}

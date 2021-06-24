@@ -1,0 +1,15 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "inline": ["//"],
+    "extensions": [
+        "go",
+        "proto"
+    ],
+    "after": [
+        "// \\+",
+        "//\\+"
+    ]
+}

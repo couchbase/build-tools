@@ -1,0 +1,17 @@
+{
+    "block": {
+        "open": "\"\"\"",
+        "close": "\"\"\""
+    },
+    "inline": ["#"],
+    "extensions": [
+        "py"
+    ],
+    "after": [
+        "# coding:"
+    ],
+    "shebangs": [
+        "^#[^\\s]*/env python",
+        "^#[^\\s]*/python"
+    ]
+}

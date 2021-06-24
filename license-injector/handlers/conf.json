@@ -1,0 +1,8 @@
+{
+    "inline": ["#", ";"],
+    "extensions": [
+        "conf",
+        "ext"
+    ],
+    "after": ["#!"]
+}

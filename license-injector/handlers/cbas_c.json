@@ -1,0 +1,14 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "extensions": [
+        "http",
+        "sqlpp",
+        "uri"
+    ],
+    "limit_to": [
+        "cbas-core/cbas"
+    ]
+}

@@ -1,0 +1,10 @@
+{
+    "block": {
+        "open": "<!--",
+        "close": "-->"
+    },
+    "extensions": [
+        "htm",
+        "html"
+    ]
+}

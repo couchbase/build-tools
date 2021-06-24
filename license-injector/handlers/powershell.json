@@ -1,0 +1,9 @@
+{
+    "inline": ["#"],
+    "extensions": [
+        "ps1"
+    ],
+    "after": [
+        "<#"
+    ]
+}

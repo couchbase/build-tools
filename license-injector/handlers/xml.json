@@ -1,0 +1,11 @@
+{
+    "enabled": true,
+    "block": {
+        "open": "<!--",
+        "close": "-->"
+    },
+    "extensions": [
+        "xml"
+    ],
+    "after": ["^<\\?xml"]
+}

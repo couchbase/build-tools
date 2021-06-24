@@ -1,0 +1,12 @@
+{
+    "block": {
+        "open": "/*",
+        "close": "*/"
+    },
+    "extensions": [
+        "php"
+    ],
+    "after": [
+        "<\\?php"
+    ]
+}

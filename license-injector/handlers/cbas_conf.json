@@ -1,0 +1,10 @@
+{
+    "inline": ["#"],
+    "names": [
+        "logging/loggers",
+        "couchbaseserver-spock/functions"
+    ],
+    "limit_to": [
+        "cbas-core/cbas"
+    ]
+}

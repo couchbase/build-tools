@@ -1,0 +1,9 @@
+{
+    "inline": ["#"],
+    "extensions": [
+        "rhel"
+    ],
+    "names": [
+        "Dockerfile"
+    ]
+}

@@ -1,0 +1,14 @@
+{
+    "enabled": false,
+    "block": {
+        "open": "////",
+        "close": "////"
+    },
+    "inline": ["//"],
+    "extensions": [
+        "adoc"
+    ],
+    "names": [
+        "asciidoc-lint"
+    ]
+}
