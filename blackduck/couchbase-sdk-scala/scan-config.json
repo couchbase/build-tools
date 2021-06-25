@@ -1,10 +1,9 @@
 {
     "versions": {
-        "1.0.2": {
-            "interval": 1440,
-            "release": "colossus-sr-3"
+        "1.0.10": {
+            "interval": 1440
         },
-        "1.1.0": {
+        "1.1.6": {
             "interval": 1440
         }
     }

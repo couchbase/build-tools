@@ -7,12 +7,13 @@ BLD_NUM=$4
 
 git clone git://github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
-if git rev-parse --verify --quiet $RELEASE >& /dev/null
+TAG="scala-client-${VERSION}"
+if git rev-parse --verify --quiet $TAG >& /dev/null
 then
-    echo "$RELEASE exists, checking it out"
-    git checkout $RELEASE
+    echo "$TAG exists, checking it out"
+    git checkout $TAG
 else
-    echo "No $RELEASE tag or branch, assuming master"
+    echo "No $TAG tag or branch, assuming master"
 fi
 
 # And now we actually need to build stuff for it to be found

@@ -7,12 +7,13 @@ BLD_NUM=$4
 
 git clone git://github.com/couchbase/php-couchbase.git
 pushd php-couchbase
-if git rev-parse --verify --quiet $VERSION >& /dev/null
+TAG="v$VERSION"
+if git rev-parse --verify --quiet $TAG >& /dev/null
 then
-    echo "Tag $VERSION exists, checking it out"
-    git checkout $VERSION
+    echo "Tag $TAG exists, checking it out"
+    git checkout $TAG
 else
-    echo "No tag $VERSION, assuming master"
+    echo "No tag $TAG, assuming master"
 fi
 
 # Work-around for Black Duck Detect bug
