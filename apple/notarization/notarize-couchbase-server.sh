@@ -104,16 +104,30 @@ for file in ${UNNOTARIZED[*]}; do
         --output-format xml
     )
     if [ $? != 0 ]; then
-        echo "Error running notarize command!"
-        exit 1
+        ERROR_MSG=$(
+            echo "$XML_OUTPUT" | \
+            xmllint --xpath '//dict/key[text() = "NSLocalizedDescription"]/following-sibling::string[1]/text()' -
+        )
+        if [[ $ERROR_MSG = "ERROR ITMS-90732"* ]]; then
+            echo "This file was previously notarized - that's OK"
+            # Delete the unnotarized file - no need to upload it back to
+            # latestbuilds
+            rm ${file}
+            # In this case, we'll fall through without adding anything
+            # to REQUESTS, so we won't try to staple either
+        else
+            echo "Error running notarize command!"
+            exit 1
+        fi
+    else
+        REQUEST_ID=$(
+           echo "$XML_OUTPUT" | \
+           xmllint --xpath '//dict[key/text() = "RequestUUID"]/string/text()' -
+        )
+        echo "Notarization started - request ID is ${REQUEST_ID}"
+        REQUESTS+=( ${REQUEST_ID} )
+        echo
     fi
-    REQUEST_ID=$(
-       echo "$XML_OUTPUT" | \
-       xmllint --xpath '//dict[key/text() = "RequestUUID"]/string/text()' -
-    )
-    echo "Notarization started - request ID is ${REQUEST_ID}"
-    REQUESTS+=( ${REQUEST_ID} )
-    echo
 done
 
 # Wait for completion of all requests
