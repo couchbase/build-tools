@@ -1,13 +1,38 @@
-#!/bin/bash
+#!/bin/bash -e
 
 RELEASE=$1
+TIMESTAMP=$2
 
 shopt -s extglob
 
-# Testrunner report
-pushd testrunner
+# The TAF project isn't in the manifest, so we need to use a few heuristics
+# to check out the code. First, clone the project into a new "qe" subdir.
+mkdir -p qe
+pushd qe
+git clone git://github.com/couchbaselabs/TAF
+cd TAF
+
+# If TAF has a git branch named after the RELEASE, check that out; otherwise
+# use master
+if [ ! -z "$(git ls-remote --heads origin ${RELEASE})" ]; then
+    git checkout -B ${RELEASE} --track origin/${RELEASE}
+fi
+
+# Now check out the most recent commit that is older than the timestamp of
+# the build itself
+git checkout $(git rev-list -1 --before="${TIMESTAMP}" HEAD)
+
+# Remove .git dir to not throw off cloc
+rm -rf .git
+
+popd
+
+# Testrunner+TAF report
+mv testrunner qe
+pushd qe
+
 echo @@@@@@@@@@@@@@@@@@@@@@@@@
-echo "     TESTRUNNER"
+echo "   TESTRUNNER + TAF"
 echo @@@@@@@@@@@@@@@@@@@@@@@@@
 
 cloc --quiet .
@@ -16,7 +41,9 @@ echo
 echo
 
 popd
-rm -rf benchmark googletest testrunner
+
+# Prune a few things we don't want to count
+rm -rf benchmark googletest qe
 
 rm -rf platform/external
 rm -rf third_party

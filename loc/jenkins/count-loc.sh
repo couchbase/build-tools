@@ -31,6 +31,7 @@ else
         exit 1
     fi
     MANIFEST=$(git diff-tree --no-commit-id --name-only -r $SHA)
+    TIMESTAMP=$(git show -s --format=%ci $SHA)
 
     # Back to the src directory
     popd
@@ -60,7 +61,7 @@ echo
 
 # Product-specific script for running desired reports
 if [ -x "${WORKSPACE}/build-tools/loc/${PRODUCT}/run_cloc.sh" ]; then
-    "${WORKSPACE}/build-tools/loc/${PRODUCT}/run_cloc.sh" ${RELEASE}
+    "${WORKSPACE}/build-tools/loc/${PRODUCT}/run_cloc.sh" ${RELEASE} "${TIMESTAMP}"
 else
     cloc --quiet .
 fi
