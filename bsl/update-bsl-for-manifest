@@ -1,0 +1,74 @@
+#!/bin/bash -e
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source ${SCRIPT_DIR}/../utilities/shell-utils.sh
+
+usage() {
+    echo "Usage: $(basename $0) -m MANIFEST [ -u MANIFEST_REPO ] [ -n ] [ -f ]"
+    echo "  -f - force product/version changes"
+    echo "  -n - dry run; report any possible problems but don't push changes"
+    exit 1
+}
+
+# Extract metadata from 'build' repo in manifest
+get_metadata() {
+    cmd='echo ${REPO__'${1}'}'
+    result=$(repo forall build -c "${cmd}")
+    if [ -z "${result}" ]; then
+        error "Manifest ${MANIFEST} is missing ${1} annotation!"
+    fi
+    echo "${result}"
+}
+
+MANIFEST_REPO=git://github.com/couchbase/manifest
+DRY_RUN=
+FORCE=
+while getopts ":u:m:nf" opt; do
+    case ${opt} in
+        u)
+            MANIFEST_REPO=${OPTARG}
+            ;;
+        m)
+            MANIFEST=${OPTARG}
+            ;;
+        n)
+            DRY_RUN=-n
+            ;;
+        f)
+            FORCE=-f
+            ;;
+        \?)
+            usage
+            ;;
+        :)
+            echo "-${OPTARG} requires an argument"
+            usage
+            ;;
+    esac
+done
+
+chk_set MANIFEST
+
+# Sync manifest locally
+status Syncing manifest ${MANIFEST}...
+MANIFEST_DIR=${MANIFEST//\//_}
+mkdir -p ${MANIFEST_DIR}
+cd ${MANIFEST_DIR}
+repo init --no-repo-verify -u ${MANIFEST_REPO} -m ${MANIFEST} -g all
+repo sync --jobs=8
+status Done syncing
+echo
+
+# Extract metadata from manifest
+PRODUCT=$(get_metadata BSL_PRODUCT)
+VERSION=$(get_metadata BSL_VERSION)
+CHANGE_DATE=$(get_metadata BSL_CHANGE_DATE)
+
+status
+status Updating BSL license to $PRODUCT Version $VERSION, change date $CHANGE_DATE
+status
+repo forall -g bsl -c \
+    "${SCRIPT_DIR}/update-bsl-for-repo" ${DRY_RUN} ${FORCE} \
+        -p "${PRODUCT}" \
+        -v "${VERSION}" \
+        -d "${CHANGE_DATE}"

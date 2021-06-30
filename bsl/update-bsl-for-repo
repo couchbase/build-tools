@@ -1,0 +1,153 @@
+#!/bin/bash -e
+#
+# Checks and updates a single repository's BSL license.
+#
+
+# Exit conditions
+
+# BSL license already exists, but is for different product and/or version
+ERR_WRONG_LICENSED_WORK=2
+
+# BSL license information needs updating, but project is locked to SHA
+ERR_PROJECT_LOCKED=3
+
+# Dry-run completed with problems (one of the above conditions)
+ERR_PROBLEMS_FOUND=5
+
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source ${SCRIPT_DIR}/../utilities/shell-utils.sh
+
+usage() {
+    echo "Usage: $(basename $0) -p PRODUCT -v VERSION -d CHANGE_DATE [-f]"
+    echo "  -f - force product/version changes"
+    echo "  -n - dry run; report any possible problems but don't push changes"
+    exit 1
+}
+
+# Default values for arguments - Overriding REPOSITORY and BRANCH via options
+# is only for testing/debugging.
+FORCE=false
+DRY_RUN=false
+REPOSITORY=${REPO_PROJECT}
+BRANCH=${REPO_RREV}
+while getopts ":p:v:d:r:b:c:fn" opt; do
+    case ${opt} in
+        p)
+            PRODUCT=${OPTARG}
+            ;;
+        v)
+            VERSION=${OPTARG}
+            ;;
+        d)
+            CHANGE_DATE=${OPTARG}
+            ;;
+        r)
+            REPOSITORY=${OPTARG}
+            ;;
+        b)
+            BRANCH=${OPTARG}
+            ;;
+        c)
+            cd "${OPTARG}"
+            ;;
+        f)
+            FORCE=true
+            ;;
+        n)
+            DRY_RUN=true
+            ;;
+        \?)
+            usage
+            ;;
+        :)
+            echo "-${OPTARG} requires an argument"
+            usage
+            ;;
+    esac
+done
+
+chk_set PRODUCT
+chk_set VERSION
+chk_set CHANGE_DATE
+
+if [ ! -e ".git" ]; then
+    echo "Please run from top level of git repository, or specify path"
+    echo "to git repository using -c"
+    usage
+fi
+
+LIC_DIR=licenses
+BSL_LIC=${LIC_DIR}/BSL-Couchbase.txt
+APACHE_LIC=${LIC_DIR}/APL2.txt
+TOP_LIC=LICENSE.txt
+PROBLEMS=false
+
+echo
+echo
+status Checking repository $(pwd)
+
+# Ensure top-level generic LICENSE.txt exists and is correct
+cp "${SCRIPT_DIR}/assets/LICENSE.txt" ${TOP_LIC}
+git add ${TOP_LIC}
+
+# Ensure enclosed Apache license exists and is correct
+mkdir -p ${LIC_DIR}
+cp "${SCRIPT_DIR}/assets/APL2.txt" ${APACHE_LIC}
+git add ${APACHE_LIC}
+
+# If BSL license already exists, ensure it is for correct product/version.
+if [ ! ${FORCE} -a -e ${BSL_LIC} ]; then
+    WORK_LINE_RE="^Licensed Work:  (.*) Version (.*)"
+    current_work_line=$(egrep "${WORK_LINE_RE}" ${BSL_LIC})
+    [[ "${current_work_line}" =~ ${WORK_LINE_RE} ]]
+    current_product=${BASH_REMATCH[1]}
+    current_version=${BASH_REMATCH[2]}
+
+    if [ "${current_product}" != "${PRODUCT}" ]; then
+        warn Current BSL Product is ${current_product}, not ${PRODUCT}!
+        ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
+        PROBLEMS=true
+    fi
+
+    if [ "${current_version}" != "${VERSION}" ]; then
+        warn Current BSL Version is ${current_version}, not ${VERSION}!
+        ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
+        PROBLEMS=true
+    fi
+fi
+
+# Create/Overwrite BSL license to fix Work and Change Date
+cat "${SCRIPT_DIR}/assets/BSL-Couchbase.txt.tmpl" \
+    | sed -e "s/@@PRODUCT@@/${PRODUCT}/" \
+    | sed -e "s/@@VERSION@@/${VERSION}/" \
+    | sed -e "s/@@CHANGE_DATE@@/${CHANGE_DATE}/" \
+    > ${BSL_LIC}
+git add ${BSL_LIC}
+
+# If we made any changes, commit them (or report if dry-run)
+if git diff --exit-code --cached > /dev/null; then
+    status "${REPOSITORY} repository clean!"
+else
+    # Make sure that there's an upstream branch to push to; if this project
+    # is locked to a SHA, there's a problem
+    if [[ ${BRANCH} =~ ^[0-9a-f]{40}$ ]]; then
+        warn "${REPOSITORY} has licence changes but is locked to SHA!"
+        ${DRY_RUN} || exit ${ERR_PROJECT_LOCKED}
+        PROBLEMS=true
+    fi
+
+    if ${DRY_RUN}; then
+        warn "${REPOSITORY} has the following changes to commit:"
+        git status --short
+        git reset --hard &> /dev/null
+    else
+        status "Committing BSL changes to repository ${REPOSITORY}:"
+        git commit -m "Update BSL license to ${PRODUCT} Version ${VERSION}"
+        git push ssh://review.couchbase.org:29418/${REPOSITORY} HEAD:refs/for/${BRANCH}
+    fi
+fi
+
+# We still want dry runs to exit with error condition if something was problematic
+${PROBLEMS} && exit ${ERR_PROBLEMS_FOUND}
+exit 0
