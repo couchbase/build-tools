@@ -82,9 +82,8 @@ for local_product in *; do
         -t cb-vanilla/${short_product}:${tag} \
         .
 
-    # There is no RHEL build for service broker
-    if [ "${PRODUCT}" != "couchbase-service-broker" ]
-    then
+    # Some projects don't do RHCC
+    if [ "${PRODUCT}" != "couchbase-service-broker" -a "${PRODUCT}" != "couchbase-observability-stack" ]; then
         heading "Building RHCC image for ${short_product}..."
         ${script_dir}/update-base.sh Dockerfile.rhel
         docker build -f Dockerfile.rhel \
