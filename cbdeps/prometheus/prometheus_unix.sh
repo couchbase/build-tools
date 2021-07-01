@@ -3,6 +3,7 @@
 INSTALL_DIR=$1
 ROOT_DIR=$2
 PLATFORM=$3
+ARCH=$8
 
 cd ${ROOT_DIR}
 
@@ -19,7 +20,7 @@ CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBD
 if [[ -f ${CBDEP_BIN_CACHE} ]]; then
     cp ${CBDEP_BIN_CACHE} /tmp/cbdep
 else
-    CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-${OPSYS}
+    CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-${OPSYS}-${ARCH}
     curl -o /tmp/cbdep ${CBDEP_URL}
 fi
 
