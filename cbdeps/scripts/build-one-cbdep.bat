@@ -17,6 +17,12 @@ if NOT "%PROFILE%" == "server" (
   set BLD_NUM=%PROFILE%%BLD_NUM%
 )
 
+rem Our Jenkins labels and Jenkins job ARCH parameters are standardized
+rem on x86_64, but that's not what this script wants
+if "%ARCH%" == "x86_64" (
+  set ARCH=amd64
+)
+
 if not defined ARCH (
   set ARCH=amd64
 )
