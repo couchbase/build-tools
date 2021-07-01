@@ -1,4 +1,7 @@
-#!/bin/bash -e
+#!/bin/bash -ex
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../utilities/shell-utils.sh"
 
 if [ ! -z "$1" ]; then
     PRODUCT=$1
@@ -7,37 +10,34 @@ if [ ! -z "$1" ]; then
     BLD_NUM=$4
 fi
 
-if [ -z "${PRODUCT}" ]; then
-    echo Missing PRODUCT
-    exit 1
-fi
-if [ -z "${RELEASE}" ]; then
-    echo Missing RELEASE
-    exit 1
-fi
-if [ -z "${VERSION}" ]; then
-    echo Missing VERSION
-    exit 1
-fi
-if [ -z "${BLD_NUM}" ]; then
-    echo Missing BLD_NUM
-    exit 1
-fi
+chk_set PRODUCT
+chk_set RELEASE
+chk_set VERSION
+chk_set BLD_NUM
 
 # Derived values
 PRODUCT_PATH=${PRODUCT/:://}
 PRODUCT_NAME=$(basename ${PRODUCT_PATH})
 ROOT=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT_PATH}/${RELEASE}/${BLD_NUM}
 
-# Downloads
+# Per CBD-4179, AWS agents will always have a /aws dir.
+if [ -d /aws ]; then
 
-PROP=${PRODUCT_NAME}-${RELEASE}-${BLD_NUM}.properties
-echo "Downloading ${PROP}..."
-curl --fail --retry 5 -s -L -o build.properties ${ROOT}/${PROP}
+    # Repo sync using build manifest
+    "${SCRIPT_DIR}/../utilities/sync_historic_manifest" \
+        ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
 
-SRC=${PRODUCT_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
-echo "Downloading ${SRC}..."
-curl --fail --retry 5 -s -LO ${ROOT}/${SRC}
+else
+    # Downloads from latestbuilds
 
-echo "Extracting source..."
-tar xzf ${SRC}
+    PROP=${PRODUCT_NAME}-${RELEASE}-${BLD_NUM}.properties
+    echo "Downloading ${PROP}..."
+    curl --fail --retry 5 -s -L -o build.properties ${ROOT}/${PROP}
+
+    SRC=${PRODUCT_NAME}-${VERSION}-${BLD_NUM}-source.tar.gz
+    echo "Downloading ${SRC}..."
+    curl --fail --retry 5 -s -LO ${ROOT}/${SRC}
+
+    echo "Extracting source..."
+    tar xzf ${SRC}
+fi

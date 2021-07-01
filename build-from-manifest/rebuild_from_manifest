@@ -1,73 +1,29 @@
 #!/bin/bash -ex
 
-# Quickish hack to allow re-creating a source tarball from a historic
-# manifest in build-manifests.
-# This should ideally be integrated into the larger build_from_manifest
-# script, but at the moment that would be tricky.
-# Known limitations: it cannot produce the same build-properties file
-# as the original build did, as it does not have access to the information
-# from product-metadata.json as of the time of the build. Perhaps this
-# information should be stored in the build manifest as well. As it is,
-# currently this script only produces the basic info - PRODUCT, RELEASE,
-# VERSION, BLD_NUM, and PROD_NAME, as well as PRODUCT_PATH which is presumed
-# to be the same as PRODUCT with :: replaced by /.
-# It also does not produce the CHANGELOG file.
+# This will sync a historic build manifest and create a source tarball for it
+# in the current directory, along with build.properties,
+# build-properties.json, and build-manifest.xml. The build properties files
+# will contain only basic build information; see
+# build-tools/utilities/sync_historic_manifest for details.
 
 PRODUCT=$1
 RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
-PRODUCT_PATH=${PRODUCT/::/\/}
-PROD_NAME=$(basename $PRODUCT_PATH)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../utilities/shell-utils.sh"
+WORKDIR=$(pwd)
 
-if [ ! -e build-manifests ]; then
-    git clone git://github.com/couchbase/build-manifests
-else
-    (cd build-manifests && git pull)
-fi
+chk_set PRODUCT
+chk_set RELEASE
+chk_set VERSION
+chk_set BLD_NUM
 
-pushd build-manifests
-SHA=$(git log --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
-MANIFEST=$(git diff-tree --no-commit-id --name-only -r $SHA)
-popd
+"${SCRIPT_DIR}/../utilities/sync_historic_manifest" \
+    ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM} ./src
 
-rm -rf src
-mkdir src
-pushd src
-
-echo "Syncing manifest $MANIFEST at $SHA"
-echo ================================
-repo init -u git://github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
-repo sync --jobs=16
-repo manifest -r > manifest.xml
-echo
-
+cd src
 echo "Creating source tarball"
 echo =======================
 tar czf ../source.tar.gz .[A-z]* *
-popd
-
-echo "Creating properties files"
-echo =========================
-cp src/manifest.xml build-manifest.xml
-cat <<EOF > build-properties.json
-{
-  "PRODUCT": "$PRODUCT",
-  "RELEASE": "$RELEASE",
-  "VERSION": "$VERSION",
-  "BLD_NUM": $BLD_NUM,
-  "PROD_NAME": "$PROD_NAME",
-  "PRODUCT_PATH": "$PRODUCT_PATH"
-}
-EOF
-cat <<EOF > build.properties
-PRODUCT=$PRODUCT
-RELEASE=$RELEASE
-VERSION=$VERSION
-BLD_NUM=$BLD_NUM
-PROD_NAME=$PROD_NAME
-PRODUCT_PATH=$PRODUCT_PATH
-EOF
-echo
-echo "Done!"
