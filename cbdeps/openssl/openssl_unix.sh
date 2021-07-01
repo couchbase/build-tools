@@ -5,16 +5,17 @@ INSTALL_DIR=$1
 ROOT_DIR=$2
 PLATFORM=$3
 PROFILE=$4
+ARCH=$8
 
 cd "${ROOT_DIR}/openssl"
 
 OS=`uname -s`
 case "$OS" in
     Darwin)
-        target=darwin64-x86_64-cc
+        target=darwin64-${ARCH}-cc
         ;;
     Linux)
-        target=linux-x86_64
+        target=linux-${ARCH}
         extra_flags=-Wl,--enable-new-dtags,-rpath,\''$$ORIGIN/../lib/'\'
         ;;
     *)

@@ -2,20 +2,21 @@
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
+ARCH=$8
 
 cd ${ROOT_DIR}/protoc-gen-go
 
 DEPS=${WORKSPACE}/deps
 GO_VER=1.13.8
-CBDEP_TOOL_VER=0.9.12
+CBDEP_TOOL_VER=1.0.1
 
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux
 
 if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
     if [ $(uname -s) = "Darwin" ]; then
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-darwin
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-darwin-${ARCH}
     else
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux-${ARCH}
     fi
     curl -o /tmp/cbdep ${CBDEP_URL}
 else

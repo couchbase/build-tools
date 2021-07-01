@@ -2,12 +2,13 @@
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
+ARCH=$8
 
 cd ${ROOT_DIR}/curl
 
 # Openssl dependency
-OPENSSL_VER=1.1.1h-1
-CBDEP_TOOL_VERS=0.9.15
+OPENSSL_VER=1.1.1k-1
+CBDEP_TOOL_VERS=1.0.1
 
 # Download openssl via cbdeps tool
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
@@ -17,9 +18,9 @@ OPENSSLDIR=${DEPSDIR}/openssl-${OPENSSL_VER}
 
 if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
     if [ $(uname -s) = "Darwin" ]; then
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-darwin
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-darwin-${ARCH}
     else
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
+        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux-${ARCH}
     fi
     curl -o /tmp/cbdep ${CBDEP_URL}
 else
