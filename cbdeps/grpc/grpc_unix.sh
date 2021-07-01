@@ -19,7 +19,7 @@ cmake --version
 # builds of OpenSSL (otherwise we assume the build agent has libssl available)
 CBDEPS_DIR=$(pwd)/cbdeps
 if [ ${PROFILE} == "server" -o ${SYSTEM} == "Darwin" ]; then
-    export OPENSSL_VER=1.1.1k-1
+    export OPENSSL_VER=1.1.1k-3
     mkdir -p ${CBDEPS_DIR}
     cd ${CBDEPS_DIR}
     CBDEP_BIN=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERSION}/cbdep-${CBDEP_TOOL_VERSION}-${SYSTEM_LC}
