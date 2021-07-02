@@ -3,6 +3,7 @@
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
 source ${script_dir}/../../utilities/shell-utils.sh
+source ${script_dir}/util/funclib.sh
 
 chk_set PRODUCT
 chk_set VERSION
@@ -30,12 +31,11 @@ pushd images
 for product in *; do
     short_product=${product/couchbase-/}
 
-    # There is no RHEL build for service broker
-    if [ "${PRODUCT}" = "couchbase-service-broker" ]
+    if [ product_in_rhcc "${PRODUCT}" ]
     then
-        orgs="cb-vanilla"
-    else
         orgs="cb-vanilla cb-rhcc"
+    else
+        orgs="cb-vanilla"
     fi
 
     for org in $orgs; do

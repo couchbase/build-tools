@@ -25,6 +25,7 @@ LATEST=$5
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
 source ${script_dir}/../../../utilities/shell-utils.sh
+source ${script_dir}/funclib.sh
 
 chk_set PRODUCT
 chk_set INTERNAL_TAG
@@ -83,8 +84,8 @@ tag_and_publish cb-vanilla \
 
 ################## RHCC
 
-# There is no RHEL build for service broker
-if [ "${PRODUCT}" != "couchbase-service-broker" -a "${PRODUCT}" != "couchbase-observability-stack" ]; then
+# There is no RHEL build for some products
+if [ product_in_rhcc "${PRODUCT}" ]; then
     # This bit of code is shared with files in the redhat-openshift repository
     conf_dir=/home/couchbase/openshift/${PRODUCT}
     project_id=$(cat ${conf_dir}/project_id)

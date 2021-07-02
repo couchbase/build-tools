@@ -19,8 +19,6 @@
 # It is up to the calling code to re-tag those images depending on where they
 # are to be published and what they are to be named, and then remove all
 # cb-* images when then are done.
-#
-# Note: couchbase-service-broker is excluded from rhcc builds
 
 shopt -s extglob
 
@@ -32,6 +30,7 @@ OPENSHIFT_BUILD=$4
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
 source ${script_dir}/../../../utilities/shell-utils.sh
+source ${script_dir}/funclib.sh
 
 chk_set PRODUCT
 chk_set VERSION
@@ -83,7 +82,7 @@ for local_product in *; do
         .
 
     # Some projects don't do RHCC
-    if [ "${PRODUCT}" != "couchbase-service-broker" -a "${PRODUCT}" != "couchbase-observability-stack" ]; then
+    if [ product_in_rhcc "${PRODUCT}" ]; then
         heading "Building RHCC image for ${short_product}..."
         ${script_dir}/update-base.sh Dockerfile.rhel
         docker build -f Dockerfile.rhel \

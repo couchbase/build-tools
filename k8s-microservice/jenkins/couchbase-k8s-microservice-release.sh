@@ -3,6 +3,7 @@
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
 source ${script_dir}/../../utilities/shell-utils.sh
+source ${script_dir}/util/funclib.sh
 
 chk_set PRODUCT
 chk_set VERSION
@@ -21,7 +22,7 @@ fi
 # Publish images with this public tag, and a REBUILD number of 1.
 ${script_dir}/util/publish-k8s-images.sh ${PRODUCT} ${VERSION}-${BLD_NUM} ${public_tag} 1 ${LATEST}
 
-# Tag release
+# Add git tag for release
 tag_release "${PRODUCT}" "${public_tag}" "${BLD_NUM}"
 
 ################### ARTIFACTS
