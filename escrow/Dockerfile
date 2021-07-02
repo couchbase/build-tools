@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 # Placeholder - this is overriden by escrow_config when a build is triggered using go.sh
-ARG DOCKER_VERSION=19.03.5
+ARG DOCKER_VERSION=20.10.5
 
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y cmake curl git python
 

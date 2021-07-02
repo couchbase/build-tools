@@ -6,8 +6,11 @@ PRODUCT=couchbase-server
 RELEASE=cheshire-cat
 MANIFEST_FILE=${PRODUCT}/${RELEASE}.xml
 
-# cbdeps to copy from released version rather than build
-CACHED_DEPS=( v8 )
-
-# Version of docker cli tools to use in container running go.sh
-DOCKER_VERSION=19.03.5
+DISTROS="amzn2
+centos7
+debian9
+debian10
+suse12
+suse15
+ubuntu18
+ubuntu20"
