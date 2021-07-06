@@ -196,7 +196,7 @@ class UpdateManifest:
                       'aborting...'.format(repo_name))
                 sys.exit(1)
 
-    def update_shas(self):
+    def update_shas(self, repo_name):
         """
         Acquire submodule information and update the XML tree with the new
         revisions for all the submodules; abort if any of the submodule
@@ -205,14 +205,14 @@ class UpdateManifest:
 
         print('Updating manifest from current submodules...')
         with remember_cwd():
-            os.chdir(self.projects[self.repos[0]]['path'])
+            os.chdir(self.projects[repo_name]['path'])
             try:
                 resp = subprocess.check_output(
                     ['git', 'submodule', 'status', '--recursive']
                 )
             except subprocess.CalledProcessError:
                 print('Unable to acquire submodule info for repo "{}", '
-                      'aborting...'.format(self.repos[0]))
+                      'aborting...'.format(repo_name))
                 sys.exit(1)
 
         submod_info = resp.decode('utf-8')
@@ -226,10 +226,10 @@ class UpdateManifest:
             except ValueError:
                 continue
 
-            # Note: We assume the first repo specified on the command line
-            # is the "parent" of any others, and hence the path in the
-            # manifest must be nested below that one. That's a limitation.
-            base_path = self.projects[self.repos[0]]['path']
+            # Note: The order of these matters.  If a submodule later
+            # in the list contradicts a previous one, the latter one
+            # will win and be written to the final manifest.
+            base_path = self.projects[repo_name]['path']
             project = self.tree.xpath(
                 '//project[@path="{}/{}"]'.format(base_path, path))
             if len(project) == 0:
@@ -277,7 +277,11 @@ class UpdateManifest:
         for repo in self.repos:
             self.checkout_repo(repo)
             self.update_submodules(repo)
-        self.update_shas()
+        
+        # Do this in a separate loop to avoid redundant updates
+        # before all the results of update_submodules are ready
+        for repo in self.repos:
+            self.update_shas(repo)
         self.generate_xml()
 
 
