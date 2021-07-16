@@ -2,6 +2,13 @@
 
 PRODUCT_PATH=${PRODUCT/::/\/}
 PROD_NAME=$(basename $PRODUCT_PATH)
+PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PROD_NAME}"
+SCAN_CONFIG="${PROD_DIR}/scan-config.json"
+
+# Extract config parameters from scan-config.json, if available
+if [ -e "${SCAN_CONFIG}" ]; then
+    KEEP_GIT=$(jq --arg VERSION ${VERSION} '.versions[$VERSION].keep_git' "${SCAN_CONFIG}")
+fi
 
 # Reset src directory and cd into it
 SRC_DIR="${WORKSPACE}/src"
@@ -11,8 +18,8 @@ cd "${SRC_DIR}"
 
 # If the product doesn't have a bespoke get_source.sh, then look up the
 # build manifest and sync that
-if [ -x "${WORKSPACE}/build-tools/blackduck/${PROD_NAME}/get_source.sh" ]; then
-    "${WORKSPACE}/build-tools/blackduck/${PROD_NAME}/get_source.sh" ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
+if [ -x "${PROD_DIR}/get_source.sh" ]; then
+    "${PROD_DIR}/get_source.sh" ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
 else
     pushd "${WORKSPACE}"
 
@@ -53,24 +60,26 @@ if [ "${status}" = "200" ]; then
 fi
 
 # Product-specific script for getting additional sources
-if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/get_additional_source.sh" ]; then
-  "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/get_additional_source.sh" ${RELEASE}
+if [ -x "${PROD_DIR}/get_additional_source.sh" ]; then
+  "${PROD_DIR}/get_additional_source.sh" ${RELEASE}
 fi
 
-# May need to override this per-product?
-find . -name .git -print0 | xargs -0 rm -rf
+# Normally remove .git directories
+if [ "${KEEP_GIT}" != true ]; then
+    find . -name .git -print0 | xargs -0 rm -rf
+fi
 find . -name .repo -print0 | xargs -0 rm -rf
 
 # Product-specific script for pruning unwanted sources
-if [ -x "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" ]; then
-  "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/prune_source.sh" \
+if [ -x "${PROD_DIR}/prune_source.sh" ]; then
+  "${PROD_DIR}/prune_source.sh" \
       ${RELEASE} ${VERSION} ${BLD_NUM} \
-      "${WORKSPACE}/build-tools/blackduck/${PRODUCT}"
+      "${PROD_DIR}"
 fi
 
 # Product-specific config for Synopsys Detect
-if [ -e "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json" ]; then
-  CONFIG_ARG="-c ${WORKSPACE}/build-tools/blackduck/${PRODUCT}/detect-config.json"
+if [ -e "${PROD_DIR}/detect-config.json" ]; then
+  CONFIG_ARG="-c ${PROD_DIR}/detect-config.json"
 fi
 
 # If doing dry-run, clean out any old archives
@@ -121,9 +130,9 @@ case ${#manifest[@]} in
 esac
 
 # setup parent/sub project dependency if sub-project.json exists
-if [ -f "${WORKSPACE}/build-tools/blackduck/${PRODUCT}/sub-project.json" ]; then
+if [ -f "${PROD_DIR}/sub-project.json" ]; then
   "${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan/add_subproject.py" \
     ${PRODUCT} \
     ${VERSION} \
-    ${WORKSPACE}/build-tools/blackduck/${PRODUCT}/sub-project.json
+    ${PROD_DIR}/sub-project.json
 fi

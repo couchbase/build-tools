@@ -1,0 +1,9 @@
+{
+    "detect_opts": {
+        "detect.excluded.detector.types": "NPM,MAVEN,NUGET",
+        "detect.excluded.directories": "**/gradle/wrapper",
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.gradle.included.configurations": "runtimeClasspath",
+        "detect.detector.search.depth": 9
+    }
+}

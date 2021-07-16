@@ -1,0 +1,8 @@
+{
+    "versions": {
+        "4.3.0": {
+            "interval": 1440,
+            "keep_git": true
+        }
+    }
+}
