@@ -31,7 +31,7 @@ pushd images
 for product in *; do
     short_product=${product/couchbase-/}
 
-    if [ product_in_rhcc "${PRODUCT}" ]
+    if product_in_rhcc "${PRODUCT}"
     then
         orgs="cb-vanilla cb-rhcc"
     else

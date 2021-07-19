@@ -1,7 +1,7 @@
 # General utilities shell functions for k8s-microservice scripts
 
 function product_in_rhcc {
-    local $PRODUCT=$1
+    local PRODUCT=$1
 
     if [ "${PRODUCT}" = "couchbase-service-broker" -o "${PRODUCT}" = "couchbase-observability-stack" ]; then
         return 1

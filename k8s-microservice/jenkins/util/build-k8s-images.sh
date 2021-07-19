@@ -82,7 +82,7 @@ for local_product in *; do
         .
 
     # Some projects don't do RHCC
-    if [ product_in_rhcc "${PRODUCT}" ]; then
+    if product_in_rhcc "${PRODUCT}"; then
         heading "Building RHCC image for ${short_product}..."
         ${script_dir}/update-base.sh Dockerfile.rhel
         docker build -f Dockerfile.rhel \

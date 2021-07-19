@@ -10,7 +10,7 @@ chk_set PUBLIC_TAG
 chk_set LATEST
 
 # Compute next build number
-if [ product_in_rhcc "${PRODUCT}" ]; then
+if product_in_rhcc "${PRODUCT}"; then
     ${script_dir}/util/compute-next-rhcc-build.sh -p ${PRODUCT} -v ${PUBLIC_TAG}
     source nextbuild.properties
 else
