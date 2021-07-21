@@ -4,6 +4,10 @@
             "interval": 1440,
             "keep_git": true
         },
+        "4.2.12": {
+            "interval": 1440,
+            "keep_git": true
+        },
         "4.2.11": {
             "interval": 1440,
             "keep_git": true
