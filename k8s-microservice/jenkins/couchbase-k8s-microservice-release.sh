@@ -22,6 +22,11 @@ fi
 # Publish images with this public tag, and a REBUILD number of 1.
 ${script_dir}/util/publish-k8s-images.sh ${PRODUCT} ${VERSION}-${BLD_NUM} ${public_tag} 1 ${LATEST}
 
+if [ "${PRODUCT}" = "couchbase-admission-controller" ]; then
+    echo "Only do docker stuff for admission-controller; all done!"
+    exit 0
+fi
+
 # Add git tag for release
 tag_release "${PRODUCT}" "${public_tag}" "${BLD_NUM}"
 
