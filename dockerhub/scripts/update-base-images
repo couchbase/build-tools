@@ -1,8 +1,9 @@
 #!/bin/bash -e
 
 # Pushes an empty to commit to git branches of the github.com/couchbase/docker
-# repository to force Docker Hub autobuild to rebuild the image with newer
-# base image.
+# repository to force Docker Hub autobuild in the event a newer base image is
+# available. This script is also responsible for ensuring README.md changes
+# propagate to the various branches.
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
@@ -15,20 +16,34 @@ status() {
 # the Dockerfile on that branch for updates; and pushing a commit upstream
 # if an update is needed.
 check_and_update() {
-    branch=$1
-    image=$2
-    tag=$3
+    updated=()
+    product=$1
+    branch=$2
+    image=$3
+    tag=$4
 
     git checkout -B ${branch} remotes/origin/${branch}
 
     if ${script_dir}/is-base-uptodate branch/Dockerfile ${image}:${tag}; then
-        status "Image ${image}:${tag}'s base is up-to-date"
-        return 0
+        if ! git diff --exit-code master:generate/resources/${product}/README.md branch/README.md &>/dev/null
+        then
+            status "Image ${image}:${tag}'s README.md needs updating - triggering autobuild"
+        else
+            status "Image ${image}:${tag}'s base image and README.md are up-to-date"
+            return 0
+        fi
+    else
+        updated+=("Base image")
+        status "Image ${image}:${tag} needs updating - triggering autobuild"
     fi
 
-    status "Image ${image}:${tag} needs updating - triggering autobuild"
+    git show refs/heads/master:generate/resources/${product}/README.md > branch/README.md
+    if ! git diff --exit-code branch/README.md &>/dev/null
+    then
+        updated+=("README.md")
+    fi
 
-    git commit --allow-empty -m "Touching branch ${branch} for Docker Hub autobuild"
+    git commit --allow-empty -am "Touching branch ${branch} for Docker Hub autobuild ($(IFS=$',' ; echo "${updated[*]}" | sed 's/,/ and /g') updated)"
     git push origin HEAD:refs/heads/${branch}
 }
 
@@ -80,7 +95,7 @@ for ref in $(git for-each-ref --format='%(refname)' refs/remotes/origin); do
     # (enterprise, community, or latest). We always want to check those.
     case "${version}" in
         latest|community|enterprise)
-            check_and_update ${branch} ${image} ${version}
+            check_and_update ${product} ${branch} ${image} ${version}
             continue
     esac
 
@@ -109,5 +124,5 @@ for ref in $(git for-each-ref --format='%(refname)' refs/remotes/origin); do
 
     # Ok, this is a branch to check. A bit annoyingly, the tag is spelled
     # differently for sync-gateway and couchbase-server
-    check_and_update ${branch} ${image} ${tag}
+    check_and_update ${product} ${branch} ${image} ${tag}
 done
