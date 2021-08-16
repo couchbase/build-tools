@@ -10,9 +10,20 @@ curl -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-
 
 # Extract jar contents
 ar x couchbase-server.deb
-tar xf data.tar.xz --wildcards --no-wildcards-match-slash --strip-components 5 './opt/couchbase/lib/cbas/repo/*.jar'
+tar xf data.tar.xz --wildcards --no-wildcards-match-slash --strip-components 5 \
+  './opt/couchbase/lib/cbas/repo/*.jar' './opt/couchbase/lib/cbas/repo/jars/*.jar'
+
 pushd repo
-tar cvzf ../analytics-jars-${VERSION}-${BLD_NUM}.tar.gz *.jar
+if [ -f cbas-install-*.jar ]; then
+  # starting in 7.0.1, analytics utilizes a manifest jar for its classpath; extract that to determine the jars we need
+  # to include
+  # TODO(mblow): this will need to be reworked if we ever have jars with a space in the name...
+  unzip -p cbas-install-*.jar  META-INF/MANIFEST.MF | sed 's/^ /@@/g' | sed 's/@@@/#/g' | grep '\(^Class-Path\|^@@\)' \
+    | tr -d '\r' | tr -d '\n' | sed -e 's/@@//g' -e 's/^Class-Path: //' | xargs -n1 \
+    | tar cvzf ../analytics-jars-${VERSION}-${BLD_NUM}.tar.gz -T - cbas-install-*.jar
+else
+  tar cvzf ../analytics-jars-${VERSION}-${BLD_NUM}.tar.gz *.jar
+fi
 popd
 
 # Publish to S3
