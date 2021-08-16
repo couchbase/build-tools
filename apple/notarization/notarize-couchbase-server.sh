@@ -68,28 +68,26 @@ fi
 DMG_URL_DIR=http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}
 
 DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64-unnotarized.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_x86_64-unnotarized.dmg)
-
-# Check files exist
-for file in ${DMGS[*]}; do
-    if curl --head --silent --fail ${DMG_URL_DIR}/${file} 2> /dev/null;
-    then
-        curl -O ${DMG_URL_DIR}/${file}
-    else
-        echo "${DMG_URL_DIR}/${file} does not exist. Aborting..."
-        exit 1
-    fi
-done
-
-# Check already notarized
 declare -a UNNOTARIZED
+
+# Check if DMGS are notarized
 for file in ${DMGS[*]}; do
-    echo "Checking notarization of ${file}"
-    if xcrun stapler validate ${file}; then
-        echo "${file} is already notarized"
+    notarized_file=`echo ${file} |sed "s/-unnotarized.dmg/.dmg/"`
+    if curl --head --silent --fail ${DMG_URL_DIR}/${notarized_file} 2> /dev/null;
+    then
+        echo "${DMG_URL_DIR}/${notarized_file} already exist."
+        echo "No need to notarize this again."
     else
-        UNNOTARIZED+=( ${file} )
+        if curl --head --silent --fail ${DMG_URL_DIR}/${file} 2> /dev/null;
+        then
+            echo "Downloading ${DMG_URL_DIR}/${file}..."
+            curl -O ${DMG_URL_DIR}/${file}
+            UNNOTARIZED+=( ${file} )
+        else
+            echo "${DMG_URL_DIR}/${file} does not exist. Aborting..."
+            exit 1
+        fi
     fi
-    echo
 done
 
 # Start notarization process
