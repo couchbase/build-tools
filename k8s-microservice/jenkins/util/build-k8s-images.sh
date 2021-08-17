@@ -78,6 +78,7 @@ for local_product in *; do
     heading "Building Vanilla image for ${short_product}:${tag}..."
     docker build --pull -f Dockerfile \
         -t cb-vanilla/${short_product}:${tag} \
+        --build-arg PROD_VERSION=${VERSION} \
         .
 
     # Some projects don't do RHCC

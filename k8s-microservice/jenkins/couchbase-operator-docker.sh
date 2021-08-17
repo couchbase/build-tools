@@ -16,7 +16,10 @@ build_and_push() {
 
     pushd ${directory}
     echo "Building vanilla '${directory}' Docker image"
-    docker build --pull -f Dockerfile -t ${vanilla_image} .
+    docker build --pull -f Dockerfile \
+        --build-arg PROD_VERSION=${VERSION} \
+        -t ${vanilla_image} \
+        .
 
     echo "Pushing to Docker Hub"
     docker push ${vanilla_image}
