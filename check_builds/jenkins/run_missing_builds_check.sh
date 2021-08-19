@@ -23,4 +23,4 @@ docker run --rm -u couchbase \
     couchbasebuild/check-builds \
         check_builds \
         -c /etc/check_builds.ini \
-        product-metadata/*/check_builds/pkg_data.json
+        product-metadata

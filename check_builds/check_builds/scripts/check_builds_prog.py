@@ -10,7 +10,6 @@ known failure.
 
 import argparse
 import configparser
-import itertools
 import json
 import logging
 import os
@@ -19,8 +18,10 @@ import sys
 import time
 
 from email.mime.text import MIMEText
+from pathlib import Path
+from .util import generate_filelist
 
-import cbbuild.cbutil.db as cbutil_db
+import cbbuild.database.db as cbutil_db
 
 
 # Set up logging and handler
@@ -29,56 +30,6 @@ logger.setLevel(logging.INFO)
 
 ch = logging.StreamHandler()
 logger.addHandler(ch)
-
-
-def generate_filelist(product, release, version, build_num, conf_data):
-    """
-    Create a set of filenames for the given product, release, version
-    and build number from the configuration file data
-    """
-
-    try:
-        prod_data = conf_data[product]
-    except KeyError:
-        print(f"Product {product} doesn't exist in configuration file")
-        sys.exit(1)
-
-    req_files = set()
-
-    for pkg_name, pkg_data in prod_data['package'].items():
-        try:
-            rel_data = pkg_data['release'][release]
-        except KeyError:
-            print(f"Package '{pkg_name}' doesn't exist in configuration file "
-                  f"for release '{release}'' of product '{product}'; ignoring...")
-            continue
-
-        # Find all the keys with lists as values
-        params = [x for x in rel_data if isinstance(rel_data[x], list)]
-
-        # For each platform supported for the release, take all the com-
-        # binations (product) from the lists and generate a filename from
-        # each combination along with other key information:
-        #   - pkg_name (locally defined)
-        #   - version and build_num, which are passed in
-        #   - platform (retrieved from locals())
-        #   - platform-specific entries (from the platform dictionary)
-        #
-        # The code makes heavy use of dictionary keyword expansion to populate
-        # the filename template with the appropriate information
-        for platform in rel_data['platform']:
-            param_list = [rel_data[param] for param in params]
-
-            for comb in itertools.product(*param_list):
-                req_files.add(
-                    rel_data['template'].format(
-                        package=pkg_name, VERSION=version, BLD_NUM=build_num,
-                        **locals(), **dict(zip(params, comb)),
-                        **rel_data['platform'][platform]
-                    )
-                )
-
-    return req_files
 
 
 def generate_mail_body(lb_url, missing):
@@ -92,7 +43,7 @@ def generate_mail_body(lb_url, missing):
     return body
 
 
-def send_email(smtp_server, receivers, message):
+def send_email(smtp_server, receivers, message, dryrun):
     """Simple method to send email"""
 
     msg = MIMEText(message['body'])
@@ -101,9 +52,12 @@ def send_email(smtp_server, receivers, message):
     msg['From'] = 'build-team@couchbase.com'
     msg['To'] = ', '.join(receivers)
 
-    smtp = smtplib.SMTP(smtp_server, 25)
+    if dryrun:
+        logger.info(f"Not sending email (dry run):\n {msg.as_string()}")
+        return
 
     try:
+        smtp = smtplib.SMTP(smtp_server, 25)
         smtp.sendmail(
             'build-team@couchbase.com',
             receivers,
@@ -129,11 +83,23 @@ def main():
     parser.add_argument('-c', '--config', dest='check_build_config',
                         help='Configuration file for build database loader',
                         default='check_builds.ini')
-    parser.add_argument('datafiles', nargs='+',
-                        help='One or more data files for determining build '
-                             'information')
-
+    parser.add_argument('metadata_dir', type=Path,
+                        help='Path to product-metadata directory')
+    parser.add_argument('-n', '--dryrun', action='store_true',
+                        help="Only check, don't update database or send email")
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help="Enable additional debug output")
     args = parser.parse_args()
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+    dryrun = args.dryrun
+    metadata_dir = args.metadata_dir
+    if not metadata_dir.exists():
+        logger.error(
+            f'product-metadata path {metadata_dir} does not exist'
+        )
+        sys.exit(1)
 
     # Check configuration file information
     check_build_config = configparser.ConfigParser()
@@ -168,16 +134,6 @@ def main():
         )
         sys.exit(1)
 
-    # Load in configuration data
-    conf_data = dict()
-
-    for datafile in args.datafiles:
-        try:
-            conf_data.update(json.load(open(datafile)))
-        except FileNotFoundError:
-            logger.error(f"Configuration file '{datafile}' missing")
-            sys.exit(1)
-
     # Find builds to check
     db = cbutil_db.CouchbaseDB(db_info)
     builds = db.query_documents(
@@ -205,28 +161,53 @@ def main():
         build_age = int(time.time()) - build.timestamp
 
         if build_age > 28 * 24 * 60 * 60:  # 28 days
-            build.set_metadata('builds_complete', 'unknown')
+            dryrun or build.set_metadata('builds_complete', 'unknown')
             continue
 
-        if build.product not in conf_data:
+        template_dir = metadata_dir / build.product / "check_builds"
+        if not template_dir.exists():
+            logger.debug(f"Skipping build for unknown product {build.product}")
             continue
 
         prodver_path = f'{build.product}/{build.release}/{build.build_num}'
         lb_dir = f'{miss_info["lb_base_dir"]}/{prodver_path}/'
         lb_url = f'{miss_info["lb_base_url"]}/{prodver_path}/'
 
+        templates = list(
+            filter(
+                lambda x: x.name.endswith(('.yaml.j2', '.json')),
+                template_dir.glob("pkg_data.*")
+            )
+        )
+        if len(templates) < 1:
+            logger.error(f"Product {build.product} has no pkg_data templates")
+            sys.exit(1)
+        if len(templates) > 1:
+            logger.error(f"Found multiple possible pkg_data files for {build.product}!")
+            sys.exit(1)
+        logger.debug(f"Using template {templates[0]} for {build.product}")
+
+        logger.info(f"***** Checking {build.product} {build.release} build {build.version}-{build.build_num} ({build_age} seconds old)")
+
         needed_files = generate_filelist(
             build.product, build.release, build.version, build.build_num,
-            conf_data
+            templates[0]
         )
-        existing_files = set(os.listdir(lb_dir))
+        try:
+            existing_files = set(os.listdir(lb_dir))
+        except FileNotFoundError:
+             existing_files = set()
         missing_files = list(needed_files.difference(existing_files))
 
         if not missing_files:
-            build.set_metadata('builds_complete', 'complete')
+            logger.info("All expected files found - build complete!")
+            dryrun or build.set_metadata('builds_complete', 'complete')
             continue
 
         if build_age > 2 * 60 * 60:  # 2 hours
+            logger.info("Still incomplete after 2 hours; missing files:")
+            for missing in missing_files:
+                logger.info(f"    - {missing}")
             if not build.metadata.setdefault('email_notification', False):
                 curr_bld = \
                     f'{build.product}-{build.version}-{build.build_num}'
@@ -235,11 +216,16 @@ def main():
                     'body': generate_mail_body(lb_url, missing_files)
                 }
                 receivers = miss_info['receivers'].split(',')
-                send_email(miss_info['smtp_server'], receivers, message)
-                build.set_metadata('email_notification', True)
+                send_email(miss_info['smtp_server'], receivers, message, dryrun)
+                dryrun or build.set_metadata('email_notification', True)
+            else:
+                logger.info("Email previously sent")
+        else:
+            logger.info("Incomplete but less than 2 hours old")
 
         if build_age > 12 * 60 * 60:  # 12 hours
-            build.set_metadata('builds_complete', 'incomplete')
+            logger.info("Build incomplete after 12 hours - marking incomplete")
+            dryrun or build.set_metadata('builds_complete', 'incomplete')
 
 
 if __name__ == '__main__':

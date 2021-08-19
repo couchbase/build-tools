@@ -40,13 +40,9 @@ def load_requirements(fname):
 
     for req in reqfile_read(fname):
         if 'git+' in req:
-            subdir_re = re.compile(r'&subdirectory=.+$')
-            req = '=='.join(
-                re.sub(subdir_re, r'', req).rsplit('=')[-1].split('-', 3)[:2]
-            )
-        if req.startswith('--'):
-            continue
-        requirements.append(req)
+            matches = re.search(r'@([^#]+).*[#&]egg=([^&]+)', req)
+            if len(matches.groups()) == 2:
+                requirements.append(f"{matches.group(2)}=={matches.group(1)}")
 
     return requirements
 
