@@ -1,0 +1,8 @@
+{
+  "detect_opts": {
+    "detect.detector.search.depth": 9,
+    "detect.detector.buildless": true,
+    "detect.required.detector.types": "RUBYGEMS",
+    "logging.level.com.synopsys.integration": "DEBUG"
+  }
+}
