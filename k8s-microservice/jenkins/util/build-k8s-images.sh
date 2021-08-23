@@ -76,7 +76,7 @@ for local_product in *; do
 
     short_product=${local_product/couchbase-/}
     heading "Building Vanilla image for ${short_product}:${tag}..."
-    docker build --pull -f Dockerfile \
+    DOCKER_BUILDKIT=1 docker build --pull -f Dockerfile \
         -t cb-vanilla/${short_product}:${tag} \
         --build-arg PROD_VERSION=${VERSION} \
         .
@@ -84,7 +84,7 @@ for local_product in *; do
     # Some projects don't do RHCC
     if product_in_rhcc "${PRODUCT}"; then
         heading "Building RHCC image for ${short_product}..."
-        docker build --pull -f Dockerfile.rhel \
+        DOCKER_BUILDKIT=1 docker build --pull -f Dockerfile.rhel \
             -t cb-rhcc/${short_product}:${tag} \
             --build-arg PROD_VERSION=${VERSION} \
             --build-arg PROD_BUILD=${BLD_NUM} \
