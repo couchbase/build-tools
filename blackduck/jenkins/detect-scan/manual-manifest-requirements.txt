@@ -1,4 +1,3 @@
-blackduck
-dictdiffer
-pyyaml
-python-dateutil
+blackduck==1.0.4
+dictdiffer===0.9.0
+PyYAML==5.4.1

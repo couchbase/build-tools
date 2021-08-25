@@ -1,48 +1,95 @@
 #!/usr/bin/env python3
 
 import argparse
-import bisect
 import collections
 import dictdiffer
 import json
 import logging
+import re
 import requests
 import sys
 import yaml
 
 from blackduck.HubRestApi import HubInstance
+from urllib.parse import urlparse, quote
 
 class UpdateComponents:
     """
-    Given a product name and version, add a component to it
+    Loads the current set of manually-added components. Given a set of BD manifests,
+    applies changes to Black Duck to make the set of manually-added components
+    match the manifests.
     """
 
-    def __init__(self, creds, product, version):
-        logging.info(f"Preparing to update components for {product} {version}")
+    # There are two important data structures in this class: comp_map and manifest.
+    # comp_map represents the current state in Black Duck (when the program is
+    # first run), while manifest represents the desired state as specified by the
+    # BD manifests. Both of these structures are in "canonicalized" form, which is
+    # a dict.
+    #
+    # The keys of the dict are Black Duck component IDs; for example,
+    # eae20828-18b8-478f-83b3-4a058748a28b is the ID for "fmtlib/fmt".
+    #
+    #  - for comp_map, these keys will be directly from Black Duck.
+    #  - for manifest, these keys will be from the "bd-id" field in the manifest
+    #    (preferred). If bd-id is not available, it will be discovered:
+    #     - if there is any component in comp_map with the identical bd-name,
+    #       use that component's ID
+    #     - if no such component exists (ie, this is an entirely new component),
+    #       search Black Duck using the REST API for a component matching bd-name
+    #       that also has a version matching the first specified version
+    #
+    #    Searching Black Duck using the REST API is not completely reliable,
+    #    so it is encouraged to use the bd-id field in manifests as much as
+    #    possible.
+    #
+    # The values of the dict are dicts with the following entries:
+    #    "versions": a Python set of strings, eg. {"7.1.3", "7.1.4"}.
+    #    "bd-name": the lowercased name for the component.
+    #
+    #  - for comp_map, "bd-name" will always be the componentName directly from
+    #    Black Duck (lowercased)
+    #  - for manifest, "bd-name" will be the "bd-name" field from the manifest
+    #    (lowercased) or, if that doesn't exist, the key of the component itself.
+
+    def __init__(self, creds, project, version, dryrun):
+        self.dryrun = dryrun
+        logging.info(f"Preparing to update components for {project} {version}")
         self.hub = HubInstance(
             creds['url'],
             creds['username'],
             creds['password'],
             insecure=True
         )
-        self.name = f"{product} {version}"
-        logging.debug(f"Looking up product {product}")
-        self.product = self.hub.get_project_by_name(product)
-        logging.debug(f"Looking up version {version}")
-        self.product_version = self.hub.get_version_by_name(self.product, version)
-        self._load_manual_components()
 
-        # Initialize manifest info
-        self.manifest = collections.defaultdict(set)
+        self.comp_base = self.hub.get_apibase() + "/components/"
+
+        # Save Black Duck's data about the project-version
+        self.name = f"{project} {version}"
+        logging.debug(f"Looking up project {project}")
+        self.project = self.hub.get_project_by_name(project)
+        logging.debug(f"Looking up project version {version}")
+        self.project_version = self.hub.get_version_by_name(self.project, version)
+
+        # Initialize comp_map and manifest schema
+        self.manifest = collections.defaultdict(lambda: { "versions": set() })
+        self.comp_map = collections.defaultdict(lambda: { "versions": set() })
+
+        # Other globally-used structures, populated or initialized in
+        # _load_manual_components()
+        self.comp_ids = dict()
+        self.components = None
+
+        # Load all manually-added components currently in Black Duck
+        self._load_manual_components()
 
     def _get_version_components(self, projectversion, limit=1000, filters={}):
         """
-        Copied from HubRestApi.py so we can add filters
+        Copied from hub-rest-api-python/blackduck/Projects.py so we can add filters
         """
 
         url = self.hub.get_link(projectversion, "components")
         headers = self.hub.get_headers()
-        headers['Accept'] = 'application/vnd.blackducksoftware.bill-of-materials-4+json'
+        headers['Accept'] = 'application/vnd.blackducksoftware.bill-of-materials-6+json'
         filter_opts = [ f"{k}:{v}" for k,v in filters.items() ]
         response = requests.get(
             url,
@@ -55,88 +102,129 @@ class UpdateComponents:
 
     def _load_manual_components(self):
         """
-        Reads in set of current manually-added components for product-version
+        Reads in set of current manually-added components for project-version and
+        store in self.components. Then convert to canonicalized form in self.comp_map.
+        Also initialize self.comp_ids.
         """
 
+        # Initialize self.components with report from Black Duck
         logging.debug(f"Retrieving current manual component list for {self.name}")
         self.components = self._get_version_components(
-            self.product_version,
+            self.project_version,
             filters = {"bomMatchType": "manually_added"}
         ).get('items', [])
         logging.debug(f"Found {len(self.components)} manual components")
 
-        # Create internal map of current components, and also remember their URLs
-        self.comp_map = collections.defaultdict(set)
-        self.comp_urls = {}
+        # Canonicalize component list into comp_map, and populate comp_ids.
+        # See top-level comment for discussion of schema of comp_map.
         for comp in self.components:
+            comp_url = comp['component']
+            comp_id = urlparse(comp_url).path.rsplit('/', 1)[1]
             comp_name = comp['componentName'].lower()
-            self.comp_map[comp_name].add(comp.get('componentVersionName', ""))
-            self.comp_urls[comp_name] = comp['component']
+            comp_version_name = comp.get('componentVersionName', "")
+
+            self.comp_map[comp_id]["bd-name"] = comp_name
+            self.comp_map[comp_id]["versions"].add(comp_version_name)
+
+            # We also keep a map of lowercased full component names to
+            # component ID.
+            self.comp_ids[comp_name] = comp_id
         logging.debug(f"Final comp_map: {self.comp_map}")
-        logging.debug(f"Final comp_urls: {self.comp_urls}")
+        logging.debug(f"Final comp_ids: {self.comp_ids}")
 
     def add_manifest(self, manifest):
         """
         Given the YAML representation of the manifest, store the important
-        information internally in a canonicalized form
+        information internally in canonicalized form
         """
 
         logging.debug("Canonicalizing manifest")
 
-        # Store versions as a Set so we can produce minimal diffs, and also
-        # handle the case where two manifests list the same dep version.
-        # Ensure keys are all-lowercase.
-        # Ensure version values are all strings (YAML might read them as
-        # floats).
         try:
             components = manifest['components']
         except KeyError:
             logging.fatal("Manifest does not have top-level 'components' key!")
             sys.exit(2)
 
-        for (comp, value) in components.items():
-            # If the value is just an array, it is presumed to be a list of
-            # versions. Otherwise, it's a dict with possible keys 'versions'
-            # and 'bd-name' (maybe more in future?).
+        # Canonicalize manifest data into manifest. See top-level comment for
+        # discussion of schema of manifest.
+        for (comp_name, value) in components.items():
+            # Values are dicts with possible keys 'versions', 'bd-id', and
+            # 'bd-name'.
+            # If the value is instead just an array, it is presumed to be a list of
+            # versions, in which case bd-name is just the component name and
+            # bd-id is not yet known (set to None).
             if isinstance(value, list):
                 versions = value
-                comp_lower = comp.lower()
+                comp_lower = comp_name.lower()
+                comp_id = None
             else:
-                versions = value['versions']
-                comp_lower = value.get('bd-name', comp).lower()
+                versions = value.get('versions', [])
+                comp_lower = value.get('bd-name', comp_name).lower()
+                comp_id = value.get('bd-id', None)
 
-            self.manifest[comp_lower].update([ str(ver) for ver in versions ])
+            # Ensure version values are all strings (YAML might read them as
+            # floats).
+            versions = [ str(ver) for ver in versions ]
+
+            # If the BD manifest specifies no versions, skip it (probably just
+            # there to keep the drift-detector happy).
+            if len(versions) == 0:
+                continue
+
+            # The canonical manifest is keyed by bd-id. If we weren't given
+            # the ID here, see if there's a matching full name in comp_ids.
+            if comp_id is None:
+                comp_id = self.comp_ids.get(comp_lower)
+
+            # If still no ID, do best-effort search in BD Hub, passing in one
+            # of the requested versions. This will abort if it fails to find
+            # anything, so no need to check the return value.
+            if comp_id is None:
+                comp_id = self.find_component(comp_lower, versions[0])
+
+            logging.debug(f"Adding component {comp_lower} ({comp_id}) with versions {versions} to manifest")
+            self.manifest[comp_id]["bd-name"] = comp_lower
+            self.manifest[comp_id]["versions"].update(versions)
 
     def find_version_for_component(self, component_name, component_url, version):
         """
         Returns a component_version_url for a component, if the version is known
         """
 
-        if version == "":
-            logging.debug(f"No version specified for component {component_name}, so using Unknown version")
-            return component_url
-
-        logging.debug(f"Searching for version {version} for {component_name}")
-        versions_url = component_url + "/versions?limit=9999"
+        # Sadly the BD search API doesn't like some legit characters like +, but
+        # we can use _ as a single-character wildcard
+        logging.debug(f"Searching for version {version} of {component_name}")
+        safe_version = re.sub(r'[+]', '_', version)
+        versions_url = f"{component_url}/versions?q=versionName:{quote(safe_version)}&limit=100"
         versions = self.hub.execute_get(versions_url).json().get('items', [])
         logging.debug(f"Found {len(versions)} items")
 
+        # Ensure one of those found versions is an exact match
         for ver in versions:
             if ver['versionName'] == version:
                 return ver['_meta']['href']
 
-        logging.debug(f"Found no matching version")
+        logging.fatal(f"Found no matching version!")
+        sys.exit(3)
 
     def find_component(self, component, version):
         """
-        Finds URL for "best" component/version match on Hub.
+        Finds URL for "best" component/version match on Hub - one that
+        has an exact match score for the name, and has at least the
+        one specified version. This function is vaguely deprecated, but is
+        still necessary as a fallback for manifests that don't universally
+        use bd-id.
         """
 
         logging.debug(f"Searching for component {component}")
-        hits = self.hub.search_components(component, limit=100).get('items', [])[0].get('hits', [])
+        hits = self.hub.search_components(component, limit=500).get('items', [{}])[0].get('hits', [])
         logging.debug(f"Found {len(hits)} hits")
         for hit in hits:
             component_name = hit['fields']['name'][0]
+            if component_name.lower() != component:
+                logging.debug(f"Skipping '{component_name}' because name is not an exact match")
+                continue
             score = float(hit['fields']['score'][0])
             if score < 0.8:
                 logging.debug(f"Skipping {component_name} because score is too low ({score})")
@@ -146,58 +234,57 @@ class UpdateComponents:
             if component_version is None:
                 logging.debug(f"Skipping {component_name} because it does not have a version {version}")
                 continue
-            # This might be the best match, but if it doesn't exactly match the
-            # name from the manifest we have to skip it for now
-            if component_name.lower() != component:
-                logging.warn(f"When searching for '{component}' version '{version}', we found "
-                    f"'{component_name}' version '{version}' which might be the best match. "
-                    "However, since the names are not identical we skipped it. "
-                    "If this job fails to find a better match, you must update the "
-                    "*-black-duck-manifest.yaml file to specify the full component name.")
-                continue
-            return component_version
+            return urlparse(component_url).path.rsplit('/', 1)[1]
         logging.fatal(f"Found no component-version for {component} {version}!")
         sys.exit(4)
 
-    def add_component(self, comp, version):
+    def add_component(self, comp_id, comp_name, version):
         """
-        Adds a component-version to this product-version
+        Adds a component-version to this project-version
         """
 
-        logging.info(f"Adding component: {comp} {version}")
-        comp_url = self.comp_urls.get(comp)
-        if comp_url is None:
-            component_version_url = self.find_component(comp, version)
-        else:
-            logging.debug(f"Component {comp} is already known, using that")
-            component_version_url = self.find_version_for_component(
-                comp, comp_url, version
-            )
+        logging.info(f"Adding component to Black Duck: {comp_name} ({comp_id}) version {version}")
+        comp_url = self.comp_base + comp_id
+        component_version_url = self.find_version_for_component(
+            comp_id, comp_url, version
+        )
         logging.debug(f"Component version URL is {component_version_url}")
 
-        pv_components_url = self.hub.get_link(self.product_version, "components")
-        post_data = {'component': component_version_url}
-        custom_headers = {'Content-Type': 'application/vnd.blackducksoftware.bomcomponent-1+json', 'Accept': '*/*'}
-        response = self.hub.execute_post(pv_components_url, post_data, custom_headers=custom_headers)
-        response.raise_for_status()
+        pv_components_url = self.hub.get_link(self.project_version, "components")
+        if self.dryrun:
+            logging.info("DRYRUN: not updating Black Duck")
+        else:
+            post_data = {'component': component_version_url}
+            custom_headers = {'Content-Type': 'application/vnd.blackducksoftware.bomcomponent-1+json', 'Accept': '*/*'}
+            response = self.hub.execute_post(pv_components_url, post_data, custom_headers=custom_headers)
+            response.raise_for_status()
+            logging.debug(f"{comp_id} version {version} added successfully")
 
-    def remove_component(self, comp, version):
+    def remove_component(self, comp_id, comp_name, version):
         """
-        Removes a component-version from this product-version
+        Removes a component-version from this project-version
         """
 
-        logging.info(f"Removing component: {comp} {version}")
-        # Since by definition we must be removing something that already exists,
-        # we can look it up in self.components. This should happen rarely so
-        # a simple linear search is fine.
+        logging.info(f"Removing component: {comp_name} ({comp_id}) version {version}")
+        # We need the full URL of "this component-version in this
+        # project-version". Conveniently enough those are in the information
+        # we initially gathered from Black Duck in self.components, so hunt it
+        # down there. It should always be there since by definition we can't
+        # be deleting something that didn't exist in the first place. This
+        # happens rarely so a simple linear search is fine.
+        comp_url = self.comp_base + comp_id
         for component in self.components:
-            if (component['componentName'].lower() == comp and
+            if (component['component'] == comp_url and
                 component.get('componentVersionName', "") == version):
-                response = self.hub.execute_delete(component['_meta']['href'])
-                response.raise_for_status()
+                if self.dryrun:
+                    logging.info("DRYRUN: found comp-version but not updating Black Duck")
+                else:
+                    response = self.hub.execute_delete(component['_meta']['href'])
+                    response.raise_for_status()
+                    logging.debug(f"{comp_id} version {version} deleted successfully")
                 return
 
-        logging.fatal(f"Failed to find component {comp} {version} to delete!!")
+        logging.fatal(f"Failed to find component {comp_id} {version} to delete!!")
         sys.exit(1)
 
     def apply_manifests(self):
@@ -215,20 +302,47 @@ class UpdateComponents:
         }
         actions_taken = 0
 
+        # dictdiffer gives us a list of diff actions, in a somewhat strange
+        # bespoke format. Here we decode them and invoke the corresponding
+        # actions.
         for (action, target, value) in diff:
             logging.debug(f"Executing '{action}' '{target}' '{value}'")
 
             if action == "remove" or action == "add":
                 if target == '':
-                    for (comp, versions) in value:
-                        for version in versions:
-                            func_map[action](comp, version)
+                    # Adding or removing entire components. In this case we
+                    # iteratively add/remove each component-version.
+                    for (comp_id, data) in value:
+                        for version in data["versions"]:
+                            func_map[action](comp_id, data["bd-name"], version)
                             actions_taken += 1
                 else:
-                    comp = target
+                    # Adding or removing versions from an existing component
+                    (comp_id, field) = target.split('.', maxsplit=1)
+                    if field != "versions":
+                        logging.error(f"Unknown field {field}!")
+                        sys.exit(2)
+                    # "value" is an array containing 1 tuple.
+                    if len(value) != 1:
+                        logging.error(f"Too many tuples in {value}!")
+                        sys.exit(2)
+
+                    # In this case, comp_id is in both comp_map and manifest,
+                    # so we can look up comp_name in either place.
+                    comp_name = self.manifest[comp_id]["bd-name"]
+
+                    # The first element in the tuple is always 0 (not
+                    # sure why). The second element will be the set of
+                    # versions to add/remove.
                     for version in value[0][1]:
-                        func_map[action](comp, version)
+                        func_map[action](comp_id, comp_name, version)
                         actions_taken += 1
+
+            elif action == "change" and target.endswith(".bd-name"):
+                # Don't care if the bd-name from the manifest doesn't match
+                # Black Duck at this point
+                logging.debug(f"Ignoring unnecessary change to bd-name")
+
             else:
                 logging.fatal(f"Unknown dictdiffer action {action}!")
                 sys.exit(6)
@@ -248,13 +362,15 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--credentials', required=True,
         type=argparse.FileType('r'),
         help="Black Duck Hub credentials JSON file")
-    parser.add_argument('-p', '--product', required=True,
-        help="Product from Black Duck server")
+    parser.add_argument('-p', '--project', required=True,
+        help="project from Black Duck server")
     parser.add_argument('-v', '--version', required=True,
-        help="Version of <product>")
+        help="Version of <project>")
     parser.add_argument('-m', '--manifest', required=True, nargs='+',
         type=argparse.FileType('r'),
         help="JSON manifest of manual components")
+    parser.add_argument('-n', '--dryrun', action='store_true',
+        help="Dry run - don't update Black Duck, just report actions")
     args = parser.parse_args()
 
     if args.debug:
@@ -272,8 +388,9 @@ if __name__ == "__main__":
 
     updater = UpdateComponents(
         json.load(args.credentials),
-        args.product,
-        args.version
+        args.project,
+        args.version,
+        args.dryrun
     )
     for manifest in args.manifest:
         updater.add_manifest(yaml.safe_load(manifest))
