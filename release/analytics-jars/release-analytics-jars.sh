@@ -11,7 +11,9 @@ curl -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-
 # Extract jar contents
 ar x couchbase-server.deb
 tar xf data.tar.xz --wildcards --no-wildcards-match-slash --strip-components 5 \
-  './opt/couchbase/lib/cbas/repo/*.jar' './opt/couchbase/lib/cbas/repo/jars/*.jar'
+  './opt/couchbase/lib/cbas/repo/*.jar'
+tar xf data.tar.xz --wildcards --no-wildcards-match-slash --strip-components 5 \
+  './opt/couchbase/lib/cbas/repo/jars/*.jar' || :
 
 pushd repo
 if [ -f cbas-install-*.jar ]; then
