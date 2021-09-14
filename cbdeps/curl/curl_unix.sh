@@ -7,7 +7,7 @@ ARCH=$8
 cd ${ROOT_DIR}/curl
 
 # Openssl dependency
-OPENSSL_VER=1.1.1k-3
+OPENSSL_VER=1.1.1l-1
 CBDEP_TOOL_VERS=1.0.1
 
 # Download openssl via cbdeps tool
