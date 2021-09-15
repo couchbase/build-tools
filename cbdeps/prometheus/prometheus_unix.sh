@@ -8,9 +8,9 @@ cd ${ROOT_DIR}
 
 DEPS=${WORKSPACE}/deps
 rm -rf ${DEPS}
-CBDEP_TOOL_VER=1.0.1
-GO_VER=1.14.2
-NODEJS_VER=12.16.2
+CBDEP_TOOL_VER=1.0.4
+GO_VER=1.16.5
+NODEJS_VER=16.5.0
 
 # Download cbdep, unless it's already available in the local .cbdepscache
 OPSYS=$(uname -s | tr "[:upper:]" "[:lower:]")

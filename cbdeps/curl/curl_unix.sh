@@ -8,7 +8,7 @@ cd ${ROOT_DIR}/curl
 
 # Openssl dependency
 OPENSSL_VER=1.1.1l-1
-CBDEP_TOOL_VERS=1.0.1
+CBDEP_TOOL_VERS=1.0.4
 
 # Download openssl via cbdeps tool
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux

@@ -7,8 +7,8 @@ ARCH=$8
 cd ${ROOT_DIR}/protoc-gen-go
 
 DEPS=${WORKSPACE}/deps
-GO_VER=1.13.8
-CBDEP_TOOL_VER=1.0.1
+GO_VER=1.16.5
+CBDEP_TOOL_VER=1.0.4
 
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux
 
