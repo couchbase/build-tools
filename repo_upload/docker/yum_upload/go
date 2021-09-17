@@ -1,0 +1,17 @@
+#!/bin/bash -e
+
+TAG=$(date "+%Y%m%d")
+IMAGE="couchbasebuild/centos-74-yum-upload"
+
+mkdir -p build
+cp -a ../../src build
+sed -e 's/@@REPO_TYPE@@/yum/' ../repo_upload_entrypoint.sh.tmpl > build/repo_upload_entrypoint.sh
+chmod 755 build/repo_upload_entrypoint.sh
+docker build -t ${IMAGE}:${TAG} .
+docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
+
+if [ "$1" = "--publish" ]
+then
+  docker push ${IMAGE}:${TAG}
+  docker push ${IMAGE}:latest
+fi

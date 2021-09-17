@@ -39,12 +39,15 @@ class YumRepository(RepositoryBase):
     @staticmethod
     def path_partial(distro):
         """
-        The s3 keys for centos packages/metadata contain an 'rpm' substring
-        this method is responsible for populating rpm for centos, or distro
-        name for others
+        The s3 keys for centos/rhel packages/metadata contain an 'rpm'
+        substring. this method is responsible for returning "rpm" for
+        centos/rhel, or distro name for others
         """
 
-        return 'rpm' if distro == 'centos' else distro
+        if distro == 'centos' or distro == 'rhel':
+            return 'rpm'
+        else:
+            return distro
 
     def get_versions(self):
         """
