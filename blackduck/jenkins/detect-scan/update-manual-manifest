@@ -5,6 +5,7 @@ import collections
 import dictdiffer
 import json
 import logging
+import pathlib
 import re
 import requests
 import sys
@@ -79,8 +80,27 @@ class UpdateComponents:
         self.comp_ids = dict()
         self.components = None
 
+        # Load BD component alias list
+        self._load_bd_aliases()
+
         # Load all manually-added components currently in Black Duck
         self._load_manual_components()
+
+    def _load_bd_aliases(self):
+        """
+        Annoyingly, Black Duck component IDs do not seem to be constant.
+        Sometimes without warning they can change, or be aliased to another.
+        In some cases we can keep track of what it used to be and what it
+        reports now, so we can translate the IDs we get from Black Duck to
+        the ID in our manifests.
+        """
+
+        script_dir = pathlib.Path(__file__).resolve().parent
+        alias_file = script_dir / "bd_aliases.yaml"
+        if alias_file.exists():
+            with open(alias_file) as aliases:
+                self.bd_alias = yaml.safe_load(aliases)
+                logging.debug(f"Loaded {len(self.bd_alias)} Black Duck component aliases")
 
     def _get_version_components(self, projectversion, limit=1000, filters={}):
         """
@@ -120,6 +140,7 @@ class UpdateComponents:
         for comp in self.components:
             comp_url = comp['component']
             comp_id = urlparse(comp_url).path.rsplit('/', 1)[1]
+            comp_id = self.bd_alias.get(comp_id, comp_id)
             comp_name = comp['componentName'].lower()
             comp_version_name = comp.get('componentVersionName', "")
 
@@ -189,7 +210,7 @@ class UpdateComponents:
 
     def find_version_for_component(self, component_name, component_url, version):
         """
-        Returns a component_version_url for a component, if the version is known
+        Returns a component_version_url for a component, if the version is known.
         """
 
         # Sadly the BD search API doesn't like some legit characters like +, but

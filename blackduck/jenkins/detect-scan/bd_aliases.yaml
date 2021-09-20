@@ -1,0 +1,4 @@
+# Format is "current BD component ID" : "old BD component ID we use in manifests"
+
+# Python Programming Language
+"59ac58b9-c726-4f29-9f3b-48e1f7abe841" : "ee4d67e0-63f9-409d-a9be-1c30de64873d"
