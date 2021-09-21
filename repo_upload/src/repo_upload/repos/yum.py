@@ -238,6 +238,10 @@ class YumRepository(RepositoryBase):
                 continue
 
             for distro, distro_version in self.os_versions:
+                # Special: for 7.0.x, we potentially create both 'centos8' and
+                # 'rhel8' builds. We only want to include 'rhel8' in the yum repo.
+                if distro_version == '8' and distro == 'centos' and version.startswith('7.0.'):
+                    continue
                 pkg_name = (f'couchbase-server-{self.edition}-{version}-'
                             f'{distro}{distro_version}.x86_64.rpm')
 
