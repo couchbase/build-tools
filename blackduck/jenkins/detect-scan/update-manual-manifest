@@ -92,7 +92,9 @@ class UpdateComponents:
         Sometimes without warning they can change, or be aliased to another.
         In some cases we can keep track of what it used to be and what it
         reports now, so we can translate the IDs we get from Black Duck to
-        the ID in our manifests.
+        the ID in our manifests. It's important that we use the canonical
+        ID when calling the REST API, because things such as search filters
+        don't work if you use the aliased component ID.
         """
 
         script_dir = pathlib.Path(__file__).resolve().parent
@@ -140,7 +142,6 @@ class UpdateComponents:
         for comp in self.components:
             comp_url = comp['component']
             comp_id = urlparse(comp_url).path.rsplit('/', 1)[1]
-            comp_id = self.bd_alias.get(comp_id, comp_id)
             comp_name = comp['componentName'].lower()
             comp_version_name = comp.get('componentVersionName', "")
 
@@ -183,6 +184,8 @@ class UpdateComponents:
                 versions = value.get('versions', [])
                 comp_lower = value.get('bd-name', comp_name).lower()
                 comp_id = value.get('bd-id', None)
+                # Translate our manifest component ID to BD alias if necessary
+                comp_id = self.bd_alias.get(comp_id, comp_id)
 
             # Ensure version values are all strings (YAML might read them as
             # floats).
