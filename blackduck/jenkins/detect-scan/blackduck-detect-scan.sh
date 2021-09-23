@@ -121,7 +121,7 @@ do-manual-manifest() {
 }
 
 # If there's a product-specific manual Black Duck manifest, load that as well
-manifest=( $(find "${WORKSPACE}/src" -maxdepth 8 -name ${PRODUCT}-black-duck-manifest.yaml) )
+manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT}-black-duck-manifest.yaml) )
 case ${#manifest[@]} in
   0) echo "No product-specific Black Duck manifest; skipping"
      ;;

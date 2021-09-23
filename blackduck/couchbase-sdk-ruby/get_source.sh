@@ -16,5 +16,18 @@ else
     echo "No tag $TAG, assuming master"
 fi
 git submodule update --init --recursive
-find . -type d -name \*test\* -print0 | xargs -0 rm -rf
+
+# We use a SHA of http-parser that is slightly newer than the last
+# released version v2.9.4, and Black Duck can't identify it. This
+# package is unmaintained, so we will likely never depend on a newer
+# version; but just in case, only update this back to v2.9.4 if it's
+# still "v2.9.4++" according to git describe.
+if [ -d ext/third_party/http_parser ]; then
+    cd ext/third_party/http_parser
+    if [[ "$(git describe --tags)" =~ ^v2.9.4.* ]]; then
+        echo "Reset http_parser to v2.9.4 for scan"
+        git checkout v2.9.4
+    fi
+fi
+
 popd
