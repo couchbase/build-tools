@@ -4,7 +4,6 @@
         "logging.level.com.synopsys.integration": "DEBUG",
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.detector.search.continue": true,
-        "detect.maven.included.modules": "java-client,core-io-deps",
         "detect.maven.included.scopes": "compile,runtime",
         "detect.maven.build.command": "--batch-mode"
     }
