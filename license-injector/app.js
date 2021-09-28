@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 
@@ -90,7 +91,7 @@ const excludedExtensions = [
     "sqlpp",
 ]
 
-const path = require('path').dirname(require.main.filename)
+const scriptPath = path.dirname(require.main.filename)
 
 const log = {
     INFO: (str) => console.log(`info: ${str}`),
@@ -134,7 +135,7 @@ const gitRepo = async (file) => {
     // the info on that repo isn't cached, so set the lock and fetch it
     repoScanLock = true
     const root = await runCmd(`git rev-parse --show-toplevel`, { cwd: dirname(file) }) + '/'
-    const copyrightIgnore = `${root}/.copyrightignore`
+    const copyrightIgnore = path.join(root, '.copyrightignore')
     let exclusions = []
     if (fs.existsSync(copyrightIgnore)) {
         exclusions = fs.readFileSync(copyrightIgnore, 'utf8').trim().split('\n').map(x => {
@@ -168,16 +169,16 @@ function getLineBreakChar(string) {
     return '\n'
 }
 
-// This script uses a number of (comment style) handlers defined in ${path}/handlers
+// This script uses a number of (comment style) handlers defined in ${scriptPath}/handlers
 function loadHandlers() {
     let handlers = {}
-    const handlerFiles = Array.from(fs.readdirSync(`${path}/handlers`)).filter(f => extension(f) == 'json')
+    const handlerFiles = Array.from(fs.readdirSync(path.join(scriptPath, 'handlers'))).filter(f => extension(f) == 'json')
     // We need to unpack our handlers and do some prep to make life easier later
     const allHandlers = handlerFiles.map(file => {
         const handler = {
             // unpack the object
             ...JSON.parse(
-                fs.readFileSync(`${path}/handlers/${file}`, 'utf8')
+                fs.readFileSync(path.join(scriptPath, 'handlers', file), 'utf8')
             ),
             // Give it a style property which is the filename minus .json
             style: file.split('.').slice(0, -1)[0]
@@ -231,23 +232,23 @@ function loadHandlers() {
     return allHandlers.filter(handler => handler?.enabled !== false)
 }
 
-// Load all the license files from ${path}/licenses
+// Load all the license files from ${scriptPath}/licenses
 function loadLicenses() {
-    return Array.from(fs.readdirSync(`${path}/licenses`))
-        .map(file => !file.isDirectory && readSrcFile(`${path}/licenses/${file}`))
+    return Array.from(fs.readdirSync(path.join(scriptPath, 'licenses')))
+        .map(file => !file.isDirectory && readSrcFile(path.join(scriptPath, 'licenses', file)))
         .filter(license => license)
 }
 
 // Recursively retrieve a list of all the files we potentially want to take action
 // on within a given path
-async function allFiles(path) {
+async function allFiles(targetPath) {
     let nodes = []
-    for (const dirEntry of fs.readdirSync(path)) {
+    for (const dirEntry of fs.readdirSync(targetPath)) {
         if (dirEntry != '.git') {
-            if (fs.lstatSync(`${path}/${dirEntry}`).isDirectory()) {
-                nodes = nodes.concat(await allFiles(`${path}/${dirEntry}`))
+            if (fs.lstatSync(path.join(targetPath, dirEntry)).isDirectory()) {
+                nodes = nodes.concat(await allFiles(path.join(targetPath, dirEntry)))
             } else if (!dirEntry.isSymlink) {
-                nodes.push(`${path}/${dirEntry}`)
+                nodes.push(path.join(targetPath, dirEntry))
             }
         }
     }
