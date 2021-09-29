@@ -161,14 +161,8 @@ class ManifestBuilder:
         except FileNotFoundError:
             self.product_config = dict()
 
-        override_product = self.product_config.get('product')
-        if override_product is not None:
-            # Override product (and product_path) if set in product-config.json
-            self.product = override_product
-            self.product_path = override_product.replace('::', '/')
-        else:
-            # Otherwise, product name is derived from product path
-            self.product = self.product_path.replace('/', '::')
+        # Product name is derived from product path
+        self.product = self.product_path.replace('/', '::')
 
         # Save the "basename" of the product name as prod_name
         self.prod_name = self.product.split('::')[-1]
@@ -276,9 +270,6 @@ class ManifestBuilder:
             self.manifests.get(self.parent, {}).get('branch', 'master')
         self.go_version = self.manifest_config.get('go_version')
 
-        # Individual manifests are allowed to have a different
-        # product setting as well
-        self.product = self.manifest_config.get('product', self.product)
         self.build_job = \
             self.manifest_config.get('jenkins_job', f'{self.product}-build')
         self.platforms = self.manifest_config.get('platforms', [])

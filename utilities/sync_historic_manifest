@@ -6,6 +6,15 @@
 # working directory, and the repo sync in ${OUTDIR} (defaults to current
 # working directory).
 
+# If a <VERSION>.properties file exists in the manifest repo, it will be
+# copied as the final "build.properties". If that .properties file has a
+# non-empty value for PATCH_VIA_GERRIT_OPTS, this script will download
+# patch_via_gerrit and apply the named changes to the repo checkout.
+
+# If BLD_NUM >= 50000 it is assumed to be a toy build, meaning that it
+# will search for the manifest and properties in the toy-build-manifests
+# repo instead of the normal build-manifests repo.
+
 # Known limitations: it cannot produce the same build-properties file
 # as the original build did, as it does not have access to the information
 # from product-metadata.json as of the time of the build. Perhaps this
@@ -42,24 +51,42 @@ fi
 PRODUCT_PATH=${PRODUCT/::/\/}
 PROD_NAME=$(basename $PRODUCT_PATH)
 
-if [ ! -e build-manifests ]; then
-    git clone git://github.com/couchbase/build-manifests
+# Update the appropriate build-manifests repo
+if [ ${BLD_NUM} -lt 50000 ]; then
+    BUILD_MANI_REPO=git://github.com/couchbase/build-manifests
 else
-    (cd build-manifests && git pull)
+    BUILD_MANI_REPO=git://github.com/couchbasebuild/toy-build-manifests
 fi
+BUILD_MANI_DIR=$(basename ${BUILD_MANI_REPO})
 
-pushd build-manifests
-SHA=$(git log --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
-MANIFEST=$(git diff-tree --no-commit-id --name-only -r $SHA)
+if [ ! -e ${BUILD_MANI_DIR} ]; then
+    git clone ${BUILD_MANI_REPO} ${BUILD_MANI_DIR}
+fi
+pushd ${BUILD_MANI_DIR}
+git fetch --all
+SHA=$(git log -1 --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
+MANIFEST=${PRODUCT_PATH}/${RELEASE}/${VERSION}.xml
+PROPERTIES=$(pwd)/${PRODUCT_PATH}/${RELEASE}/${VERSION}.properties
 popd
 
 pushd "${OUTDIR}"
 echo "Syncing manifest $MANIFEST at $SHA"
 echo ================================
-repo init -u "${WORKDIR}/build-manifests" -b $SHA -g all -m $MANIFEST
+repo init -u "${WORKDIR}/${BUILD_MANI_DIR}" -b $SHA -g all -m $MANIFEST
 repo sync --jobs=8
 repo manifest -r > manifest.xml
 echo
+
+# If pvg options available, patch away
+if [ -e "${PROPERTIES}" ]; then
+    eval $(sed -e 's/=\(.*\)/="\1"/' "${PROPERTIES}")
+    if [ ! -z "${PATCH_VIA_GERRIT_OPTS}" ]; then
+        "${SCRIPT_DIR}/../utilities/patch_via_gerrit" \
+            ${PATCH_VIA_GERRIT_OPTS} -d \
+            -c ~/.ssh/patch_via_gerrit.ini \
+            -s .
+    fi
+fi
 popd
 
 echo "Creating properties files"
@@ -75,7 +102,10 @@ cat <<EOF > build-properties.json
   "PRODUCT_PATH": "$PRODUCT_PATH"
 }
 EOF
-cat <<EOF > build.properties
+if [ -e "${PROPERTIES}" ]; then
+    cp "${PROPERTIES}" build.properties
+else
+    cat <<EOF > build.properties
 PRODUCT=$PRODUCT
 RELEASE=$RELEASE
 VERSION=$VERSION
@@ -83,5 +113,7 @@ BLD_NUM=$BLD_NUM
 PROD_NAME=$PROD_NAME
 PRODUCT_PATH=$PRODUCT_PATH
 EOF
+fi
+
 echo
 echo "Done!"

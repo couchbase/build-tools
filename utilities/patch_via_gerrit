@@ -1,0 +1,16 @@
+#!/bin/bash -ex
+#
+# Wrapper script around patch_via_gerrit. Will download and cache the tool
+# if necessary.
+
+PATCH=$(type -p patch_via_gerrit || true) >& /dev/null
+if [ -z "${PATCH}" ]; then
+    PATCH=${HOME}/.cache/patch_via_gerrit
+    mkdir -p $(dirname "${PATCH}")
+    ext="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+    curl -L -o "${PATCH}" \
+        "http://packages.couchbase.com/patch_via_gerrit/patch_via_gerrit-${ext}"
+    chmod +x ${PATCH}
+fi
+
+"${PATCH}" "$@"

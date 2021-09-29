@@ -2,13 +2,12 @@
 
 import argparse
 
-from manifest_util import scan_manifests
+from manifest_util import get_metadata_for_manifest
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--manifest-project", type=str,
-                        default="git://github.com/couchbase/manifest",
-                        help="Alternate git URL for manifest repository")
+    parser.add_argument("-d", "--manifest-dir", type=str, required=True,
+                        help="Path to local manifest repository")
     parser.add_argument("-b", "--bld-num", type=str, default="9999",
                         help="Build number to put into properties")
     parser.add_argument("-o", "--output-file", type=argparse.FileType('w'),
@@ -18,7 +17,7 @@ if __name__ == '__main__':
                         help="Specific manifest to show info about")
     args = parser.parse_args()
 
-    details = scan_manifests(args.manifest_project).get(args.manifest_file, {})
+    details = get_metadata_for_manifest(args.manifest_dir, args.manifest_file)
     args.output_file.write(
         f'PRODUCT={details.get("product")}\n'
         f'RELEASE={details.get("release")}\n'
