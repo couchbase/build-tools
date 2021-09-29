@@ -161,8 +161,14 @@ class ManifestBuilder:
         except FileNotFoundError:
             self.product_config = dict()
 
-        # Product name is derived from product path
-        self.product = self.product_path.replace('/', '::')
+        override_product = self.product_config.get('product')
+        if override_product is not None:
+            # Override product (and product_path) if set in product-config.json
+            self.product = override_product
+            self.product_path = override_product.replace('::', '/')
+        else:
+            # Otherwise, product name is derived from product path
+            self.product = self.product_path.replace('/', '::')
 
         # Save the "basename" of the product name as prod_name
         self.prod_name = self.product.split('::')[-1]
@@ -377,9 +383,11 @@ class ManifestBuilder:
 
             if not lines:
                 if not self.force:
-                    print(f'No changes since last build {self.version}-'
+                    print('*\n*\n*\n'
+                          f'***** No changes since last build {self.version}-'
                           f'{self.last_build_num}; not executing '
-                          f'new build')
+                          f'new build *****\n'
+                          '*\n*\n*\n')
                     json_file = self.output_files['build-properties.json']
                     prop_file = self.output_files['build.properties']
 

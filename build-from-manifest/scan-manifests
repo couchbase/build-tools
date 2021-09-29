@@ -20,7 +20,10 @@ trigger_filename = os.path.abspath("trigger.properties")
 if os.path.exists(trigger_filename):
   os.remove(trigger_filename)
 
-# Initialize previous-check state file (use NAS if available)
+# Initialize previous-check state file (use NAS if available).
+# Note: this uses the same statefile for ALL manifest repositories
+# being scanned. This does presume that relative manifest paths
+# are unique across ALL manifest repositories.
 if os.access("/buildteam/statefiles", os.W_OK):
   state_filename = os.path.abspath("/buildteam/statefiles/scan-manifests-state.json")
 else:

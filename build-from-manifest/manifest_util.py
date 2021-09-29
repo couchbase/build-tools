@@ -5,6 +5,7 @@ import contextlib
 import json
 import os
 import pprint
+import re
 import shutil
 import sys
 import xml.etree.ElementTree as ET
@@ -24,28 +25,27 @@ def remember_cwd():
 def scan_manifests(manifest_repo="git://github.com/couchbase/manifest"):
     """
     Syncs to the "manifest" project from the given repository, and
-    returns a list of metadata about all discovered manifests
+    returns a list of metadata about all discovered manifests. This does
+    leave things in a "manifest" subdir of the current working
+    directory.
     """
-    # Sync manifest project
-    if os.path.isdir("manifest"):
-        with remember_cwd():
-            os.chdir("manifest")
-            url = check_output(
-                ['git', 'ls-remote', '--get-url', 'origin']
-            ).decode().strip()
-        if url != manifest_repo:
-            print('"manifest" dir pointing to different remote, removing..')
-            shutil.rmtree("manifest")
+    # Sync manifest project into local directory based on mangled URL
+    os.makedirs("manifest", exist_ok=True)
+    manifest_dir = os.path.join(
+        os.getcwd(),
+        "manifest",
+        re.sub(r'[:/& ?]', '_', manifest_repo)
+    )
 
-    if not os.path.isdir("manifest"):
-        check_call(["git", "clone", manifest_repo, "manifest"])
+    if not os.path.isdir(manifest_dir):
+        check_call(["git", "clone", manifest_repo, manifest_dir])
     with remember_cwd():
-        os.chdir("manifest")
+        os.chdir(manifest_dir)
         print("Updating manifest repository...")
         check_call(["git", "fetch", "--all"])
         check_call(["git", "reset", "--hard", "origin/master"])
 
-    return get_metadata_for_products("manifest")
+    return get_metadata_for_products(manifest_dir)
 
 def get_metadata_for_products(manifest_dir):
     """
@@ -82,7 +82,8 @@ def get_metadata_for_products(manifest_dir):
 
 def _load_product_config(manifest_dir, product_path):
     """
-    Returns the "manifests" dict from a given product-config.json
+    Returns a tuple containg the "manifests" dict and the override product name
+    (default None) from a product-config.json
     """
 
     prod_config = os.path.join(manifest_dir, product_path, "product-config.json")
@@ -90,7 +91,7 @@ def _load_product_config(manifest_dir, product_path):
         config = json.load(conffile)
     if "manifests" not in config:
         return {}
-    return config["manifests"]
+    return (config["manifests"], config.get("product", None))
 
 
 def _get_metadata_for_product(manifest_dir, product_path):
@@ -102,28 +103,34 @@ def _get_metadata_for_product(manifest_dir, product_path):
     returns: dict (keyed by manifest paths) of dicts of metadata
     """
 
-    config = _load_product_config(manifest_dir, product_path)
+    config, override_product = _load_product_config(manifest_dir, product_path)
     prod_metadata = config.items()
     for manifest_path, metadata in prod_metadata:
         _append_manifest_metadata(
-            metadata, manifest_dir, manifest_path, product_path
+            metadata, manifest_dir, manifest_path, product_path, override_product
         )
     return prod_metadata
 
 
-def _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_path):
+def _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_path, override_product):
     """
-    Extends a manifest-specific dict with additional metadata
-    derived from the product path and the manifest contents.
+    Extends a manifest-specific dict with additional metadata derived
+    from the product path, product-config, and manifest contents.
     metadata: input dict to extend
     manifest_dir: root of manifest repository checkout
     manifest_path: path (relative to manifest_dir) to a manifest.xml
     product_path: path to root of product (directory containing
     a product-config.json)
+    override_product: if product-config.json has a top-level "product" key,
+    that value; otherwise None
     """
 
-    # Product name is derived from product path
-    product = product_path.replace('/', '::')
+    if override_product is not None:
+        # Override product (and product_path) if set in product-config.json
+        product = override_product
+    else:
+        # Otherwise, product name is derived from product path
+        product = product_path.replace('/', '::')
 
     # Have to actually parse the manifest to extract VERSION
     root = ET.parse(os.path.join(manifest_dir, manifest_path))
@@ -136,6 +143,7 @@ def _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_pat
     # Derived values are here
     metadata['product'] = product
     metadata['product_path'] = product_path
+    metadata['manifest_path'] = manifest_path
     metadata['prod_name'] = product.split('::')[-1]
     metadata['build_job'] = metadata.get('jenkins_job', f'{product}-build')
 
@@ -156,9 +164,9 @@ def get_metadata_for_manifest(manifest_dir, manifest_path):
         if len(product_path) < 2:
             print (f"No product-config.json found above {manifest_path}!")
             sys.exit(1)
-    config = _load_product_config(manifest_dir, product_path)
+    config, override_product = _load_product_config(manifest_dir, product_path)
     metadata = config[manifest_path]
-    _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_path)
+    _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_path, override_product)
     return metadata
 
 if __name__ == '__main__':
