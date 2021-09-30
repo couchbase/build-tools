@@ -76,3 +76,6 @@ fi
 
 # We don't want the entire manual set added to the package
 rm -rf ${INSTALL_DIR}/man ${INSTALL_DIR}/share/doc ${INSTALL_DIR}/share/man
+
+# Or pkgconfig files
+rm -rf ${INSTALL_DIR}/lib/pkgconfig

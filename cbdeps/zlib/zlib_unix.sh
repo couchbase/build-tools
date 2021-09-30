@@ -12,3 +12,5 @@ make install
 if [ $(uname -s) = "Darwin" ]; then
     install_name_tool -id @rpath/libz.1.dylib ${INSTALL_DIR}/lib/libz.1.dylib
 fi
+
+rm -rf ${INSTALL_DIR}/lib/pkgconfig
