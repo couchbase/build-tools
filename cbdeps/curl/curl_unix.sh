@@ -4,13 +4,15 @@ INSTALL_DIR=$1
 ROOT_DIR=$2
 ARCH=$8
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 cd ${ROOT_DIR}/curl
 
 # Openssl dependency
 OPENSSL_VER=1.1.1l-1
 CBDEP_TOOL_VERS=1.0.4
 
-# Download openssl via cbdeps tool
+# Download openssl via cbdep tool
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
 DEPSDIR=${WORKSPACE}/deps
 rm -rf ${DEPSDIR}
@@ -68,9 +70,13 @@ rm -rf ${INSTALL_DIR}/lib/pkgconfig
 rm -rf ${INSTALL_DIR}/share
 rm -f ${INSTALL_DIR}/lib/libcurl.la
 
-# Fix rpath for macOS libraries
 if [[ $(uname -s) == "Darwin" ]]; then
+    # Fix rpath for macOS libraries
     install_name_tool -id @rpath/libcurl.4.dylib ${INSTALL_DIR}/lib/libcurl.4.dylib
     install_name_tool -change ${INSTALL_DIR}/lib/libcurl.4.dylib @executable_path/../lib/libcurl.4.dylib ${INSTALL_DIR}/bin/curl
     install_name_tool -add_rpath @executable_path/../lib ${INSTALL_DIR}/bin/curl
+else
+    # Utilize wrapper script for Linux
+    mv ${INSTALL_DIR}/bin/curl ${INSTALL_DIR}/bin/curl.bin
+    cp -a ${SCRIPT_DIR}/curl_wrapper.sh ${INSTALL_DIR}/bin/curl
 fi
