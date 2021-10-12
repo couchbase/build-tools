@@ -1,5 +1,6 @@
 setlocal EnableDelayedExpansion
 
+
 rem Need to extract final part of PRODUCT to get actual product name
 powershell -command "& { ('%PRODUCT%' -split '::')[-1] }" > temp.txt
 set /p PROD_NAME=<temp.txt
@@ -7,11 +8,20 @@ powershell -command "& { '%PRODUCT%' -replace '::','/' }" > temp2.txt
 set /p PROD_PATH=<temp2.txt
 
 if "%WORKSPACE%" == "" (
-  set WORKDIR=%CD%
+  set ROOT_DIR=%CD%
 ) else (
-  set WORKDIR=%WORKSPACE%
+  set ROOT_DIR=%WORKSPACE%
 )
-cd %WORKDIR%
+cd %ROOT_DIR%
+
+rem Ensure latest cbdep tool is on PATH
+if not exist tools (
+  mkdir tools
+)
+set SITE=https://packages.couchbase.com/cbdep/cbdep-windows.exe
+set FILENAME=%ROOT_DIR%\tools\cbdep.exe
+powershell -command "& { (New-Object Net.WebClient).DownloadFile('%SITE%', '%FILENAME%') }" || goto error
+set PATH=%ROOT_DIR%\tools;%PATH%
 
 if NOT "%PROFILE%" == "server" (
   set BLD_NUM=%PROFILE%%BLD_NUM%
@@ -27,18 +37,12 @@ if not defined ARCH (
   set ARCH=amd64
 )
 
-echo "Determine package name information..."
-set TARBALL_NAME=%PROD_NAME%-%PLATFORM%-%ARCH%-%VERSION%-%BLD_NUM%.tgz
-set MD5_NAME=%PROD_NAME%-%PLATFORM%-%ARCH%-%VERSION%-%BLD_NUM%.md5
-
 echo "Performing build..."
 set "SCRIPT_DIR=%~dp0"
 call :normalizepath "!SCRIPT_DIR!..\%PROD_NAME%"
 set "PACKAGE_DIR=!RETVAL!"
-call :normalizepath "!SCRIPT_DIR!..\..\.."
-set "ROOT_DIR=!RETVAL!"
 
-set INSTALL_DIR=%WORKDIR%\install
+set INSTALL_DIR=%ROOT_DIR%\install
 rmdir /s /q %INSTALL_DIR%
 mkdir %INSTALL_DIR% || goto error
 
@@ -47,31 +51,9 @@ set TMP=C:\Windows\Temp
 rem Default value for source_root (ignored but must be set)
 set source_root=%CD%
 
-if "%PLATFORM%" == "windows_msvc2017" (
-  set tools_version=15.0
-  goto do_build
-)
-if "%PLATFORM%" == "windows_msvc2015" (
-  set tools_version=14.0
-  goto do_build
-)
-if "%PLATFORM%" == "windows_msvc2013" (
-  set tools_version=12.0
-  goto do_build
-)
-rem Without year, VS version defaults to 2013
-if "%PLATFORM%" == "windows_msvc" (
-  set tools_version=12.0
-  goto do_build
-)
-if "%PLATFORM%" == "windows_msvc2012" (
-  set tools_version=11.0
-  goto do_build
-)
-
 :do_build
 set target_arch=%ARCH%
-call %SCRIPT_DIR%\win32-environment.bat %tools_version% || goto error
+call %SCRIPT_DIR%\win32-environment.bat %PLATFORM% || goto error
 @echo on
 cd %PACKAGE_DIR% || goto error
 call %PROD_NAME%_windows.bat %INSTALL_DIR% %ROOT_DIR% %PLATFORM% %PROFILE% %RELEASE% %VERSION% %BLD_NUM% %ARCH% || goto error
@@ -82,12 +64,18 @@ echo "Preparing for package..."
 if exist "package" (
   xcopy package\* %INSTALL_DIR% /s /e /y || goto error
 )
+echo %VERSION%-%BLD_NUM% > %INSTALL_DIR%\VERSION.txt
 
 echo "Create package..."
-set PKG_DIR=%WORKDIR%\packages\%PROD_NAME%\%VERSION%\%BLD_NUM%
+set PKG_DIR=%ROOT_DIR%\packages\%PROD_NAME%\%VERSION%\%BLD_NUM%
 rmdir /s /q %PKG_DIR%
 mkdir %PKG_DIR% || goto error
 cd %INSTALL_DIR% || goto error
+
+rem We're going to make all Windows packages have the platform "windows" now
+set TARBALL_NAME=%PROD_NAME%-windows-%ARCH%-%VERSION%-%BLD_NUM%.tgz
+set MD5_NAME=%PROD_NAME%-windows-%ARCH%-%VERSION%-%BLD_NUM%.md5
+
 cmake -E tar czf %PKG_DIR%\%TARBALL_NAME% . || goto error
 cmake -E md5sum %PKG_DIR%\%TARBALL_NAME% > %PKG_DIR%\%MD5_NAME% || goto error
 

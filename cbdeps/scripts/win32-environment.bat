@@ -1,15 +1,40 @@
-if defined tools_version goto tools_set
-if exist "C:\Program Files (x86)\Microsoft Visual Studio 14.0" (
-  set tools_version=14.0
-) else (
-  set tools_version=12.0
+if "%PLATFORM%" == "windows_msvc2019" (
+  set tools_version=2019
+  goto do_tools_version
 )
+if "%PLATFORM%" == "windows_msvc2017" (
+  set tools_version=2017
+  goto do_tools_version
+)
+if "%PLATFORM%" == "windows_msvc2015" (
+  set tools_version=14.0
+  goto do_tools_version
+)
+if "%PLATFORM%" == "windows_msvc2013" (
+  set tools_version=12.0
+  goto do_tools_version
+)
+rem Without year, VS version defaults to 2013
+if "%PLATFORM%" == "windows_msvc" (
+  set tools_version=12.0
+  goto do_tools_version
+)
+if "%PLATFORM%" == "windows_msvc2012" (
+  set tools_version=11.0
+  goto do_tools_version
+)
+echo "Unknown platform %PLATFORM%!"
+exit 3
 
-:tools_set
-if "%tools_version%" == "15.0" (
-  set "tools_dir=C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build"
-) else (
+:do_tools_version
+echo %tools_version%| FIND /I "201">Nul && (
+  set "tools_dir=C:\Program Files (x86)\Microsoft Visual Studio\%tools_version%\Professional\VC\Auxiliary\Build"
+) || (
   set "tools_dir=C:\Program Files (x86)\Microsoft Visual Studio %tools_version%\VC"
+)
+if not exist "%tools_dir%" (
+  echo "%tools_dir% does not exist!"
+  exit 5
 )
 echo Using tools from %tools_dir%
 

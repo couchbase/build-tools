@@ -16,13 +16,22 @@ PROD_NAME=${PRODUCT#"cbdeps::"}
 PROD_PATH=${PRODUCT//::/\/}
 
 # Un-tarred build source tarball expected to live in this directory.
-# Output will be put into ${WORKDIR}/install and ${WORKDIR}/packages.
+# Output will be put into ${ROOT_DIR}/install and ${ROOT_DIR}/packages.
 if [ -z "${WORKSPACE}" ]; then
-    WORKDIR=$(pwd)
+    ROOT_DIR=$(pwd)
 else
-    WORKDIR="${WORKSPACE}"
+    ROOT_DIR="${WORKSPACE}"
 fi
-cd "${WORKDIR}"
+cd "${ROOT_DIR}"
+
+# Ensure latest cbdep tool is on path
+mkdir -p tools
+CBDEP_URL=https://packages.couchbase.com/cbdep/cbdep-$(uname -s | tr '[A-Z]' '[a-z]')-$(uname -m)
+if [ ! -e tools/cbdep ]; then
+    curl -Lf -o tools/cbdep ${CBDEP_URL}
+    chmod 755 tools/cbdep
+fi
+export PATH=$(pwd)/tools:${PATH}
 
 # Hacky support for cross-compiling Windows
 if [[ "${PLATFORM}" =~ -windowscrosscompile$ ]]; then
@@ -49,19 +58,20 @@ MD5_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.md5
 echo "Performing build..."
 PACKAGE_DIR="$( cd "$SCRIPT_DIR/../${PROD_NAME}" && pwd )" # build-tools/cbdeps/PACKAGE
 
-INSTALL_DIR=${WORKDIR}/install
+INSTALL_DIR=${ROOT_DIR}/install
 rm -rf ${INSTALL_DIR}
 mkdir -p ${INSTALL_DIR}
-${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${WORKDIR} ${PLATFORM} ${PROFILE} ${RELEASE} ${VERSION} ${BLD_NUM} ${ARCH}
+${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${PROFILE} ${RELEASE} ${VERSION} ${BLD_NUM} ${ARCH}
 
 echo "Preparing for package..."
 PACKAGE=${PACKAGE_DIR}/package
 if [ -d ${PACKAGE} ]; then
     cp -pr ${PACKAGE}/* ${INSTALL_DIR}
 fi
+echo ${VERSION}-${BLD_NUM} > ${INSTALL_DIR}/VERSION.txt
 
 echo "Create package..."
-PKG_DIR=${WORKDIR}/packages/${PROD_NAME}/${VERSION}/${BLD_NUM}
+PKG_DIR=${ROOT_DIR}/packages/${PROD_NAME}/${VERSION}/${BLD_NUM}
 rm -rf ${PKG_DIR}
 mkdir -p ${PKG_DIR}
 cd ${INSTALL_DIR}
