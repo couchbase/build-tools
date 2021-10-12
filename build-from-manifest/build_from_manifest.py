@@ -83,7 +83,6 @@ class ManifestBuilder:
 
         self.product_branch = None
         self.start_build = None
-        self.type = None
         self.parent = None
         self.parent_branch = None
         self.go_version = None
@@ -270,7 +269,6 @@ class ManifestBuilder:
 
         self.product_branch = self.manifest_config.get('branch', 'master')
         self.start_build = self.manifest_config.get('start_build', 1)
-        self.type = self.manifest_config.get('type', 'production')
         self.parent = self.manifest_config.get('parent')
         self.parent_branch = \
             self.manifests.get(self.parent, {}).get('branch', 'master')
@@ -507,7 +505,6 @@ class ManifestBuilder:
             'PRODUCT_PATH': self.product_path,
             'MANIFEST': str(self.manifest),
             'PARENT': self.parent,
-            'TYPE': self.type,
             'BUILD_JOB': self.build_job,
             'PLATFORMS': self.platforms,
             'GO_VERSION': self.go_version,
@@ -528,7 +525,6 @@ class ManifestBuilder:
                      f'PRODUCT_PATH={self.product_path}\n'
                      f'MANIFEST={self.manifest}\n'
                      f'PARENT={self.parent}\n'
-                     f'TYPE={self.type}\n'
                      f'BUILD_JOB={self.build_job}\n'
                      f'PLATFORMS={plats}\n'
                      f'GO_VERSION={self.go_version}\n'
