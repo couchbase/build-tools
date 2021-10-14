@@ -20,7 +20,7 @@ highest_version=$(
 
 # Compute tag(s) to push
 version_build=${VERSION}-${BLD_NUM}
-if [ ${highest_version} = ${VERSION} ]; then
+if [[ ${highest_version} = ${VERSION} && "${VERSION}" != *"-"* ]]; then
     tags="${version_build} latest"
 else
     tags="${version_build}"
