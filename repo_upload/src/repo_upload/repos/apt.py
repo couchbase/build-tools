@@ -310,6 +310,10 @@ class AptRepository(RepositoryBase):
         for release in self.supported_releases.get_releases():
             version, status = release
 
+            # Sadly, these versions are not to be shipped in .deb form
+            if version == "7.0.0" or version == "7.0.1":
+                continue
+
             # If aren't doing a staging run and we have
             # a development version, skip it
             if not self.staging and status == Status.DEVELOPMENT:
