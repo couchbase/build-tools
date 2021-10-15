@@ -14,7 +14,7 @@ type -P svn > /dev/null 2>&1 || {
     sudo apt-get update
     sudo apt-get install -y subversion
 }
-git --help svn > /dev/null 2>&1 || {
+[ -e /usr/lib/git-core/git-svn ] || {
     sudo apt-get update
     sudo apt-get install -y git-svn
 }
