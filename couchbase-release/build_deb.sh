@@ -47,3 +47,4 @@ sudo chown -R ${USER}:${USER} deb/${REL_NAME}
 popd
 
 cp ${this_dir}/deb/${REL_NAME}.deb ${REL_NAME}-amd64.deb
+cp ${this_dir}/deb/${REL_NAME}.deb ${REL_NAME}-noarch.deb
