@@ -70,10 +70,10 @@ PATCH_VIA_GERRIT_OPTS=${OPTS}
 EOF
 
 # And stick the build-properties into git for remote toy builders
-if [ ! -d toy-build-properties ]; then
-    git clone ssh://github.com/couchbasebuild/toy-build-properties
+if [ ! -d toy-build-manifests ]; then
+    git clone ssh://github.com/couchbasebuild/toy-build-manifests
 fi
-pushd toy-build-properties
+pushd toy-build-manifests
 git fetch --all && git reset --hard origin/master
 mkdir -p ${PRODUCT_PATH}/${RELEASE}
 cp ../build.properties ${PRODUCT_PATH}/${RELEASE}/${VERSION}.properties
@@ -123,18 +123,28 @@ if [ -e "${PRODUCT_CONFIG}" ]; then
     done
 fi
 
-echo "Removing any broken symlinks"
-echo ============================
-# Since we dereference symlinks below, any broken symlinks will cause tar to
-# fail with a mysterious "file deleted before we read it" error. Seems
-# probably best just to remove them.
-find . -xtype l -delete
+if [ "${KEEP_GIT}" = "True" ]; then
+    exclude_git_arg=""
+    set +x
+    # As with build_from_manifest.py, we dereference symlinks in .git
+    # directories so they work on Windows.
+    echo "Dereferencing .git symlinks"
+    echo =======================
+    # Make a local temp file
+    tempfile=./tmpgitfile
+    find . -type l -path '*/.git/*' -print0 | while read -rd $'\0' file; do
+        cp -aL "${file}" ${tempfile}
+        rm "${file}"
+        mv ${tempfile} "${file}"
+    done
+    set -x
+else
+    exclude_git_arg="--exclude .repo --exclude-vcs"
+fi
 
 echo "Creating source tarball"
 echo =======================
-# As with build_from_manifest.py, we dereference symlinks so .git directories
-# will work on Windows. As such, we don't actually need the .repo directory.
-tar --create --file ../source.tar.gz --gzip --dereference --exclude .repo .[A-z]* *
+tar --create --file ../source.tar.gz --gzip ${exclude_git_arg} .[A-z]* *
 
 # Create final deliverables at WORKSPACE level
 popd
