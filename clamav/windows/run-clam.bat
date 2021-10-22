@@ -1,5 +1,5 @@
 set CLAMDIR=C:\clamav
-set CLAM_FILENAME=clamav-%CLAMAV_VERSION%-win-x64-portable.zip
+set CLAM_FILENAME=clamav-%CLAMAV_VERSION%.win.x64.zip
 set CLAM_DL=%CLAMDIR%\downloads\%CLAM_FILENAME%
 set CLAM_DB=%CLAMDIR%\database
 set BUILD_TOOLS=%WORKSPACE%\build-tools\clamav\windows
@@ -10,6 +10,7 @@ if not exist %CLAM_DL% (
 )
 unzip %CLAM_DL%
 
+cd clamav-%CLAMAV_VERSION%.win.x64
 mkdir %CLAM_DB%
 freshclam --config-file=%BUILD_TOOLS%\freshclam.conf || goto error
 echo ...........................................
