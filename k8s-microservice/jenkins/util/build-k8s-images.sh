@@ -82,6 +82,7 @@ for local_product in *; do
     DOCKER_BUILDKIT=1 docker build --ssh default --pull -f Dockerfile \
         -t cb-vanilla/${short_product}:${tag} \
         --build-arg PROD_VERSION=${VERSION} \
+        --build-arg PROD_BUILD=${BLD_NUM} \
         .
 
     # Some projects don't do RHCC
