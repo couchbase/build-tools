@@ -1,0 +1,9 @@
+[common]
+gpg_file = GPG-KEY-COUCHBASE-1.0
+gpg_key = D9223EDA
+rpm_gpg_key = CD406E62
+releases_url = http://releases.service.couchbase.com/builds/releases/mobile/couchbase-lite-c
+repo_path = linux_repos/couchbase-lite-repo
+s3_base_path = releases/couchbase-lite-repo
+s3_bucket = packages-staging.couchbase.com
+staging = True

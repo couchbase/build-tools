@@ -1,0 +1,11 @@
+# ${curr_date}
+#
+# To use this sources.list file, do the following:
+#
+#   wget ${http_pkg_root}/keys/${gpg_file}
+#   gpg --import ${gpg_file}
+#   cat ${gpg_file} | sudo apt-key add -
+#   sudo apt-get update
+#
+deb ${http_pkg_root}/${edition}/deb/ ${os_version} ${os_version}/main
+deb ${sec_url} ${sec_path} main
