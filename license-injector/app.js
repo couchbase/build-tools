@@ -16,6 +16,7 @@ let repoScanLock = false
 const gitRepos = {}
 let action = "all"
 let optionalHandlers = []
+const targetPath = path.resolve(process.argv[2])
 
 for (const [i, arg] of process.argv.entries()) {
     if (i > 0) {
@@ -35,7 +36,7 @@ for (const [i, arg] of process.argv.entries()) {
 // Possible actions to take on a file, we push filenames into results[these]
 // and read from them when outputting results - note, the order they appear
 // here is the same order the output will appear when execution completes
-const actions = ['skipped', 'unhandled', 'excluded', 'ignored', 'modified', 'injected', 'missingCopyright', 'ok']
+const actions = ['toobig', 'skipped', 'unhandled', 'excluded', 'ignored', 'modified', 'injected', 'missingCopyright', 'ok']
 const results = {}
 // When outputting results, the action name is used for the heading, however
 // you can override these if we provide labels
@@ -73,13 +74,13 @@ const excludedPatterns = [
     /Licensed to the Apache Software Foundation.*$/gm,
     /License: MIT.*$/gm,
     /COUCHBASE INC. COMMUNITY EDITION LICENSE AGREEMENT.*$/gm,
-    /This is Apache 2.0 licensed free software/gm,
-    /License: Creative Commons Attribution/gm,
-    /The author hereby disclaims copyright to this source code/gm,
-    /For license information please see antlr4.js.LICENSE.txt/gm
+    /This is Apache 2.0 licensed free software.*$/gm,
+    /License: Creative Commons Attribution.*$/gm,
+    /The author hereby disclaims copyright to this source code.*$/gm,
+    /For license information please see antlr4.js.LICENSE.txt.*$/gm
 ]
 
-const excludedNames = []
+const excludedNames = ['d3.v3.min.js']
 
 const excludedExtensions = [
     "json",
@@ -139,7 +140,7 @@ const gitRepo = async (file) => {
     let exclusions = []
     if (fs.existsSync(copyrightIgnore)) {
         exclusions = fs.readFileSync(copyrightIgnore, 'utf8').trim().split('\n').map(x => {
-            return `^${process.argv[2]}/${x.trim().replace(/^\.\//, '')}`
+            return `${targetPath}/${x.trim()}`
         }).filter(x => x != root)
     }
     const gitRepo = { exclusions, root }
@@ -194,13 +195,19 @@ function loadHandlers() {
         // split a line array before and after any handler.after matches
         handler.beforeAndAfter = (lineArray) => {
             let before = [], after
-            lineArray.forEach((el, i) => {
-                if (handler?.after?.some(x => el.search(x) >= 0)) {
-                    before = [...lineArray.slice(0, i + 1), '']
-                    if (lineArray[i + 1] == '') lineArray = lineArray.slice(1)
-                    after = [...lineArray.slice(i + 1)]
-                }
-            })
+            const Hit = {};
+            try {
+                lineArray.forEach((el, i) => {
+                    if (handler?.after?.some(x => el.search(x) >= 0)) {
+                        before = [...lineArray.slice(0, i + 1), '']
+                        if (lineArray[i + 1] == '') lineArray = lineArray.slice(1)
+                        after = [...lineArray.slice(i + 1)]
+                        throw Hit
+                    }
+                })
+            } catch (e) {
+                if (e !== Hit) throw(e)
+            }
             if (before.length === 0) { before = []; after = lineArray }
             return [before, after]
         }
@@ -330,14 +337,14 @@ function findLicense(text, startLine) {
             for (const pattern of oldCopyrightHeaders) {
                 const patternPos = line.match(pattern)
                 if (patternPos?.index > -1) {
-                    for(const l of text.lines.slice(i,i+10)) {
-                        if(l.search(/^.*(A|a)uthor/) >= 0) {
+                    for (const l of text.lines.slice(i, i + 10)) {
+                        if (l.search(/^.*(A|a)uthor/) >= 0) {
                             author.push(l)
                         }
                     }
                     const prefix = line.slice(0, patternPos.index)
                     for (license of allLicenses) {
-                        for(const [n, l] of text.lines.slice(i,i+10).entries()) {
+                        for (const [n, l] of text.lines.slice(i, i + 10).entries()) {
                             if (l?.endsWith?.(license.lines[0])) {
                                 licenseFirstLine = i + n
                             }
@@ -397,7 +404,9 @@ async function isIgnored(file) {
     if (excludedExtensions.some(x => x == extension(file))) {
         return true
     }
-    if ((await gitRepo(file))?.exclusions?.some(excl => new RegExp(excl).test(file))) {
+    if ((await gitRepo(file))?.exclusions?.some(excl => {
+        return new RegExp(excl).test(file)
+    })) {
         return true
     }
     if (!(await isText(file))) {
@@ -419,9 +428,9 @@ async function modifyExisting(file, sourceFile) {
         .concat(sourceFile.match.copyrightLine)
         .concat([
             rtrim(sourceFile.match.prefix ?? '') + ltrim(sourceFile.match.copyrightSuffix ?? ''),
-            sourceFile?.match?.author?.join(sourceFile.linebreak) ?? null, sourceFile?.match?.author?.length>0 ? rtrim(sourceFile.match.prefix) : null,
+            sourceFile?.match?.author?.length > 0 ? author + sourceFile.linebreak : '___remove___', sourceFile?.match?.author?.length > 0 ? rtrim(sourceFile.match.prefix) : '___remove___',
             ...targetLicense.lines.map(
-                (x, i) => x.trim() ? `${sourceFile.match.prefix}${x}` : rtrim(sourceFile.match.prefix) + ltrim(i < targetLicense.lines.length - 1 ? sourceFile.match.startSuffix : sourceFile.match.endSuffix))].filter(Boolean))
+                (x, i) => x.trim() ? `${sourceFile.match.prefix}${x}` : rtrim(sourceFile.match.prefix) + ltrim(i < targetLicense.lines.length - 1 ? sourceFile.match.startSuffix : sourceFile.match.endSuffix))].filter(x => x !== '___remove___'))
         .concat(sourceFile.match.post)
         .join(sourceFile.linebreak)
     return fs.writeFileSync(`${file}`, output)
@@ -470,6 +479,16 @@ async function processFile(file) {
         unqueue(file)
         return false
     }
+
+    // There's too much pattern matching going on, to avoid jobs taking forever
+    // we set a limit of 640k files. As we're skipping processing these, we
+    // also add to .copyrightignore, to prompt for manual review and edit
+    if (fs.statSync(file).size > 655360) {
+        results.toobig.push(file)
+        unqueue(file)
+        return false
+    }
+
     let sourceFile = readSrcFile(file)
     const initialText = sourceFile.text
 
@@ -556,7 +575,7 @@ async function processFile(file) {
 }
 
 function listFiles(action) {
-    results[action].length > 0 && console.log(`${resultLabels[action] || action.charAt(0).toUpperCase() + action.slice(1)}:\n${results[action].sort().map(x => "    " + x.slice(process.argv[2].length + 1)).join("\n")}`)
+    results[action].length > 0 && console.log(`${resultLabels[action] || action.charAt(0).toUpperCase() + action.slice(1)}:\n${results[action].sort().map(x => "    " + x).join("\n")}`)
 }
 
 function showTotals() {
@@ -573,10 +592,23 @@ const targetLicenses = allLicenses.filter(s => {
     return b.wrap - a.wrap
 })
 
+function writeCopyrightIgnore() {
+    let oldCopyrightIgnores = []
+    if (fs.existsSync('.copyrightignore')) {
+        oldCopyrightIgnores = fs.readFileSync('.copyrightignore', 'utf8').trim().split('\n')
+    }
+    if (results.toobig.length > 0) {
+        const replace = `^${targetPath}/`;
+        const re = new RegExp(replace, "g");
+        newCopyrightIgnores = oldCopyrightIgnores.concat(results.toobig.map(x => x.replace(re, "")))
+        fs.writeFileSync(`${targetPath}/.copyrightignore`, [...new Set(newCopyrightIgnores)].join("\n"))
+    }
+}
+
 async function main() {
     // get a listing of all the files in path specified in arg[0]
-    console.log("Processing", process.argv[2])
-    const files = await allFiles(process.argv[2])
+    console.log("Processing", targetPath)
+    const files = await allFiles(targetPath)
     fileList = files.filter(x => !excludedExtensions.includes(extension(x)))
     results['excluded'] = files.filter(x => excludedExtensions.includes(extension(x)))
     const numFiles = fileList.length
@@ -594,11 +626,12 @@ async function main() {
     while (q.length > 0 || processes > 0) {
         await sleep(20)
     }
-    log.INFO(`Processed ${numFiles} files in ${process.argv[2]}`)
+    log.INFO(`Processed ${numFiles} files in ${targetPath}`)
     showTotals()
     console.log()
     actions.map(listFiles)
     showTotals()
+    writeCopyrightIgnore()
     console.log()
 }
 

@@ -125,6 +125,10 @@ cat "${SCRIPT_DIR}/assets/BSL-Couchbase.txt.tmpl" \
     > ${BSL_LIC}
 git add ${BSL_LIC}
 
+# Inject/Update license headers
+target_license=bsl node ${SCRIPT_DIR}/../license-injector/app.js .
+[ -f ".copyrightignore" ] && git add .copyrightignore
+
 # If we made any changes, commit them (or report if dry-run)
 if git diff --exit-code --cached > /dev/null; then
     status "${REPOSITORY} repository clean!"
@@ -143,7 +147,7 @@ else
         git reset --hard &> /dev/null
     else
         status "Committing BSL changes to repository ${REPOSITORY}:"
-        git commit -m "Update BSL license to ${PRODUCT} Version ${VERSION}"
+        git commit -am "BSL License updates - ${PRODUCT} Version ${VERSION}"
         git push ssh://review.couchbase.org:29418/${REPOSITORY} HEAD:refs/for/${BRANCH}
     fi
 fi
