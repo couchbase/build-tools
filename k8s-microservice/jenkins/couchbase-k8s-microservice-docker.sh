@@ -15,7 +15,7 @@ ${script_dir}/util/build-k8s-images.sh ${PRODUCT} ${VERSION} ${BLD_NUM} 1
 # Figure out if this is the highest current version being built
 highest_version=$(
     curl --silent http://dbapi.build.couchbase.com:8000/v1/products/${PRODUCT}/releases \
-    | jq --raw-output '.releases[-1]'
+    | jq --raw-output '[ .[][] | select(contains("-")|not) ] | .[-1]'
 )
 
 # Compute tag(s) to push
