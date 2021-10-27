@@ -10,6 +10,13 @@ function product_in_rhcc {
     return 0
 }
 
+# NOTE: this function assumes that VERSION == RELEASE; in particular it
+# uses VERSION for the path on latestbuilds, which should be RELEASE.
+# So don't use this function for products that use different values
+# for VERSION and RELEASE.
+# NOTE: this function also assumes that there is a project in the
+# manifest with the exact name of the PRODUCT, and that that project
+# is the one to tag.
 function tag_release {
     if [ ${#} -ne 3 ]
     then
@@ -22,17 +29,8 @@ function tag_release {
     curl --fail -LO http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml
 
     REVISION=$(xmllint --xpath "string(//project[@name=\"${PRODUCT}\"]/@revision)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
-    DEFAULT_REMOTE=$(xmllint --xpath "string(//default/@remote)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
-    PROJECT_REMOTE=$(xmllint --xpath "string(//project[@name=\"${PRODUCT}\"]/@remote)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
 
-    if [ "${PROJECT_REMOTE}" != "" ]
-    then
-        GERRIT_HOST=$(xmllint --xpath "string(//remote[@name=\"${PROJECT_REMOTE}\"]/@review)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
-    else
-        GERRIT_HOST=$(xmllint --xpath "string(//remote[@name=\"${DEFAULT_REMOTE}\"]/@review)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
-    fi
-
-    git clone "ssh://${GERRIT_HOST}:29418/${PRODUCT}.git"
+    git clone "ssh://review.couchbase.org:29418/${PRODUCT}.git"
 
     pushd "${PRODUCT}"
     if [ "${REVISION}" = "" ]
@@ -47,7 +45,7 @@ function tag_release {
             error "Tag ${VERSION} already exists, please investigate ($(git rev-parse -n1 ${VERSION}))"
         else
             git tag -a "${VERSION}" "${REVISION}" -m "Version ${VERSION}"
-            git push "ssh://${GERRIT_HOST}:29418/${PRODUCT}.git" ${VERSION}
+            git push "ssh://review.couchbase.org:29418/${PRODUCT}.git" ${VERSION}
         fi
     fi
     popd
