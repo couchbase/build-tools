@@ -41,8 +41,8 @@ mkdir -p ${release_dir}
 cd ${release_dir}
 shopt -s nullglob
 for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
-    if [[ $file =~ .*source.tar.gz ]]; then
-        echo Skipping source file $file
+    if [[ $file =~ .*source.tar.gz || $file =~ ${PRODUCT}-image.* ]]; then
+        echo Skipping file $file
         continue
     fi
     filename=$(basename ${file/${VERSION}-${BLD_NUM}/${public_tag}})
