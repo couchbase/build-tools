@@ -64,6 +64,19 @@ if [ -x "${PROD_DIR}/get_additional_source.sh" ]; then
   "${PROD_DIR}/get_additional_source.sh" ${RELEASE}
 fi
 
+# Product-specific environment overrides
+if [ -e "${PROD_DIR}/scan-environment.sh" ]; then
+  SCAN_ENV=$("${PROD_DIR}/scan-environment.sh")
+  if [ $? != 0 ]; then
+    echo "Error setting override environment! Output was"
+    echo "${SCAN_ENV}"
+    exit 3
+  fi
+  eval "${SCAN_ENV}"
+  echo "Environment after injection from scan-environment.sh:"
+  env
+fi
+
 # Normally remove .git directories
 if [ "${KEEP_GIT}" != true ]; then
     find . -name .git -print0 | xargs -0 rm -rf
