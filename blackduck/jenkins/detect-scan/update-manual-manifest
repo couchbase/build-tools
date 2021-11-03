@@ -207,6 +207,27 @@ class UpdateComponents:
             if comp_id is None:
                 comp_id = self.find_component(comp_lower, versions[0])
 
+            # Special hack: Black Duck randomly shifts the versions of erlang
+            # between OTP-x.y.z and x.y.z, and this can change from day to day.
+            # So if we find that our manifest differs from the version already
+            # specified in Black Duck by only the leading "OTP-", then patch
+            # our manifest version number to match.
+            if comp_lower.startswith("erlang") and "erlang-otp" in self.comp_ids:
+                manual_versions = self.comp_map[self.comp_ids["erlang-otp"]]["versions"]
+                updated_versions = []
+                for version in versions:
+                    if version.startswith("OTP-"):
+                        other_version = version[4:]
+                    else:
+                        other_version = f"OTP-{version}"
+                    if other_version in manual_versions:
+                        updated_versions.append(other_version)
+                    else:
+                        updated_versions.append(version)
+                versions = updated_versions
+                # Also handle Black Duck's shifting idea of what the component
+                # itself is called
+                comp_lower = "erlang-otp"
             logging.debug(f"Adding component {comp_lower} ({comp_id}) with versions {versions} to manifest")
             self.manifest[comp_id]["bd-name"] = comp_lower
             self.manifest[comp_id]["versions"].update(versions)
