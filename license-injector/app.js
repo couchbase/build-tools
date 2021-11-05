@@ -77,7 +77,8 @@ const excludedPatterns = [
     /This is Apache 2.0 licensed free software.*$/gm,
     /License: Creative Commons Attribution.*$/gm,
     /The author hereby disclaims copyright to this source code.*$/gm,
-    /For license information please see antlr4.js.LICENSE.txt.*$/gm
+    /For license information please see antlr4.js.LICENSE.txt.*$/gm,
+    /Released under the MIT license.*$/gm
 ]
 
 const excludedNames = ['d3.v3.min.js']
@@ -428,7 +429,7 @@ async function modifyExisting(file, sourceFile) {
         .concat(sourceFile.match.copyrightLine)
         .concat([
             rtrim(sourceFile.match.prefix ?? '') + ltrim(sourceFile.match.copyrightSuffix ?? ''),
-            sourceFile?.match?.author?.length > 0 ? author + sourceFile.linebreak : '___remove___', sourceFile?.match?.author?.length > 0 ? rtrim(sourceFile.match.prefix) : '___remove___',
+            sourceFile?.match?.author?.length > 0 ? sourceFile?.match?.author + sourceFile.linebreak : '___remove___', sourceFile?.match?.author?.length > 0 ? rtrim(sourceFile.match.prefix) : '___remove___',
             ...targetLicense.lines.map(
                 (x, i) => x.trim() ? `${sourceFile.match.prefix}${x}` : rtrim(sourceFile.match.prefix) + ltrim(i < targetLicense.lines.length - 1 ? sourceFile.match.startSuffix : sourceFile.match.endSuffix))].filter(x => x !== '___remove___'))
         .concat(sourceFile.match.post)
@@ -481,9 +482,9 @@ async function processFile(file) {
     }
 
     // There's too much pattern matching going on, to avoid jobs taking forever
-    // we set a limit of 640k files. As we're skipping processing these, we
+    // we set a reasonable limit. As we're skipping processing these, we
     // also add to .copyrightignore, to prompt for manual review and edit
-    if (fs.statSync(file).size > 655360) {
+    if (fs.statSync(file).size > 1000000) {
         results.toobig.push(file)
         unqueue(file)
         return false
