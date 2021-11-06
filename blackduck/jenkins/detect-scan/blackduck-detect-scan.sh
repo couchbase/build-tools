@@ -65,7 +65,7 @@ if [ -x "${PROD_DIR}/get_additional_source.sh" ]; then
 fi
 
 # Product-specific environment overrides
-if [ -e "${PROD_DIR}/scan-environment.sh" ]; then
+if [ -x "${PROD_DIR}/scan-environment.sh" ]; then
   SCAN_ENV=$("${PROD_DIR}/scan-environment.sh")
   if [ $? != 0 ]; then
     echo "Error setting override environment! Output was"
