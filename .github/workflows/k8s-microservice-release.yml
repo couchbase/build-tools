@@ -1,7 +1,6 @@
 # This workflow aims to create a release from the most current tag
 # The release will contain a changelog (from previous tag to current)
-# and artifacts (which are downloaded from packages.couchbase.com
-# and attached)
+# and artifacts (which are downloaded and attached)
 #
 # To use it in a repo, create .github/workflows/release.yml with
 # the following:
@@ -16,16 +15,18 @@
 #
 # jobs:
 #   release:
-#     uses: couchbase/build-tools/.github/workflows/create-release.yml@master
+#     uses: couchbase/build-tools/.github/workflows/k8s-microservice-release.yml@master
 #     with:
-#       artifacts: |
+#       artifact_base_url: s3://packages.couchbase.com/{0}/{1}
+#       artifact_names: |
 #         ["{0}-image_{1}.tgz", "{0}-image_{1}.tgz.sha256"]
 # ------
 #
-# Note: with/artifacts is optional, but if provided should be a JSON
-# stringified array of filenames; these will be downloaded from
-# https://packages.couchbase.com/[repo]/[tag]/ and uploaded to the
-# release. Also note some substitutions are handled automatically:
+# Note: the with block is optional, but if provided should include
+# an artifact_base_url (string) and a json stringified array of
+# filnames. These files will be downloaded from [artifact_base_url ]
+# and uploaded to the release. Also note some substitutions are handled
+# automatically (both in the artifact_names and artifact_base_url):
 #   - {0} => repository name
 #   - {1} => current tag/version
 
@@ -33,8 +34,13 @@
 on:
   workflow_call:
     inputs:
-      artifacts:
-        description: 'Stringified JSON list of artifacts'
+      artifact_base_url:
+        description: Base URL for artifacts
+        required: false
+        default: ""
+        type: string
+      artifact_names:
+        description: Stringified JSON object listing artifacts
         default: '[]'
         required: false
         type: string
@@ -47,6 +53,7 @@ jobs:
     name: Gather info
     runs-on: ubuntu-latest
     outputs:
+      base_url: ${{ env.BASE_URL }}
       current_tag: ${{ env.CURRENT_TAG }}
       previous_tag: ${{ env.PREVIOUS_TAG }}
       changelog: ${{ env.CHANGELOG }}
@@ -59,6 +66,8 @@ jobs:
         run: echo "CURRENT_TAG=$(git tag --sort=-creatordate | grep -v '-' | head -1)" >> $GITHUB_ENV
       - name: Get previous tag
         run: echo "PREVIOUS_TAG=$(git tag --sort=-creatordate | grep -v '-' | head -2 | tail -1)" >> $GITHUB_ENV
+      - name: Get base URL
+        run: echo "BASE_URL=${{ format(inputs.artifact_base_url, github.event.repository.name, env.CURRENT_TAG) }}${{ (endsWith(inputs.artifact_base_url, '/') && '') || '/' }}" >> $GITHUB_ENV
       - name: Get changelog
         run: |
           CHANGELOG=$(cat << EOF
@@ -77,19 +86,20 @@ jobs:
     needs: gather-info
     strategy:
       matrix:
-        ARTIFACTS: ${{ fromJson(inputs.artifacts) }}
-    if: ${{ fromJSON(inputs.artifacts)[0] }}
+        ARTIFACTS: ${{ fromJson(inputs.artifact_names) }}
+    if: ${{ fromJSON(inputs.artifact_names)[0] }}
     steps:
       - name: Get artifact name
         run: echo "ARTIFACT_NAME=${{ format(matrix.ARTIFACTS, github.event.repository.name, needs.gather-info.outputs.current_tag) }}" >> $GITHUB_ENV
       - name: Check download is OK
-        run: curl -fI https://packages.couchbase.com/${{ github.event.repository.name }}/${{ needs.gather-info.outputs.current_tag }}/${{ env.ARTIFACT_NAME }};
+        run: curl -fI ${{ needs.gather-info.outputs.BASE_URL }}${{ env.ARTIFACT_NAME }}
 
   # Create a release from the pushed tag
   release:
     name: Create Release
     runs-on: ubuntu-latest
     needs: [gather-info, pre-flight-checks]
+    if: ${{ !failure() }}
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
@@ -114,13 +124,13 @@ jobs:
     needs: [gather-info, pre-flight-checks, release]
     strategy:
       matrix:
-        ARTIFACTS: ${{ fromJson(inputs.artifacts) }}
-    if: ${{ fromJSON(inputs.artifacts)[0] }}
+        ARTIFACTS: ${{ fromJson(inputs.artifact_names) }}
+    if: ${{ fromJSON(inputs.artifact_names)[0] }}
     steps:
       - name: Get artifact name
         run: echo "ARTIFACT_NAME=${{ format(matrix.ARTIFACTS, github.event.repository.name, needs.gather-info.outputs.current_tag) }}" >> $GITHUB_ENV
       - name: Download
-        run: curl -fLO https://packages.couchbase.com/${{ github.event.repository.name }}/${{ needs.gather-info.outputs.current_tag }}/${{ env.ARTIFACT_NAME }};
+        run: curl -fLO ${{ needs.gather-info.outputs.BASE_URL }}${{ env.ARTIFACT_NAME }};
       - name: Get MIME type
         run: echo "MIME_TYPE=$(file -b --mime-type ${{ env.ARTIFACT_NAME }})" >> $GITHUB_ENV
       - name: Upload
