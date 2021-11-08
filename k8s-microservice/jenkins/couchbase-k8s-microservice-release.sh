@@ -29,9 +29,6 @@ case "${PRODUCT}" in
         ;;
 esac
 
-# Add git tag for release
-tag_release "${PRODUCT}" "${public_tag}" "${BLD_NUM}"
-
 ################### ARTIFACTS
 
 # Upload artifacts to S3
@@ -53,3 +50,8 @@ for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
     aws s3 cp --content-type "text/plain" ${filename}.sha256 \
       s3://packages.couchbase.com/${PRODUCT}/${public_tag}/${filename}.sha256 --acl public-read
 done
+
+# Add git tag for release - this should take place after the S3 upload
+# to ensure artifacts are available to any subsequent workflow
+# execution
+tag_release "${PRODUCT}" "${public_tag}" "${BLD_NUM}"
