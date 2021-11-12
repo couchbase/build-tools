@@ -40,9 +40,9 @@ function tag_release {
     then
         error "Expected to find a commit, found a $(git cat-file -t ${REVISION}) instead"
     else
-        if git tag | grep "${VERSION}" &>/dev/null
+        if [ $(git tag -l "${VERSION}") ]
         then
-            error "Tag ${VERSION} already exists, please investigate ($(git rev-parse -n1 ${VERSION}))"
+            error "Tag ${VERSION} already exists, please investigate"
         else
             git tag -a "${VERSION}" "${REVISION}" -m "Version ${VERSION}"
             git push "ssh://review.couchbase.org:29418/${PRODUCT}.git" ${VERSION}

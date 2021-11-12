@@ -35,7 +35,7 @@ esac
 
 release_dir=/releases/${PRODUCT}/${public_tag}
 mkdir -p ${release_dir}
-cd ${release_dir}
+pushd ${release_dir}
 shopt -s nullglob
 for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
     if [[ $file =~ .*source.tar.gz || $file =~ ${PRODUCT}-image.* ]]; then
@@ -50,6 +50,7 @@ for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
     aws s3 cp --content-type "text/plain" ${filename}.sha256 \
       s3://packages.couchbase.com/${PRODUCT}/${public_tag}/${filename}.sha256 --acl public-read
 done
+popd
 
 # Add git tag for release - this should take place after the S3 upload
 # to ensure artifacts are available to any subsequent workflow
