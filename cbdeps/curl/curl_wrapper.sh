@@ -20,4 +20,4 @@ for cert_file in ${cert_files[@]}; do
     fi
 done
 
-exec "${D0}/curl.bin" "$@"
+exec "${D0}/curl.real" "$@"

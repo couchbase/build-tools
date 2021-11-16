@@ -77,6 +77,6 @@ if [[ $(uname -s) == "Darwin" ]]; then
     install_name_tool -add_rpath @executable_path/../lib ${INSTALL_DIR}/bin/curl
 else
     # Utilize wrapper script for Linux
-    mv ${INSTALL_DIR}/bin/curl ${INSTALL_DIR}/bin/curl.bin
+    mv ${INSTALL_DIR}/bin/curl ${INSTALL_DIR}/bin/curl.real
     cp -a ${SCRIPT_DIR}/curl_wrapper.sh ${INSTALL_DIR}/bin/curl
 fi
