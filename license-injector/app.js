@@ -339,7 +339,7 @@ function findLicense(text, startLine) {
                 const patternPos = line.match(pattern)
                 if (patternPos?.index > -1) {
                     for (const l of text.lines.slice(i, i + 10)) {
-                        if (l.search(/^.*(A|a)uthor/) >= 0) {
+                        if (l.search(/\b(A|a)uthor\b/) >= 0) {
                             author.push(l)
                         }
                     }
