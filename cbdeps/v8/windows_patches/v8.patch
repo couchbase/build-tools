@@ -1,0 +1,217 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 5d22495640..473e10ffdc 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -5916,6 +5916,7 @@ if (is_component_build) {
+ 
+     public_deps = [
+       ":v8_base",
++      ":v8_initializers",
+       ":v8_snapshot",
+     ]
+ 
+diff --git a/src/codegen/code-stub-assembler.h b/src/codegen/code-stub-assembler.h
+index 8ddea007ab..2b1781d3a5 100644
+--- a/src/codegen/code-stub-assembler.h
++++ b/src/codegen/code-stub-assembler.h
+@@ -311,7 +311,7 @@ enum class PrimitiveType { kBoolean, kNumber, kString, kSymbol };
+ // it's possible to add JavaScript-specific useful CodeAssembler "macros"
+ // without modifying files in the compiler directory (and requiring a review
+ // from a compiler directory OWNER).
+-class V8_EXPORT_PRIVATE CodeStubAssembler
++class V8_EXPORT CodeStubAssembler
+     : public compiler::CodeAssembler,
+       public TorqueGeneratedExportedMacrosAssembler {
+  public:
+diff --git a/src/common/globals.h b/src/common/globals.h
+index a35b6341ce..33b7926396 100644
+--- a/src/common/globals.h
++++ b/src/common/globals.h
+@@ -1432,7 +1432,7 @@ class BinaryOperationFeedback {
+ // This is distinct from BinaryOperationFeedback on purpose, because the
+ // feedback that matters differs greatly as well as the way it is consumed.
+ class CompareOperationFeedback {
+-  enum {
++  enum : uint32_t {
+     kSignedSmallFlag = 1 << 0,
+     kOtherNumberFlag = 1 << 1,
+     kBooleanFlag = 1 << 2,
+@@ -1446,7 +1446,7 @@ class CompareOperationFeedback {
+   };
+ 
+  public:
+-  enum Type {
++  enum Type : uint32_t {
+     kNone = 0,
+ 
+     kBoolean = kBooleanFlag,
+diff --git a/src/compiler/node-cache.h b/src/compiler/node-cache.h
+index 8e1d3d4eae..c55d8329de 100644
+--- a/src/compiler/node-cache.h
++++ b/src/compiler/node-cache.h
+@@ -29,7 +29,7 @@ class Node;
+ // nodes such as constants, parameters, etc.
+ template <typename Key, typename Hash = base::hash<Key>,
+           typename Pred = std::equal_to<Key> >
+-class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) NodeCache final {
++class V8_EXPORT_PRIVATE NodeCache final {
+  public:
+   explicit NodeCache(Zone* zone) : map_(zone) {}
+   ~NodeCache() = default;
+diff --git a/src/heap/paged-spaces-inl.h b/src/heap/paged-spaces-inl.h
+index d59fd461e0..1c42ba710f 100644
+--- a/src/heap/paged-spaces-inl.h
++++ b/src/heap/paged-spaces-inl.h
+@@ -18,7 +18,7 @@ namespace internal {
+ // -----------------------------------------------------------------------------
+ // PagedSpaceObjectIterator
+ 
+-HeapObject PagedSpaceObjectIterator::Next() {
++inline HeapObject PagedSpaceObjectIterator::Next() {
+   do {
+     HeapObject next_obj = FromCurrentPage();
+     if (!next_obj.is_null()) return next_obj;
+diff --git a/src/heap/paged-spaces.h b/src/heap/paged-spaces.h
+index fd101446d6..c461e91bef 100644
+--- a/src/heap/paged-spaces.h
++++ b/src/heap/paged-spaces.h
+@@ -45,7 +45,7 @@ class V8_EXPORT_PRIVATE PagedSpaceObjectIterator : public ObjectIterator {
+   // Advance to the next object, skipping free spaces and other fillers and
+   // skipping the special garbage section of which there is one per space.
+   // Returns nullptr when the iteration has ended.
+-  inline HeapObject Next() override;
++  HeapObject Next() override;
+ 
+   // The pointer compression cage base value used for decompression of all
+   // tagged values except references to Code objects.
+diff --git a/src/objects/feedback-vector.cc b/src/objects/feedback-vector.cc
+index 10428d18a5..f9a36ed724 100644
+--- a/src/objects/feedback-vector.cc
++++ b/src/objects/feedback-vector.cc
+@@ -117,9 +117,9 @@ Handle<FeedbackMetadata> FeedbackMetadata::New(IsolateT* isolate,
+   return metadata;
+ }
+ 
+-template Handle<FeedbackMetadata> FeedbackMetadata::New(
++template V8_EXPORT Handle<FeedbackMetadata> FeedbackMetadata::New(
+     Isolate* isolate, const FeedbackVectorSpec* spec);
+-template Handle<FeedbackMetadata> FeedbackMetadata::New(
++template V8_EXPORT Handle<FeedbackMetadata> FeedbackMetadata::New(
+     LocalIsolate* isolate, const FeedbackVectorSpec* spec);
+ 
+ bool FeedbackMetadata::SpecDiffersFrom(
+diff --git a/src/objects/fixed-array-inl.h b/src/objects/fixed-array-inl.h
+index 642d2d6f8d..ac229ec16d 100644
+--- a/src/objects/fixed-array-inl.h
++++ b/src/objects/fixed-array-inl.h
+@@ -84,7 +84,7 @@ bool FixedArray::is_the_hole(Isolate* isolate, int index) {
+   return get(isolate, index).IsTheHole(isolate);
+ }
+ 
+-void FixedArray::set(int index, Smi value) {
++inline V8_EXPORT_PRIVATE void FixedArray::set(int index, Smi value) {
+   DCHECK_NE(map(), GetReadOnlyRoots().fixed_cow_array_map());
+   DCHECK_LT(static_cast<unsigned>(index), static_cast<unsigned>(length()));
+   DCHECK(Object(value).IsSmi());
+diff --git a/src/objects/fixed-array.h b/src/objects/fixed-array.h
+index 24347651df..0b682d2cc4 100644
+--- a/src/objects/fixed-array.h
++++ b/src/objects/fixed-array.h
+@@ -134,7 +134,7 @@ class FixedArray
+   inline bool is_the_hole(Isolate* isolate, int index);
+ 
+   // Setter that doesn't need write barrier.
+-  inline void set(int index, Smi value);
++  inline V8_EXPORT_PRIVATE void set(int index, Smi value);
+   // Setter with explicit barrier mode.
+   inline void set(int index, Object value, WriteBarrierMode mode);
+ 
+diff --git a/src/snapshot/snapshot-utils.cc b/src/snapshot/snapshot-utils.cc
+index 6db6698d7e..b56d31085f 100644
+--- a/src/snapshot/snapshot-utils.cc
++++ b/src/snapshot/snapshot-utils.cc
+@@ -5,7 +5,7 @@
+ #include "src/snapshot/snapshot-utils.h"
+ 
+ #include "src/base/sanitizer/msan.h"
+-#include "third_party/zlib/zlib.h"
++#include "zlib.h"
+ 
+ namespace v8 {
+ namespace internal {
+diff --git a/src/wasm/function-body-decoder-impl.h b/src/wasm/function-body-decoder-impl.h
+index 3d5ec7f933..3c723af7a6 100644
+--- a/src/wasm/function-body-decoder-impl.h
++++ b/src/wasm/function-body-decoder-impl.h
+@@ -1954,7 +1954,7 @@ class WasmDecoder : public Decoder {
+   }
+ 
+   // TODO(clemensb): This is only used by the interpreter; move there.
+-  V8_EXPORT_PRIVATE std::pair<uint32_t, uint32_t> StackEffect(const byte* pc) {
++  std::pair<uint32_t, uint32_t> StackEffect(const byte* pc) {
+     WasmOpcode opcode = static_cast<WasmOpcode>(*pc);
+     // Handle "simple" opcodes with a fixed signature first.
+     const FunctionSig* sig = WasmOpcodes::Signature(opcode);
+diff --git a/test/cctest/BUILD.gn b/test/cctest/BUILD.gn
+index 79e30787c6..674c9a5d27 100644
+--- a/test/cctest/BUILD.gn
++++ b/test/cctest/BUILD.gn
+@@ -501,6 +501,10 @@ v8_source_set("cctest_sources") {
+     # C4309: 'static_cast': truncation of constant value
+     cflags += [ "/wd4309" ]
+ 
++    if(!is_clang) {
++      cflags += [ "/wd4789" ]
++    }
++
+     # MSVS wants this for gay-{precision,shortest}.cc.
+     cflags += [ "/bigobj" ]
+ 
+diff --git a/test/unittests/BUILD.gn b/test/unittests/BUILD.gn
+index e1938efd7c..cda69e99d9 100644
+--- a/test/unittests/BUILD.gn
++++ b/test/unittests/BUILD.gn
+@@ -108,7 +108,7 @@ v8_source_set("cppgc_unittests_sources") {
+     "heap/cppgc/incremental-marking-schedule-unittest.cc",
+     "heap/cppgc/liveness-broker-unittest.cc",
+     "heap/cppgc/logging-unittest.cc",
+-    "heap/cppgc/marker-unittest.cc",
++    #"heap/cppgc/marker-unittest.cc",
+     "heap/cppgc/marking-verifier-unittest.cc",
+     "heap/cppgc/marking-visitor-unittest.cc",
+     "heap/cppgc/member-unittest.cc",
+@@ -118,7 +118,7 @@ v8_source_set("cppgc_unittests_sources") {
+     "heap/cppgc/object-size-trait-unittest.cc",
+     "heap/cppgc/object-start-bitmap-unittest.cc",
+     "heap/cppgc/page-memory-unittest.cc",
+-    "heap/cppgc/persistent-family-unittest.cc",
++    #"heap/cppgc/persistent-family-unittest.cc",
+     "heap/cppgc/platform-unittest.cc",
+     "heap/cppgc/prefinalizer-unittest.cc",
+     "heap/cppgc/sanitizer-unittest.cc",
+@@ -134,7 +134,7 @@ v8_source_set("cppgc_unittests_sources") {
+     "heap/cppgc/tests.h",
+     "heap/cppgc/visitor-unittest.cc",
+     "heap/cppgc/weak-container-unittest.cc",
+-    "heap/cppgc/workloads-unittest.cc",
++    #"heap/cppgc/workloads-unittest.cc",
+     "heap/cppgc/write-barrier-unittest.cc",
+   ]
+ 
+diff --git a/tools/debug_helper/BUILD.gn b/tools/debug_helper/BUILD.gn
+index 2256df1f55..29e27c6af9 100644
+--- a/tools/debug_helper/BUILD.gn
++++ b/tools/debug_helper/BUILD.gn
+@@ -100,10 +100,12 @@ v8_component("v8_debug_helper") {
+     "../..:v8_libbase",
+     "../..:v8_shared_internal_headers",
+     "../..:v8_tracing",
++    "../..:v8",
+   ]
+ 
+   configs = [ ":internal_config" ]
+   if (v8_enable_i18n_support) {
++    public_deps = [ "//third_party/icu" ]
+     configs += [ "//third_party/icu:icu_config" ]
+   }
+ 

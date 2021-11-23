@@ -1,0 +1,13 @@
+diff --git a/test/cctest/BUILD.gn b/test/cctest/BUILD.gn
+index 79e30787c6..780a8f68a5 100644
+--- a/test/cctest/BUILD.gn
++++ b/test/cctest/BUILD.gn
+@@ -205,7 +205,7 @@ v8_source_set("cctest_sources") {
+     "test-circular-queue.cc",
+     "test-code-layout.cc",
+     "test-code-pages.cc",
+-    "test-code-stub-assembler.cc",
++    #"test-code-stub-assembler.cc",
+     "test-compiler.cc",
+     "test-concurrent-descriptor-array.cc",
+     "test-concurrent-feedback-vector.cc",

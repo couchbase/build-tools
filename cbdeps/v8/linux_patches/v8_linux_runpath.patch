@@ -1,0 +1,15 @@
+diff --git a/toolchain/linux/BUILD.gn b/toolchain/linux/BUILD.gn
+index 0b53abd..f70a765 100644
+--- a/toolchain/linux/BUILD.gn
++++ b/toolchain/linux/BUILD.gn
+@@ -209,6 +209,10 @@ clang_toolchain("lacros_clang_x64") {
+ }
+
+ gcc_toolchain("x64") {
++  # necessary for Centos 7 due to old binutils
++  # https://sourceware.org/bugzilla/show_bug.cgi?id=20535
++  extra_ldflags = "-Wl,-rpath=\\\$ORIGIN -Wl,-rpath-link ."
++
+   cc = "gcc"
+   cxx = "g++"
+
