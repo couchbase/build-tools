@@ -1,7 +1,8 @@
 #!/bin/bash -ex
 
 INSTALL_DIR=$1
-PLATFORM=$2
+ROOT_DIR=$2
+PLATFORM=$3
 
 ARCH=`uname -m`
 
