@@ -1,5 +1,6 @@
 {
     "detect_opts": {
-        "detect.detector.search.depth": 9
+        "detect.detector.search.depth": 9,
+        "detect.excluded.detector.types": "PIP"
     }
 }
