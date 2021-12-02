@@ -21,7 +21,18 @@ export PATH=$(pwd)/maven-${MAVEN_VERSION}/bin:$(pwd)/openjdk-${JDK_VERSION}/bin:
 export JAVA_HOME=$(pwd)/openjdk-${JDK_VERSION}
 popd
 
-mvn -B install -DskipTests -Dpython.path=$(which python3) -DproductVersion=${VERSION}-${BLD_NUM} -f cbtaco/pom.xml
+#Call maven target to generate artifacts
+#DIGICERT_PASSWORD is an environment variable injected into jenkins job.
+
+mvn -B install -DskipTests \
+    -Dpython.path=$(which python3) \
+    -DproductVersion=${VERSION}-${BLD_NUM} \
+    -Djarsigner.arguments=-tsa,http://timestamp.digicert.com \
+    -Dtaco.sign \
+    -Djarsigner.alias=digicert \
+    -Djarsigner.keystore=~/.digicert.jks \
+    -Djarsigner.storepass=${DIGICERT_PASSWORD} \
+    -f cbtaco/pom.xml
 
 #Copy over artifacts to dist dir so that they can be published
 
