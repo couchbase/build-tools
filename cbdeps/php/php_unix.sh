@@ -6,6 +6,7 @@ MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 INSTALL_DIR=$1
 PHPVER=$2
 BLD_NUM=$3
+ARCH=$4
 
 PHPUNIT_VER=9.4.3
 
@@ -91,7 +92,7 @@ build_php_variant() {
 
     # QQQ This step should be removed when this is integrated with cbdeps 2.0 system
     echo "Creating cbdep archive"
-    FILEROOT=php-$VARIANT-linux-x86_64-$PHPVER-cb$BLD_NUM
+    FILEROOT=php-$VARIANT-linux-${ARCH}-$PHPVER-cb$BLD_NUM
     tar czf $FILEROOT.tgz -C $INSTALL_DIR $OUTDIR
     md5sum $FILEROOT.tgz | cut -c -32 > $FILEROOT.md5
 }
