@@ -20,6 +20,8 @@ if "%PHPVER:~0,3%"=="7.3" (
     set VC=vc15
 ) else if "%PHPVER:~0,3%"=="8.0" (
     set VC=vs16
+) else if "%PHPVER:~0,3%"=="8.1" (
+    set VC=vs16
 ) else (
     echo Unsupported PHP version
     set ERRORLEVEL=1
