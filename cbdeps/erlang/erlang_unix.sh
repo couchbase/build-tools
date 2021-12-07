@@ -14,6 +14,13 @@ case "$PLATFORM" in
     macosx)
         export MACOSX_DEPLOYMENT_TARGET=10.10
         ulimit -u 1024
+
+        #JIT is currently not supported on M1.  It won't be supported until OTP-25.
+        #It is automatically disabled in native M1, arm64.  However, it causes
+        #"Segmentation fault: 11" failure in Rosetta mode, CBD-4513.
+        #Hence we need to disable it on mac.  It should have minimal impact on
+        #performance.
+        EXTRA_CONFIG_OPTIONS="--disable-jit"
         ;;
     *)
     # Arg.. you got to hate autoconf and trying to get something
@@ -40,6 +47,7 @@ esac
       --without-megaco \
       --with-ssl="${ROOT_DIR}/cbdeps/openssl-${OPENSSL_VER}" \
       $SSL_RPATH \
+      $EXTRA_CONFIG_OPTIONS \
       CFLAGS="-fno-strict-aliasing -O3 -ggdb3"
 
 make -j4
