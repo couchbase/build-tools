@@ -8,7 +8,7 @@ PHPVER=$2
 BLD_NUM=$3
 ARCH=$4
 
-PHPUNIT_VER=9.4.3
+PHPUNIT_VER=9.5.10
 
 DLDIR=build/dl
 mkdir -p $DLDIR
@@ -56,12 +56,14 @@ build_php() {
     ./configure --disable-all \
         --enable-option-checking=fatal \
         --enable-sockets \
+        --enable-mbstring \
+        --enable-tokenizer \
         --enable-pcntl \
         --enable-phar \
         ${JSON_OPT} \
         --enable-cli \
         --with-zlib \
-        ${LIBXML_OPT} --enable-xml \
+        ${LIBXML_OPT} --enable-xml --enable-xmlwriter --enable-dom \
         --with-pear \
         --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3 $CFLAGS"
     make -j8

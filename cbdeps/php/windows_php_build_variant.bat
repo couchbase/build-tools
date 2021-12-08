@@ -11,7 +11,7 @@ set WORKDIR=%4
 rem Path to produce output in (will create full tagged directories)
 set INSTALLDIR=%5
 
-set PHPUNIT_VER=9.4.3
+set PHPUNIT_VER=9.5.10
 set STARTDIR=%CD%
 
 if "%TS%" == "zts" (
@@ -54,9 +54,9 @@ popd
 rem Configure and build
 call buildconf || goto :error
 @echo on
-call configure --disable-all --enable-sockets ^
-  --with-iconv --with-xml --with-libxml --with-xmlwriter ^
-  --enable-session --enable-json --enable-cli ^
+call configure --disable-all --enable-sockets --enable-mbstring ^
+  --with-iconv --with-xml --with-libxml --with-xmlwriter --enable-dom ^
+  --enable-session --enable-json --enable-cli --enable-tokenizer ^
   --enable-phar=shared ^
   %tsarg% ^
   --with-prefix=%INSTALLDIR%\%PHPTAG% || goto :error
