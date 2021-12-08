@@ -78,7 +78,8 @@ const excludedPatterns = [
     /License: Creative Commons Attribution.*$/gm,
     /The author hereby disclaims copyright to this source code.*$/gm,
     /For license information please see antlr4.js.LICENSE.txt.*$/gm,
-    /Released under the MIT license.*$/gm
+    /Released under the MIT license.*$/gm,
+    /Use of this software is governed by the Erlang Public License.*$/gm
 ]
 
 const excludedNames = ['d3.v3.min.js']
