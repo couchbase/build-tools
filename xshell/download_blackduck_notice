@@ -1,0 +1,45 @@
+#!/bin/bash -ex
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/../utilities/shell-utils.sh"
+
+if [ ! -z "$1" ]; then
+    PRODUCT=$1
+    RELEASE=$2
+    VERSION=$3
+    BLD_NUM=$4
+fi
+
+chk_set PRODUCT
+chk_set RELEASE
+chk_set VERSION
+chk_set BLD_NUM
+
+# Wait for 10 minutes at most before breaking the loop
+# It should be sufficent for build database and blackduck scan to finish.
+
+count=0
+while [ $count -lt 60 ] ; do
+    BUILD_STATUS=$(curl -s -w "%{http_code}" --head -o /dev/null \
+        http://dbapi.build.couchbase.com:8000/v1/builds/${PRODUCT}-${VERSION}-${BLD_NUM}/metadata)
+    if [ "${BUILD_STATUS}" = "200" ]; then
+        BD_RESULT=$(curl -q http://dbapi.build.couchbase.com:8000/v1/builds/${PRODUCT}-${VERSION}-${BLD_NUM}/metadata | jq .data.blackduck_scan)
+        if [[ "${BD_RESULT}" == *"pass"* ]]; then
+            curl -o ${WORKSPACE}/notices.txt  https://github.com/couchbase/product-metadata/blob/master/${PRODUCT}/blackduck/${VERSION}/notices.txt
+            exit
+        elif [[ "${BD_RESULT}" == *"fail"* ]]; then
+            echo "Blackduck scan failed, skip downloading notice.txt file."
+            exit 1
+        else
+            echo "Wait for blackduck scan to finish..."
+            sleep 10
+            let "count=count+1"
+        fi
+    else
+        echo "${PRODUCT}-${VERSION}-${BLD_NUM} is not in the build database yet..."
+        sleep 10
+        let "count=count+1"
+    fi
+done
+echo "Timed out waiting for notices.txt, failing..."
+exit 1
