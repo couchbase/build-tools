@@ -146,7 +146,7 @@ get_cbdep_git() {
     pushd "${depdir}"
     if [ ! -d .git ]
     then
-      git clone --bare "git://github.com/couchbasedeps/${dep}.git" .git
+      git clone --bare "ssh://git@github.com/couchbasedeps/${dep}.git" .git
     fi
     git config core.bare false
     git checkout
@@ -166,7 +166,7 @@ get_cbdeps2_src() {
     mkdir -p "${ESCROW}/deps/src/${dep}-${ver}-cb${bldnum}"
     pushd "${ESCROW}/deps/src/${dep}-${ver}-cb${bldnum}"
     heading "Downloading cbdep2 ${manifest} at ${sha} ..."
-    repo init -u git://github.com/couchbase/build-manifests -g all -m "cbdeps/${manifest}" -b "${sha}"
+    repo init -u ssh://git@github.com/couchbase/build-manifests -g all -m "cbdeps/${manifest}" -b "${sha}"
     repo sync --jobs=6
     popd
   fi
@@ -247,7 +247,7 @@ get_build_manifests_repo() {
   pushd "${ESCROW}"
   if [ ! -d build-manifests ]
   then
-    git clone git://github.com/couchbase/build-manifests.git
+    git clone ssh://git@github.com/couchbase/build-manifests.git
   else
     (cd build-manifests && git fetch origin master)
   fi
@@ -285,7 +285,7 @@ pushd "${ESCROW}/src"
 git config --global user.name "Couchbase Build Team"
 git config --global user.email "build-team@couchbase.com"
 git config --global color.ui false
-repo init -u git://github.com/couchbase/manifest -g all -m "${MANIFEST_FILE}"
+repo init -u ssh://git@github.com/couchbase/manifest -g all -m "${MANIFEST_FILE}"
 repo sync --jobs=6
 
 

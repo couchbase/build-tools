@@ -9,7 +9,7 @@ set BLD_NUM=%3
 
 rem Check out the PHP Windows SDK from our fork
 rem php-sdk-2.2.0 was the newest tag as of Jan. 14 2020
-git clone git://github.com/couchbasedeps/php-sdk-binary-tools -b php-sdk-2.2.0 || goto :error
+git clone ssh://git@github.com/couchbasedeps/php-sdk-binary-tools -b php-sdk-2.2.0 || goto :error
 
 mkdir work
 

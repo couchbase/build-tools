@@ -53,9 +53,9 @@ PROD_NAME=$(basename $PRODUCT_PATH)
 
 # Update the appropriate build-manifests repo
 if [ ${BLD_NUM} -lt 50000 ]; then
-    BUILD_MANI_REPO=git://github.com/couchbase/build-manifests
+    BUILD_MANI_REPO=ssh://git@github.com/couchbase/build-manifests
 else
-    BUILD_MANI_REPO=git://github.com/couchbasebuild/toy-build-manifests
+    BUILD_MANI_REPO=ssh://git@github.com/couchbasebuild/toy-build-manifests
 fi
 BUILD_MANI_DIR=$(basename ${BUILD_MANI_REPO})
 

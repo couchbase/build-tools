@@ -22,7 +22,7 @@ def remember_cwd():
         os.chdir(curdir)
 
 
-def scan_manifests(manifest_repo="git://github.com/couchbase/manifest"):
+def scan_manifests(manifest_repo="ssh://git@github.com/couchbase/manifest"):
     """
     Syncs to the "manifest" project from the given repository, and
     returns a list of metadata about all discovered manifests. This does
@@ -173,7 +173,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-p", "--manifest-project", type=str,
-                       default="git://github.com/couchbase/manifest",
+                       default="ssh://git@github.com/couchbase/manifest",
                        help="Alternate git URL for manifest repository")
     group.add_argument("-d", "--manifest-dir", type=str,
                        help="Local manifest directory")

@@ -5,7 +5,7 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
-git clone git://github.com/couchbase/php-couchbase.git
+git clone ssh://git@github.com/couchbase/php-couchbase.git
 pushd php-couchbase
 TAG="v$VERSION"
 if git rev-parse --verify --quiet $TAG >& /dev/null

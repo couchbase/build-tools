@@ -18,7 +18,7 @@ else
 
     # Sync build-manifests
     if [ ! -e build-manifests ]; then
-        git clone git://github.com/couchbase/build-manifests
+        git clone ssh://git@github.com/couchbase/build-manifests
     else
         (cd build-manifests && git pull)
     fi
@@ -38,7 +38,7 @@ else
 
     echo "Syncing manifest $MANIFEST at $SHA"
     echo ================================
-    repo init -u git://github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
+    repo init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
     repo sync --jobs=8
     echo
 fi

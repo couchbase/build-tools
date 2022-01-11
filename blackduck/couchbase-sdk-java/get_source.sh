@@ -8,7 +8,7 @@ BLD_NUM=$4
 if [[ "$VERSION" =~ "2.*" ]]
 then
     TAG=$VERSION
-    git clone git://github.com/couchbase/couchbase-java-client
+    git clone ssh://git@github.com/couchbase/couchbase-java-client
     pushd couchbase-java-client
     if git rev-parse --verify --quiet $TAG >& /dev/null
     then
@@ -19,11 +19,11 @@ then
     fi
     popd
 
-    git clone git://github.com/couchbase/couchbase-jvm-core
+    git clone ssh://git@github.com/couchbase/couchbase-jvm-core
     echo "WARNING: always using master branch of couchbase-jvm-core"
 else
     TAG=java-client-$VERSION
-    git clone git://github.com/couchbase/couchbase-jvm-clients
+    git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
     pushd couchbase-jvm-clients
     if git rev-parse --verify --quiet $TAG >& /dev/null
     then

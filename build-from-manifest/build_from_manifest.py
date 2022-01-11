@@ -649,7 +649,7 @@ def parse_args():
         description='Create new build manifest from input manifest'
     )
     parser.add_argument('--manifest-project', '-p',
-                        default='git://github.com/couchbase/manifest',
+                        default='ssh://git@github.com/couchbase/manifest',
                         help='Alternate Git URL for manifest repository')
     parser.add_argument('--push-manifest-project',
                         help='Git repository to push updated input manifests '

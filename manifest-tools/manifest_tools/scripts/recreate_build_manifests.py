@@ -274,7 +274,7 @@ def main():
     # Paths for old and new repositories
     btm_dir = "build-team-manifests"
     bm_dir = "build-manifests"
-    btm_url = 'git://github.com/couchbase/build-team-manifests'
+    btm_url = 'ssh://git@github.com/couchbase/build-team-manifests'
     bm_url = 'ssh://git@github.com/couchbase/build-manifests'
 
     # Walk the new-school repository, forming set of all known builds

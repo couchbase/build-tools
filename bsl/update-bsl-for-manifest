@@ -20,7 +20,7 @@ get_metadata() {
     echo "${result}"
 }
 
-MANIFEST_REPO=git://github.com/couchbase/manifest
+MANIFEST_REPO=ssh://git@github.com/couchbase/manifest
 DRY_RUN=
 FORCE=
 while getopts ":u:m:nf" opt; do

@@ -31,7 +31,7 @@ call phpsdk_buildtree phpdev || goto :error
 @echo on
 rem Clone PHP source
 if not exist "php-src.git" (
-  git clone --bare git://github.com/php/php-src || goto :error
+  git clone --bare ssh://git@github.com/php/php-src || goto :error
 )
 rmdir /s /q %PHPTAG%
 git clone php-src -b php-%PHPVER% %PHPTAG% || goto :error

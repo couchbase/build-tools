@@ -9,7 +9,7 @@ shopt -s extglob
 # to check out the code. First, clone the project into a new "qe" subdir.
 mkdir -p qe
 pushd qe
-git clone git://github.com/couchbaselabs/TAF
+git clone ssh://git@github.com/couchbaselabs/TAF
 cd TAF
 
 # If TAF has a git branch named after the RELEASE, check that out; otherwise

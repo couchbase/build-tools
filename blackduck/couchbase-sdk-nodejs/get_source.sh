@@ -6,7 +6,7 @@ VERSION=$3
 BLD_NUM=$4
 
 TAG=v$VERSION
-git clone git://github.com/couchbase/couchnode.git
+git clone ssh://git@github.com/couchbase/couchnode.git
 pushd couchnode
 if git rev-parse --verify --quiet $TAG >& /dev/null
 then

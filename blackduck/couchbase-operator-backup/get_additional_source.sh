@@ -17,7 +17,7 @@ VERSION=$(grep FROM couchbase-operator-backup/Dockerfile | sed -e 's/.*://')
 mkdir server_src
 cd server_src
 repo init \
-    -u git://github.com/couchbase/manifest \
+    -u ssh://git@github.com/couchbase/manifest \
     -m released/couchbase-server/${VERSION}.xml \
     -g backup
 repo sync --jobs=8

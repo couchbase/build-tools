@@ -8,7 +8,7 @@ docker pull couchbasebuild/check-builds:latest
 # /home/couchbase/check_builds
 cd /home/couchbase/check_builds
 rm -rf product-metadata
-git clone git://github.com/couchbase/product-metadata > /dev/null
+git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
 
 echo
 echo "Checking for missing builds..."

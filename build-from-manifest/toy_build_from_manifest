@@ -39,7 +39,7 @@ pushd src
 # Initial repo sync
 echo "Syncing manifest $MANIFEST"
 echo ================================
-repo init --no-repo-verify --repo-url=git://github.com/couchbasedeps/git-repo ${MANIFEST_PARAMS} -g all --reference=~/reporef
+repo init --no-repo-verify --repo-url=ssh://git@github.com/couchbasedeps/git-repo ${MANIFEST_PARAMS} -g all --reference=~/reporef
 repo sync --jobs=24 --quiet
 
 # Create build manifest for future reference. Do this before applying

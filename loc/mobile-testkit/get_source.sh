@@ -7,7 +7,7 @@ BLD_NUM=$4
 
 BRANCH="master-${VERSION:0:3}"
 
-git clone git://github.com/couchbaselabs/mobile-testkit
+git clone ssh://git@github.com/couchbaselabs/mobile-testkit
 pushd mobile-testkit
 
 if git rev-parse --verify --quiet $BRANCH >& /dev/null

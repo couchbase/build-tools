@@ -8,7 +8,7 @@ docker pull couchbasebuild/centos-74-yum-upload:latest
 # /home/couchbase/repo_upload
 cd /home/couchbase/repo_upload
 rm -rf product-metadata
-git clone git://github.com/couchbase/product-metadata > /dev/null
+git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
 
 if [ "${BETA}" = "false" ]
 then

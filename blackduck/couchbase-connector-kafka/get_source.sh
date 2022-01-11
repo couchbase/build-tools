@@ -5,7 +5,7 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
-git clone git://github.com/couchbase/kafka-connect-couchbase.git
+git clone ssh://git@github.com/couchbase/kafka-connect-couchbase.git
 pushd kafka-connect-couchbase
 if git rev-parse --verify --quiet $VERSION >& /dev/null
 then

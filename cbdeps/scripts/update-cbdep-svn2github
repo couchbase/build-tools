@@ -20,7 +20,7 @@ type -P svn > /dev/null 2>&1 || {
 }
 
 if [ ! -e svn2github ]; then
-    git clone git://github.com/gabrys/svn2github
+    git clone ssh://git@github.com/gabrys/svn2github
 fi
 
 python3 svn2github/svn2github.py update couchbasedeps/${PROJECT}

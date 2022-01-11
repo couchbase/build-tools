@@ -6,7 +6,7 @@ VERSION=$3
 BLD_NUM=$4
 
 TAG=$VERSION
-git clone git://github.com/couchbase/couchbase-ruby-client.git
+git clone ssh://git@github.com/couchbase/couchbase-ruby-client.git
 pushd couchbase-ruby-client
 if git rev-parse --verify --quiet $TAG >& /dev/null
 then

@@ -33,9 +33,9 @@ EOF
 )
 
 if [ ${PROJECT} = "erlang" ]; then
-    upstream_url=git://github.com/erlang/otp
+    upstream_url=ssh://git@github.com/erlang/otp
 elif [ ${PROJECT} = "breakpad" ]; then
-    upstream_url=git://github.com/google/breakpad
+    upstream_url=ssh://git@github.com/google/breakpad
 fi
 
 git remote add upstream ${upstream_url}

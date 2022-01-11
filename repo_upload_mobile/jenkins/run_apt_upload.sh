@@ -8,7 +8,7 @@ docker pull couchbasebuild/ubuntu-1604-apt-upload:latest
 # /home/couchbase/repo_upload
 cd /home/couchbase/repo_upload
 rm -rf product-metadata
-git clone git://github.com/couchbase/product-metadata > /dev/null
+git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
 
 echo
 echo "Uploading Debian packages for Couchbase Server releases..."

@@ -5,7 +5,7 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
-git clone git://github.com/couchbase/couchbase-elasticsearch-connector.git
+git clone ssh://git@github.com/couchbase/couchbase-elasticsearch-connector.git
 pushd couchbase-elasticsearch-connector
 if git rev-parse --verify --quiet $VERSION >& /dev/null
 then

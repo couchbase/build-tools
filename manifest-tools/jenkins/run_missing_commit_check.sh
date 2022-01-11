@@ -29,7 +29,7 @@ cd "${reporef_dir}"
 if [ ! -e .repo ]; then
     # This only pre-populates the reporef for Server git code. Might be able
     # to do better in future.
-    repo init -u git://github.com/couchbase/manifest -g all -m branch-master.xml
+    repo init -u ssh://git@github.com/couchbase/manifest -g all -m branch-master.xml
 fi
 repo sync --jobs=6 > /dev/null
 
@@ -43,7 +43,7 @@ cd "${metadata_dir}"
 # changing the ownership of the mounted directory to root in that case.
 
 rm -rf product-metadata
-git clone git://github.com/couchbase/product-metadata > /dev/null
+git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
 
 release_dir=product-metadata/${PRODUCT}/missing_commits/${RELEASE}
 if [ ! -e "${release_dir}" ]; then
@@ -57,7 +57,7 @@ fi
 # hard-code default.xml here. It would take more effort to handle checking for
 # missing commits in earlier releases.
 if [ "x${PRODUCT}" = "xsync_gateway" ]; then
-    manifest_repo=git://github.com/couchbase/sync_gateway
+    manifest_repo=ssh://git@github.com/couchbase/sync_gateway
     current_manifest=manifest/default.xml
     echo
     echo
@@ -66,7 +66,7 @@ if [ "x${PRODUCT}" = "xsync_gateway" ]; then
     echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     echo
 else
-    manifest_repo=git://github.com/couchbase/manifest
+    manifest_repo=ssh://git@github.com/couchbase/manifest
     current_manifest=${PRODUCT}/${RELEASE}.xml
 fi
 
