@@ -57,14 +57,20 @@ make install
 # but not needed at runtime
 rm -rf ${INSTALL_DIR}/lib/erlang/lib/wx-*
 
+# Set rpaths
+ERTS_DIR=$(echo ${INSTALL_DIR}/lib/erlang/erts-*)
 # On MacOS, set up the RPath for the crypto plugin to find our custom OpenSSL
 if [ "${PLATFORM}" = "macosx" ]; then
     CRYPTO_DIR=$(echo ${INSTALL_DIR}/lib/erlang/lib/crypto-*)
     install_name_tool -add_rpath @loader_path/../../../../.. \
         ${CRYPTO_DIR}/priv/lib/crypto.so
+    install_name_tool -add_rpath @loader_path/../../.. \
+        ${ERTS_DIR}/bin/beam.smp
+elif [ "${PLATFORM}" = "linux" ]; then
+    patchelf --set-rpath '$ORIGIN/../../..' ${ERTS_DIR}/bin/beam.smp
 fi
 
 # For whatever reason, the special characters in this filename make
-# Jenkins throw a fix (UI warnings about "There are resources Jenkins
+# Jenkins throw a fit (UI warnings about "There are resources Jenkins
 # was not able to dispose automatically"), so let's just delete it.
 rm -rf lib/ssh/test/ssh_sftp_SUITE_data/sftp_tar_test_data_*
