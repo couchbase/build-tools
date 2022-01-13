@@ -9,7 +9,7 @@ cd ${ROOT_DIR}/zstd-cpp
 
 mkdir -p ${BUILD_DIR}
 cd ${BUILD_DIR}
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 cmake --build .
 cmake --install . --prefix ${INSTALL_DIR}
 
