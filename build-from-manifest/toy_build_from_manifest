@@ -5,19 +5,65 @@ env
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${SCRIPT_DIR}/../utilities/shell-utils.sh"
 
-chk_set MANIFEST_REPO
-chk_set MANIFEST_FILE
-
-# Set and/or error-check build number
+# Set and/or error-check build number. (This is the build number of the toy
+# build we're setting up, not the build number of the historic build manifest.)
 if [ ! -z "${BLD_NUM_ARG}" ]; then
-    if [ ${BLD_NUM_ARG} -lt 50000 ]; then
-        echo "BLD_NUM_ARG must be greater than 50000!"
+    if [ ${BLD_NUM_ARG} -lt 30000 ]; then
+        # Build numbers 30000-49999 are reserved for "upgrade" builds,
+        # while 50000+ are for toys. Only mention the latter.
+        echo "BLD_NUM_ARG must be greater than 50000 for toy builds!"
         exit 1
     else
-        BLD_NUM=${BLD_NUM_ARG}
+        TOY_BLD_NUM=${BLD_NUM_ARG}
     fi
 else
-    BLD_NUM=$((BUILD_NUMBER + 50000))
+    # Default is 50000 + the Jenkins job build number
+    TOY_BLD_NUM=$((BUILD_NUMBER + 50000))
+fi
+
+# Two possible ways to be invoked: Standard toy build or Historic toy build.
+# MANIFEST_REPO is the switch between the two.
+if [[ -n $MANIFEST_REPO ]]; then
+    # Standard toy build
+    chk_set MANIFEST_FILE
+else
+    # Historic toy build
+    chk_set PRODUCT
+    chk_set RELEASE
+    chk_set VERSION
+    chk_set BLD_NUM
+
+    PRODUCT_PATH=${PRODUCT/::/\/}
+
+    # Determine SHA in build-manifests to use
+    MANIFEST_REPO=https://github.com/couchbase/build-manifests
+    git clone ${MANIFEST_REPO}
+    pushd build-manifests
+    MANIFEST_BRANCH=$(git log -1 --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
+    MANIFEST_FILE=${PRODUCT_PATH}/${RELEASE}/${VERSION}.xml
+    popd
+
+    # QQQ This is pretty hacky, but there's currently a disconnect in
+    # the manifest world - several pieces of information that should be
+    # in these .properties files are only available in
+    # product-config.json, which means only when processing an *input*
+    # manifest. When processing a historic build manifest, we only have
+    # the basics. Still, this is largely duplicated code from
+    # sync_historic_manifest; we should be able to do better than this.
+    # We also have to assume the default value for BUILD_JOB, so
+    # customized build jobs won't work.
+    cat <<EOF > build.properties
+PRODUCT=$PRODUCT
+RELEASE=$RELEASE
+VERSION=$VERSION
+BLD_NUM=$TOY_BLD_NUM
+PROD_NAME=$(basename $PRODUCT_PATH)
+PRODUCT_PATH=$PRODUCT_PATH
+BUILD_JOB=${PRODUCT}-build
+EOF
+
+    # To avoid any confusion, unset historic build coordinate variables now
+    unset PRODUCT RELEASE VERSION BLD_NUM
 fi
 
 # Read possible Gerrit patches from environment
@@ -31,6 +77,9 @@ elif [[ -n $GERRIT_TOPICS ]]; then
 fi
 
 MANIFEST_PARAMS="-u ${MANIFEST_REPO} -m ${MANIFEST_FILE}"
+if [[ -n $MANIFEST_BRANCH ]]; then
+    MANIFEST_PARAMS+=" -b ${MANIFEST_BRANCH}"
+fi
 
 rm -rf src
 mkdir src
@@ -39,7 +88,7 @@ pushd src
 # Initial repo sync
 echo "Syncing manifest $MANIFEST"
 echo ================================
-repo init --no-repo-verify --repo-url=ssh://git@github.com/couchbasedeps/git-repo ${MANIFEST_PARAMS} -g all --reference=~/reporef
+repo init --no-repo-verify ${MANIFEST_PARAMS} -g all --reference=~/reporef
 repo sync --jobs=24 --quiet
 
 # Create build manifest for future reference. Do this before applying
@@ -52,13 +101,15 @@ popd
 
 # Generate properties based on manifest - we can use repo's copy of the
 # manifest repo
-echo "Creating properties files"
-echo =========================
-"${SCRIPT_DIR}/props-for-manifest" \
-    -o build.properties \
-    -d src/.repo/manifests \
-    -b ${BLD_NUM} \
-    ${MANIFEST_FILE}
+if [ ! -e build.properties ]; then
+    echo "Creating properties files"
+    echo =========================
+    "${SCRIPT_DIR}/props-for-manifest" \
+        -o build.properties \
+        -d src/.repo/manifests \
+        -b ${TOY_BLD_NUM} \
+        ${MANIFEST_FILE}
+fi
 
 # Load a few useful params from the properties file.
 eval $(sed -e 's/=\(.*\)/="\1"/' build.properties)
@@ -66,6 +117,7 @@ eval $(sed -e 's/=\(.*\)/="\1"/' build.properties)
 # Now save some additional stuff that toy build jobs might need
 cat <<EOF >> build.properties
 MANIFEST_REPO=${MANIFEST_REPO}
+TOY_BLD_NUM=${TOY_BLD_NUM}
 PATCH_VIA_GERRIT_OPTS=${OPTS}
 EOF
 
@@ -80,7 +132,7 @@ cp ../build.properties ${PRODUCT_PATH}/${RELEASE}/${VERSION}.properties
 cp ../src/manifest.xml ${PRODUCT_PATH}/${RELEASE}/${VERSION}.xml
 git add ${PRODUCT_PATH}/${RELEASE}
 git commit --allow-empty \
-    -m "${PRODUCT} ${RELEASE} build ${VERSION}-${BLD_NUM}" \
+    -m "${PRODUCT} ${RELEASE} build ${VERSION}-${TOY_BLD_NUM}" \
     -m "$(date)"
 git push origin master
 popd
@@ -153,10 +205,15 @@ cp src/manifest.xml manifest.xml
 
 # Create build-specifically-named versions of the artifacts
 # QQQ Not *entirely* sure why we need both of these prefixes
-VER_PREFIX="${PROD_NAME}-${VERSION}-${BLD_NUM}"
-REL_PREFIX="${PROD_NAME}-${RELEASE}-${BLD_NUM}"
+VER_PREFIX="${PROD_NAME}-${VERSION}-${TOY_BLD_NUM}"
+REL_PREFIX="${PROD_NAME}-${RELEASE}-${TOY_BLD_NUM}"
 mv source.tar.gz ${VER_PREFIX}-source.tar.gz
 mv manifest.xml ${VER_PREFIX}-manifest.xml
 # Need to keep original build.properties so Jenkins job can inject it,
 # so use cp rather than mv
 cp build.properties ${REL_PREFIX}.properties
+
+# Create trigger.properties if TRIGGER_BUILD is true
+if [ "${TRIGGER_BUILD}" = "true" ]; then
+    echo "TOY_BUILD=true" > trigger.properties
+fi

@@ -11,7 +11,7 @@
 # non-empty value for PATCH_VIA_GERRIT_OPTS, this script will download
 # patch_via_gerrit and apply the named changes to the repo checkout.
 
-# If BLD_NUM >= 50000 it is assumed to be a toy build, meaning that it
+# If BLD_NUM >= 30000 it is assumed to be a toy build, meaning that it
 # will search for the manifest and properties in the toy-build-manifests
 # repo instead of the normal build-manifests repo.
 
@@ -51,11 +51,12 @@ fi
 PRODUCT_PATH=${PRODUCT/::/\/}
 PROD_NAME=$(basename $PRODUCT_PATH)
 
-# Update the appropriate build-manifests repo
-if [ ${BLD_NUM} -lt 50000 ]; then
-    BUILD_MANI_REPO=ssh://git@github.com/couchbase/build-manifests
+# Pull from the appropriate build-manifests repo - normal for build numbers
+# under 30000, or toy for over 30000
+if [ ${BLD_NUM} -lt 30000 ]; then
+    BUILD_MANI_REPO=https://github.com/couchbase/build-manifests
 else
-    BUILD_MANI_REPO=ssh://git@github.com/couchbasebuild/toy-build-manifests
+    BUILD_MANI_REPO=https://github.com/couchbasebuild/toy-build-manifests
 fi
 BUILD_MANI_DIR=$(basename ${BUILD_MANI_REPO})
 
