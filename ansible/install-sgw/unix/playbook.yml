@@ -24,6 +24,30 @@
         name: "{{ couchbase_sync_gateway_package_base_url }}/{{ couchbase_sync_gateway_package }}"
         state: present
 
+    # Remove old data
+    - name: Delete old data
+      file:
+        state: absent
+        path: /home/sync_gateway/data/
+
+    # Create new data directory
+    - name: Create new data directory
+      file:
+        path: /home/sync_gateway/data
+        state: directory
+        owner: sync_gateway
+        group: sync_gateway
+
     # Start sync_gateway service
     - name:  SYNC GATEWAY | Start sync_gateway service
       systemd: state=started name=sync_gateway
+
+    # Check if sync_gateway is running properly
+    # When database is corrupted, the service could still be running, but port is not reachable
+    - name: check if sync_gatway port is accessible
+      wait_for:
+        host: localhost
+        port: 4984
+        state: started
+        delay: 0
+        timeout: 5
