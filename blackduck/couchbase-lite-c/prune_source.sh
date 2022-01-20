@@ -2,10 +2,11 @@
 
 pwd
 
-#According to readme in rust directory.  It is not shipped.
+# According to readme in rust directory.  It is not shipped.
 rm -rf couchbase-lite-c/bindings/rust
 
-# cleanup unwanted stuff - test files, build scripts, etc.
-for i in fleece Docs doc test tests docs googletest third_party cbbuild tlm libstemmer_c; do
-     find . -type d -name $i | xargs rm -rf
+# clean up unnecessary source directories
+# couchbase-lite-core is attached as a sub-project, no need to scan
+for i in cbbuild tlm couchbase-lite-core-EE couchbase-lite-core; do
+   find . -type d -name $i | xargs rm -rf
 done
