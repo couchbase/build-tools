@@ -1,19 +1,49 @@
 #!/bin/bash -ex
 
+set -x
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
 
 usage() {
-    echo "Usage: $0 -p PRODUCT -v VERSION -e EDITION -i IMAGENAME [ -f ] [ -u ]"
+    echo "Usage: $0 -p PRODUCT -v VERSION -e EDITION -i IMAGENAME -a ARCH [ -f ] [ -u ]"
     echo "   -f: Force recreation of Dockerfile if it exists"
     echo "   -u: Upload to packages.couchbase.com"
     exit 1
 }
 
+docker_build_publish() {
+    pushd ${DOCKER_DIR}
+    docker build -t ${IMAGENAME} .
+    popd
+
+    OUTPUT=${PRODUCT}-${EDITION}_${VERSION}-docker.tar.gz
+    docker save ${IMAGENAME} | gzip > ${OUTPUT}
+    docker rmi ${IMAGENAME}
+    sha256sum ${OUTPUT} > ${OUTPUT}.sha256
+
+    # Hack for inconsistent product directory naming in releases
+    if [ "${PRODUCT}" = "couchbase-server" ]; then
+        echo "PRODUCT_DIR=" > product-dir.properties
+    else
+        echo "PRODUCT_DIR=${PRODUCT}/" > product-dir.properties
+    fi
+    . product-dir.properties
+
+    # Publish to S3 if desired (Jenkins job will handle copying to
+    # internal release mirror)
+    if [ "${UPLOAD_TO_S3}" = "true" ]; then
+        S3_PATH=s3://packages.couchbase.com/releases/${PRODUCT_DIR}${VERSION}
+        aws s3 cp ${OUTPUT} ${S3_PATH}/${OUTPUT} --acl public-read
+        aws s3 cp ${OUTPUT}.sha256 ${S3_PATH}/${OUTPUT}.sha256 --acl public-read
+    fi
+}
+
+ARCH=x86_64
 REPO=ssh://git@github.com/couchbase/docker
 FORCE=
 UPLOAD_TO_S3=
-while getopts ":p:i:v:e:fur:" opt; do
+while getopts ":p:i:v:e:a:fur:" opt; do
   case ${opt} in
     p)
       PRODUCT=${OPTARG}
@@ -26,6 +56,9 @@ while getopts ":p:i:v:e:fur:" opt; do
       ;;
     e)
       EDITION=${OPTARG}
+      ;;
+    a)
+      ARCH=${OPTARG}
       ;;
     f)
       FORCE=true
@@ -56,29 +89,27 @@ fi
 ${SCRIPT_DIR}/generate-dockerfile \
     -p ${PRODUCT} -v ${VERSION} -e ${EDITION} -r ${REPO} ${FORCE}
 
-DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}
-pushd ${DOCKER_DIR}
-IMAGENAME=${IMAGE}:${VERSION}
-docker build -t ${IMAGENAME} .
-popd
-
-OUTPUT=${PRODUCT}-${EDITION}_${VERSION}-docker.tar.gz
-docker save ${IMAGENAME} | gzip > ${OUTPUT}
-docker rmi ${IMAGENAME}
-sha256sum ${OUTPUT} > ${OUTPUT}.sha256
-
-# Hack for inconsistent product directory naming in releases
-if [ "${PRODUCT}" = "couchbase-server" ]; then
-  echo "PRODUCT_DIR=" > product-dir.properties
+# Figure out where is Dockerfile stored
+n=$(printf "7.1.0\n${VERSION}" |sort -n |head -n1)
+if [[ "$n" == "7.1.0" ]]; then
+  DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}/${ARCH}
+  case ${ARCH} in
+    "aarch64")
+      IMAGENAME=${IMAGE}:${VERSION}-${ARCH}
+      ;;
+    *)
+      IMAGENAME=${IMAGE}:${VERSION}
+    ;;
+  esac
 else
-  echo "PRODUCT_DIR=${PRODUCT}/" > product-dir.properties
+  if [[ ${ARCH} == "aarch64" ]]; then
+    echo "Version: ${VERSION}\n"
+    echo "${ARCH} does not apply to version lower 7.1.0"
+    echo "exiting..."
+    exit
+  else
+    IMAGENAME=${IMAGE}:${VERSION}
+    DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}
+  fi
 fi
-. product-dir.properties
-
-# Publish to S3 if desired (Jenkins job will handle copying to
-# internal release mirror)
-if [ "${UPLOAD_TO_S3}" = "true" ]; then
-    S3_PATH=s3://packages.couchbase.com/releases/${PRODUCT_DIR}${VERSION}
-    aws s3 cp ${OUTPUT} ${S3_PATH}/${OUTPUT} --acl public-read
-    aws s3 cp ${OUTPUT}.sha256 ${S3_PATH}/${OUTPUT}.sha256 --acl public-read
-fi
+docker_build_publish

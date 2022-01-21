@@ -56,6 +56,7 @@ else
 fi
 
 cd docker
+REPO_DIR=$(pwd)
 DOCKERFILE_DIR=${EDITION}/${PRODUCT}/${VERSION}
 
 # Work-around for the fact that the generator assumes a Dockerfile will
@@ -69,25 +70,15 @@ fi
 if [ -d "${DOCKERFILE_DIR}" ]; then
     echo "${DOCKERFILE_DIR} already exists! Skipping creation"
 else
-
-    GO=go
-    type -P go > /dev/null 2>&1 || {
-        pushd ..
-        mkdir -p golang
-        cd golang
-        GO=$(pwd)/go/bin/go
-        if [ ! -x ${GO} ]; then
-            status Downloading golang
-            GODL=https://dl.google.com/go/go1.15.11.linux-amd64.tar.gz
-            if [ ! -e $(basename ${GODL}) ]; then
-                curl --fail -LO ${GODL}
-            fi
-            tar xf $(basename ${GODL})
-        fi
-        popd
-    }
+    CBDEP_NAME=`echo "cbdep-1.1.1-$(uname -s)-$(uname -m)" |tr '[:upper:]' '[:lower:]'`
+    curl -o cbdep https://packages.couchbase.com/cbdep/1.1.1/${CBDEP_NAME}
+    chmod +x cbdep
+    ./cbdep install -d golang golang 1.16.3
+    export PATH=$(pwd)/golang/go1.16.3/bin:${PATH}
 
     status "Creating new Dockerfile and scripts"
     mkdir -p "${DOCKERFILE_DIR}"
-    ${GO} run generate/generator/generate.go $(pwd)
+    pushd generate/generator
+    go run generate.go ${REPO_DIR}
+    popd
 fi
