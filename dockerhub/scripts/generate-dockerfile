@@ -81,4 +81,6 @@ else
     pushd generate/generator
     go run generate.go ${REPO_DIR}
     popd
+
+    rm -rf cbdep golang
 fi

@@ -60,8 +60,8 @@ if [ ! -z "${FORCE}" ]; then
 else
     VERB="Adding"
 fi
-# Only commit this change if it actually changed something
-git diff-index --quiet HEAD || \
+# Only commit this change if it actually changed something.
+git status --short || \
     git commit -m "${VERB} ${PRODUCT} ${EDITION} ${VERSION}"
 git push origin HEAD:refs/heads/master
 
