@@ -61,7 +61,7 @@ fi
 
 # Product-specific script for getting additional sources
 if [ -x "${PROD_DIR}/get_additional_source.sh" ]; then
-  "${PROD_DIR}/get_additional_source.sh" ${RELEASE}
+  "${PROD_DIR}/get_additional_source.sh" ${RELEASE} ${VERSION} ${BLD_NUM}
 fi
 
 # Product-specific environment overrides
