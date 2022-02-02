@@ -2,7 +2,6 @@
 
 set -xe
 
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 INSTALL_DIR=$1
 PHPVER=$2
 BLD_NUM=$3
@@ -13,11 +12,17 @@ PHPUNIT_VER=9.5.10
 DLDIR=build/dl
 mkdir -p $DLDIR
 
-TMPDIR=build/tmp
-mkdir -p $TMPDIR
+TEMP_DIR=build/tmp
+mkdir -p $TEMP_DIR
 
 SRCDIR=build/src
 mkdir -p $SRCDIR
+
+UNAME="$(uname -s)"
+case "${UNAME}" in
+    Linux*)     PLATFORM=linux;;
+    Darwin*)    PLATFORM=macos;;
+esac
 
 build_php() {
 
@@ -79,8 +84,8 @@ build_php_variant() {
 
     echo "Installing $VARIANT"
     if [ ! -e $SRCDIR/$OUTDIR ]; then
-      tar -xjf $DLDIR/php-src-$PHPVER.tar.bz2 -C $TMPDIR
-      mv $TMPDIR/php-$PHPVER $SRCDIR/$OUTDIR
+      tar -xjf $DLDIR/php-src-$PHPVER.tar.bz2 -C $TEMP_DIR
+      mv $TEMP_DIR/php-$PHPVER $SRCDIR/$OUTDIR
     fi
     echo "Building $VARIANT"
     if [ ! -e $INSTALL_DIR/$OUTDIR ]; then
@@ -94,7 +99,7 @@ build_php_variant() {
 
     # QQQ This step should be removed when this is integrated with cbdeps 2.0 system
     echo "Creating cbdep archive"
-    FILEROOT=php-$VARIANT-linux-${ARCH}-$PHPVER-cb$BLD_NUM
+    FILEROOT=php-$VARIANT-${PLATFORM}-${ARCH}-$PHPVER-cb$BLD_NUM
     tar czf $FILEROOT.tgz -C $INSTALL_DIR $OUTDIR
     md5sum $FILEROOT.tgz | cut -c -32 > $FILEROOT.md5
 }
