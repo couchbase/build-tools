@@ -74,26 +74,6 @@ rm -rf godeps/src/golang.org/x/tools/cmd/heapview/client
 # projects' go.mod via replace directives, so we need to leave those there.
 find godeps -name 'couchbase*' -prune -o -name go.mod -print0 | xargs -0 rm -f
 
-# If we find any go.mod files with zero "require" statements, they're probably one
-# of the stub go.mod files we introduced to make other Go projects happy. Black Duck
-# still wants to run "go mod why" on them, which means they need a full set of
-# replace directives.
-for stubmod in $(find . -name go.mod \! -execdir grep --quiet require '{}' \; -print); do
-    cat ${TOOLS_DIR}/go-mod-replace.txt >> ${stubmod}
-done
-
-# Need to fake the generated go files in eventing and eventing-ee
-if [ -d goproj/src/github.com/couchbase/eventing-ee/gen ]; then
-    for dir in auditevent flatbuf/cfg flatbuf/header flatbuf/payload flatbuf/response parser version; do
-        mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
-        touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
-    done
-    for dir in nftp/client; do
-        mkdir -p goproj/src/github.com/couchbase/eventing-ee/gen/${dir}
-        touch goproj/src/github.com/couchbase/eventing-ee/gen/${dir}/foo.go
-    done
-fi
-
 # Remove all msvc, vcs* window projects
 WIN='example *msvc* *vcproj* *vcxproj* visual vstudio dot_net_example example csharp vc7ide'
 for windir in ${WIN}; do

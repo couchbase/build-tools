@@ -53,14 +53,6 @@ create_analytics_poms() {
     --outdir analytics-boms \
     --file analytics/cbas/cbas-install/target/bom.txt
 
-  pushd analytics-boms
-  for dir in *; do
-    pushd ${dir}
-    mvn dependency:purge-local-repository
-    popd
-  done
-  popd
-
   # Delete all the built artifacts so BD doesn't scan them
   rm -rf install
 }
@@ -73,3 +65,40 @@ if [ "6.6.5" = $(printf "6.6.5\n${VERSION}" | sort -n | head -1) ]; then
 else
   download_analytics_jars
 fi
+
+# If we find any go.mod files with zero "require" statements, they're probably one
+# of the stub go.mod files we introduced to make other Go projects happy. Black Duck
+# still wants to run "go mod why" on them, which means they need a full set of
+# replace directives.
+for stubmod in $(find . -name go.mod \! -execdir grep --quiet require '{}' \; -print); do
+    cat ${SCRIPT_DIR}/go-mod-replace.txt >> ${stubmod}
+done
+
+# Need to fake the generated go files in eventing and eventing-ee
+for dir in auditevent flatbuf/cfg flatbuf/header flatbuf/payload flatbuf/response parser version; do
+    mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
+    touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
+done
+for dir in gen/nftp/client evaluator/impl/gen/parser; do
+    mkdir -p goproj/src/github.com/couchbase/eventing-ee/${dir}
+    touch goproj/src/github.com/couchbase/eventing-ee/${dir}/foo.go
+done
+
+# Also work around sloppy go.mod files
+for gomod in $(find . -name go.mod); do
+    pushd $(dirname ${gomod})
+    grep --quiet require go.mod || {
+        popd
+        continue
+    }
+    cp go.sum go.sum.orig
+    go mod tidy
+    diff go.sum.orig go.sum || cat <<EOF
+
+:::::::::::::::::::::::::::::::::::::::::::::::
+WARNING: ${gomod} has out of date go.sum!!!!!!!
+:::::::::::::::::::::::::::::::::::::::::::::::
+
+EOF
+    popd
+done
