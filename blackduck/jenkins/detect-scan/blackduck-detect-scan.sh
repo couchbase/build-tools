@@ -5,6 +5,10 @@ PROD_NAME=$(basename $PRODUCT_PATH)
 PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PROD_NAME}"
 SCAN_CONFIG="${PROD_DIR}/scan-config.json"
 
+# Disable analytics
+# https://community.synopsys.com/s/article/How-to-disable-Phone-Home-when-running-Detect
+export SYNOPSYS_SKIP_PHONE_HOME=true
+
 # Extract config parameters from scan-config.json, if available
 if [ -e "${SCAN_CONFIG}" ]; then
     KEEP_GIT=$(jq --arg VERSION ${VERSION} '.versions[$VERSION].keep_git' "${SCAN_CONFIG}")
