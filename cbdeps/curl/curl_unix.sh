@@ -2,53 +2,52 @@
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
+PLATFORM=$3
 ARCH=$8
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 cd ${ROOT_DIR}/curl
 
-# Openssl dependency
+# Dependencies
 OPENSSL_VER=1.1.1l-1
+ZLIB_VER=1.2.11-8
 CBDEP_TOOL_VERS=1.0.4
 
-# Download openssl via cbdep tool
-CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux
 DEPSDIR=${WORKSPACE}/deps
 rm -rf ${DEPSDIR}
-OPENSSLDIR=${DEPSDIR}/openssl-${OPENSSL_VER}
+mkdir -p ${DEPSDIR}
 
-if [[ ! -f ${CBDEP_BIN_CACHE} ]]; then
-    if [ $(uname -s) = "Darwin" ]; then
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-darwin-${ARCH}
+get_dep() {
+    dep=$1
+    ver=$2
+
+    # Assign directory variable for others to reference
+    dep_DIR=${DEPSDIR}/${dep}-${ver}
+    eval "${dep}_DIR=${dep_DIR}"
+
+    # See if it's already in local .cbdepscache
+    DEP_CACHE=/home/couchbase/.cbdepscache/${dep}*-${ver}.tgz
+    if [ ! -z "${LOCAL_BUILD}" -a -f ${DEP_CACHE} ]; then
+        mkdir -p ${dep_DIR}
+        tar xzf ${DEP_CACHE} -C ${dep_DIR}
     else
-        CBDEP_URL=https://packages.couchbase.com/cbdep/${CBDEP_TOOL_VERS}/cbdep-${CBDEP_TOOL_VERS}-linux-${ARCH}
+        cbdep -p ${PLATFORM} install -d "${DEPSDIR}" ${dep} ${ver}
     fi
-    curl -o /tmp/cbdep ${CBDEP_URL}
-else
-   cp ${CBDEP_BIN_CACHE} /tmp/cbdep
-fi
+}
 
-# Support escrow automation
-CBDEP_OPENSSL_CACHE=/home/couchbase/.cbdepscache/openssl*-${OPENSSL_VER}.tgz
-if [ ! -z "${LOCAL_BUILD}" -a -f ${CBDEP_OPENSSL_CACHE} ]; then
-    mkdir -p ${OPENSSLDIR}
-    tar xzf ${HOME}/.cbdepscache/openssl*-${OPENSSL_VER}.tgz -C ${OPENSSLDIR}
-else
-    chmod +x /tmp/cbdep
-    /tmp/cbdep install -d "${DEPSDIR}" openssl ${OPENSSL_VER}
-fi
-
-rm -rf ${OPENSSLDIR}/lib/pkgconfig
+get_dep openssl ${OPENSSL_VER}
+rm -rf ${openssl_DIR}/lib/pkgconfig
+get_dep zlib ${ZLIB_VER}
+rm -rf ${zlib_DIR}/lib/pkgconfig
 
 # Build
 if [[ $(uname -s) != "Darwin" ]]; then
     export LDFLAGS="-Wl,-rpath,'\$\$ORIGIN/../lib'"
-    export LD_LIBRARY_PATH="${OPENSSLDIR}"/lib
-    export CPPFLAGS="-I${OPENSSLDIR}/include"
+    export LD_LIBRARY_PATH="${openssl_DIR}/lib ${zlib_DIR}/lib"
 fi
-export LDFLAGS="${LDFLAGS} -L${OPENSSLDIR}/lib"
-export CPPFLAGS="-I${OPENSSLDIR}/include"
+export LDFLAGS="${LDFLAGS} -L${openssl_DIR}/lib -L${zlib_DIR}/lib"
+export CPPFLAGS="-I${openssl_DIR}/include -I${zlib_DIR}/include"
 
 autoreconf -i
 ./configure --prefix=${INSTALL_DIR} \
@@ -60,7 +59,8 @@ autoreconf -i
             --enable-shared \
             --disable-static \
             --without-libssh2 \
-            --with-ssl=${OPENSSLDIR}
+            --with-ssl=${openssl_DIR} \
+            --with-zlib=${zlib_DIR}
 make all
 make install
 
