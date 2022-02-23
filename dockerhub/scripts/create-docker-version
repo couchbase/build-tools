@@ -60,8 +60,12 @@ if [ ! -z "${FORCE}" ]; then
 else
     VERB="Adding"
 fi
-# Only commit this change if it actually changed something.
-git status --short || \
+# Only commit this change if it actually changed something. For whatever
+# weird reason, "git diff-index" will report a change if a local file's
+# timestamp has changed but the content has not - we don't want that. So
+# instead we use "git status" and see if it produces a zero-length
+# string as output.
+[ -z "$(git status --porcelain --untracked-files=no)" ] || \
     git commit -m "${VERB} ${PRODUCT} ${EDITION} ${VERSION}"
 git push origin HEAD:refs/heads/master
 
