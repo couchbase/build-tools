@@ -37,6 +37,35 @@ cp ${OUTPUT_DIR}/*-notices.txt ${GIT_DIR}/notices.txt
 
 pushd ${GIT_DIR}
 
+# Check for the Stupid License and fail if it's in there.
+# Note: so far, every component we use that's under the Stupid License
+# is also licensed under something Not Stupid such as MIT. So if this
+# shows up, go into the Black Duck Hub and edit the license for this
+# component so that only the Not Stupid license remains. If we ever
+# hit a component that is ONLY licensed under the Stupid License,
+# we'll need to figure out what to do then.
+wtfpls=$(grep -i 'what the f.ck' components.csv|cut -d, -f4-5)
+[ -z "${wtfpls}" ] || {
+    cat <<EOF
+
+--------------------------
+ERROR: WTFPL license found
+--------------------------
+
+The following components are licensed under WTFPL. Please correct in
+Black Duck Hub.
+
+--------------------------
+${wtfpls}
+--------------------------
+
+This script will now terminate to avoid committing offensive language to
+our GitHub repositories.
+
+EOF
+    exit 5
+}
+
 # Delete Phase and Distribution lines from notices.txt, and insert
 # product-specific additional information (if any)
 if [ -e ${PROD_DIR}/additional-notices.txt ]; then
