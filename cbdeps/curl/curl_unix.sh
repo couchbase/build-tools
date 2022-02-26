@@ -12,9 +12,8 @@ cd ${ROOT_DIR}/curl
 # Dependencies
 OPENSSL_VER=1.1.1l-1
 ZLIB_VER=1.2.11-8
-CBDEP_TOOL_VERS=1.0.4
 
-DEPSDIR=${WORKSPACE}/deps
+DEPSDIR=${ROOT_DIR}/deps
 rm -rf ${DEPSDIR}
 mkdir -p ${DEPSDIR}
 
@@ -28,7 +27,7 @@ get_dep() {
 
     # See if it's already in local .cbdepscache
     DEP_CACHE=/home/couchbase/.cbdepscache/${dep}*-${ver}.tgz
-    if [ ! -z "${LOCAL_BUILD}" -a -f ${DEP_CACHE} ]; then
+    if [ ! -z "${LOCAL_BUILD}" -a -f "${DEP_CACHE}" ]; then
         mkdir -p ${dep_DIR}
         tar xzf ${DEP_CACHE} -C ${dep_DIR}
     else
@@ -40,6 +39,12 @@ get_dep openssl ${OPENSSL_VER}
 rm -rf ${openssl_DIR}/lib/pkgconfig
 get_dep zlib ${ZLIB_VER}
 rm -rf ${zlib_DIR}/lib/pkgconfig
+
+# Patch
+if [[ $(uname -s) != "Darwin" ]]; then
+    patch -p1 < "${SCRIPT_DIR}/curl_linux_cabundle_env.patch"
+    export CABUNDLE_FLAG=--with-ca-bundle=env
+fi
 
 # Build
 if [[ $(uname -s) != "Darwin" ]]; then
@@ -60,6 +65,7 @@ autoreconf -i
             --disable-static \
             --without-libssh2 \
             --with-ssl=${openssl_DIR} \
+            ${CABUNDLE_FLAG} \
             --with-zlib=${zlib_DIR}
 make all
 make install
