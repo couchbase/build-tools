@@ -19,19 +19,21 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source ${SCRIPT_DIR}/../utilities/shell-utils.sh
 
 usage() {
-    echo "Usage: $(basename $0) -p PRODUCT -v VERSION -d CHANGE_DATE [-f]"
-    echo "  -f - force product/version changes"
+    echo "Usage: $(basename $0) -p PRODUCT -v VERSION -d CHANGE_DATE [-n] [-f] [-l]"
     echo "  -n - dry run; report any possible problems but don't push changes"
+    echo "  -f - force change existing BSL licenses to VERSION (will NOT overwrite PRODUCT)"
+    echo "  -l - licenses only; do not update source code header comments"
     exit 1
 }
 
 # Default values for arguments - Overriding REPOSITORY and BRANCH via options
 # is only for testing/debugging.
-FORCE=false
 DRY_RUN=false
+FORCE=false
+UPDATE_COMMENTS=true
 REPOSITORY=${REPO_PROJECT}
 BRANCH=${REPO_RREV}
-while getopts ":p:v:d:r:b:c:fn" opt; do
+while getopts ":p:v:d:r:b:c:nfl" opt; do
     case ${opt} in
         p)
             PRODUCT=${OPTARG}
@@ -51,11 +53,14 @@ while getopts ":p:v:d:r:b:c:fn" opt; do
         c)
             cd "${OPTARG}"
             ;;
+        n)
+            DRY_RUN=true
+            ;;
         f)
             FORCE=true
             ;;
-        n)
-            DRY_RUN=true
+        l)
+            UPDATE_COMMENTS=false
             ;;
         \?)
             usage
@@ -87,6 +92,10 @@ echo
 echo
 status Checking repository $(pwd)
 
+# Delete ALL top-level existing license files (our LICENSE.txt will be
+# replaced next)
+find . -maxdepth 1 -type f -iname \*license\* | xargs --no-run-if-empty git rm >& /dev/null
+
 # Ensure top-level generic LICENSE.txt exists and is correct
 cp "${SCRIPT_DIR}/assets/LICENSE.txt" ${TOP_LIC}
 git add ${TOP_LIC}
@@ -97,7 +106,7 @@ cp "${SCRIPT_DIR}/assets/APL2.txt" ${APACHE_LIC}
 git add ${APACHE_LIC}
 
 # If BSL license already exists, ensure it is for correct product/version.
-if [ ! ${FORCE} -a -e ${BSL_LIC} ]; then
+if [ -e ${BSL_LIC} ]; then
     WORK_LINE_RE="^Licensed Work:  (.*) Version (.*)"
     current_work_line=$(egrep "${WORK_LINE_RE}" ${BSL_LIC})
     [[ "${current_work_line}" =~ ${WORK_LINE_RE} ]]
@@ -105,15 +114,19 @@ if [ ! ${FORCE} -a -e ${BSL_LIC} ]; then
     current_version=${BASH_REMATCH[2]}
 
     if [ "${current_product}" != "${PRODUCT}" ]; then
-        warn Current BSL Product is ${current_product}, not ${PRODUCT}!
+        status Current BSL Product is ${current_product}, not ${PRODUCT}!
         ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
         PROBLEMS=true
     fi
 
     if [ "${current_version}" != "${VERSION}" ]; then
-        warn Current BSL Version is ${current_version}, not ${VERSION}!
-        ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
-        PROBLEMS=true
+        if ${FORCE}; then
+            status Current BSL Version is ${current_version} - will overwrite with ${VERSION}!
+        else
+            status Current BSL Version is ${current_version}, not ${VERSION}!
+            ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
+            PROBLEMS=true
+        fi
     fi
 fi
 
@@ -126,7 +139,9 @@ cat "${SCRIPT_DIR}/assets/BSL-Couchbase.txt.tmpl" \
 git add ${BSL_LIC}
 
 # Inject/Update license headers
-target_license=bsl node ${SCRIPT_DIR}/../license-injector/app.js .
+if ${UPDATE_COMMENTS}; then
+    target_license=bsl node ${SCRIPT_DIR}/../license-injector/app.js .
+fi
 [ -f ".copyrightignore" ] && git add .copyrightignore
 
 # If we made any changes, commit them (or report if dry-run)
@@ -136,13 +151,13 @@ else
     # Make sure that there's an upstream branch to push to; if this project
     # is locked to a SHA, there's a problem
     if [[ ${BRANCH} =~ ^[0-9a-f]{40}$ ]]; then
-        warn "${REPOSITORY} has licence changes but is locked to SHA!"
+        status "${REPOSITORY} has licence changes but is locked to SHA!"
         ${DRY_RUN} || exit ${ERR_PROJECT_LOCKED}
         PROBLEMS=true
     fi
 
     if ${DRY_RUN}; then
-        warn "${REPOSITORY} has the following changes to commit:"
+        status "${REPOSITORY} has the following changes to commit:"
         git status --short
         git reset --hard &> /dev/null
     else
@@ -153,5 +168,8 @@ else
 fi
 
 # We still want dry runs to exit with error condition if something was problematic
-${PROBLEMS} && exit ${ERR_PROBLEMS_FOUND}
+${PROBLEMS} && {
+    status "Problems found - exiting with error code ${ERR_PROBLEMS_FOUND}"
+    exit ${ERR_PROBLEMS_FOUND}
+}
 exit 0
