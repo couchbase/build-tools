@@ -33,23 +33,54 @@ esac
 
 # Upload artifacts to S3
 
-release_dir=/releases/${PRODUCT}/${public_tag}
+upload_path=${PRODUCT}/${public_tag}
+upload_url_base=packages.couchbase.com/${upload_path}
+release_dir=/releases/${upload_path}
 mkdir -p ${release_dir}
 pushd ${release_dir}
 shopt -s nullglob
+UPLOADS=
 for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
-    if [[ $file =~ .*source.tar.gz || $file =~ ${PRODUCT}-image.* ]]; then
-        echo Skipping file $file
+    if [[ $file =~ .*source.tar.gz ]]; then
+        echo Skipping source code file $file
+        continue
+    fi
+    if [[ "${PRODUCT}" != "couchbase-operator" && $file =~ ${PRODUCT}-image.* ]]; then
+        echo Skipping internal image file $file
         continue
     fi
     filename=$(basename ${file/${VERSION}-${BLD_NUM}/${public_tag}})
     cp -av ${file} ${filename}
     sha256sum ${filename} > ${filename}.sha256
     aws s3 cp ${filename} \
-      s3://packages.couchbase.com/${PRODUCT}/${public_tag}/${filename} --acl public-read
+      s3://${upload_url_base}/${filename} --acl public-read
     aws s3 cp --content-type "text/plain" ${filename}.sha256 \
-      s3://packages.couchbase.com/${PRODUCT}/${public_tag}/${filename}.sha256 --acl public-read
+      s3://${upload_url_base}/${filename}.sha256 --acl public-read
+    UPLOADS=1
 done
+
+if [ "${UPLOADS}" = "1" ]; then
+    set +x
+    echo :::::::::::::::::::::::::::::::
+    echo UPLOADED URLS
+    echo :::::::::::::::::::::::::::::::
+
+    ignorefiles="manifest|properties"
+    links=$(aws s3 ls s3://${upload_url_base}/ | egrep -v "$ignorefiles" | awk -v s3dir=https://${upload_url_base}/ '{print s3dir $4}')
+    rel=$(echo "$links" | grep -v ".sha256")
+    rel_sha=$(echo "$links" | grep ".sha256")
+    echo "Binaries:"
+    echo
+    echo "$rel"
+    echo
+    echo "Shas:"
+    echo
+    echo "$rel_sha"
+    echo
+    echo :::::::::::::::::::::::::::::::
+    set -x
+fi
+
 popd
 
 # Add git tag for release - this should take place after the S3 upload
