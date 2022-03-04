@@ -82,6 +82,13 @@ if [ ! -e ".git" ]; then
     usage
 fi
 
+# Special sauce for projects that upload changes to different branches
+if [ ! -z "${REPO_DEST_BRANCH}" ]; then
+    status ${REPOSITORY} uploads to ${REPO_DEST_BRANCH} branch, switching...
+    git checkout "${REPO_DEST_BRANCH}"
+    BRANCH=${REPO_DEST_BRANCH}
+fi
+
 LIC_DIR=licenses
 BSL_LIC=${LIC_DIR}/BSL-Couchbase.txt
 APACHE_LIC=${LIC_DIR}/APL2.txt
