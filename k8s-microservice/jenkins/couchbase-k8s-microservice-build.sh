@@ -33,7 +33,7 @@ do
     case "$file" in
         *"operator"*"macos"*".zip")
         echo "Signing and notarizing $file"
-        platform=$(echo $file | sed -e "s/.*operator-\([^_]*\).*/\1/g")
+        platform=$(echo $file | sed -e 's/.*\(kubernetes\|openshift\).*/\1/g')
         bundle="com.couchbase.autonomous-operator-${platform}-${VERSION}-${BLD_NUM}"
         curl -Lsf -o "${file}" \
                 -X POST \
