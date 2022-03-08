@@ -36,7 +36,7 @@ while getopts ":u:m:p:nfl" opt; do
             MANIFEST=${OPTARG}
             ;;
         p)
-            PROJECTS_ARG="-p ${OPTARG}"
+            PROJECTS_ARG=${OPTARG//,/ }
             ;;
         n)
             DRY_RUN_ARG=-n
@@ -78,7 +78,7 @@ CHANGE_DATE=$(get_metadata BSL_CHANGE_DATE)
 status
 status Updating BSL license to $PRODUCT Version $VERSION, change date $CHANGE_DATE
 status
-repo forall -v -g bsl ${PROJECTS_ARG} -c \
+repo forall -v -g bsl -p ${PROJECTS_ARG} -c \
     "${SCRIPT_DIR}/update-bsl-for-repo" \
         ${DRY_RUN_ARG} ${FORCE_ARG} ${LICENSE_ONLY_ARG} \
         -p "${PRODUCT}" \

@@ -3,10 +3,10 @@
 NODE_VERSION=17.1.0
 
 # Set script args based on env vars from Jenkins parameters
-${DRY_RUN} && export DRY_RUN_ARG=-n
-${FORCE} && export FORCE_ARG=-f
-${LICENSES_ONLY} && export LICENSES_ONLY_ARG=-l
-PROJECTS_ARG="-p ${PROJECTS:-bsl}"
+${DRY_RUN} && DRY_RUN_ARG=-n
+${FORCE} && FORCE_ARG=-f
+${LICENSES_ONLY} && LICENSES_ONLY_ARG=-l
+[ ! -z "${PROJECTS}" ] && PROJECTS_ARG="-p ${PROJECTS}"
 
 # We don't need nodejs if we're not injecting header comments
 ${LICENSES_ONLY} || {
