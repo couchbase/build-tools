@@ -152,7 +152,7 @@ fi
 [ -f ".copyrightignore" ] && git add .copyrightignore
 
 # If we made any changes, commit them (or report if dry-run)
-if git diff --exit-code --cached > /dev/null; then
+if [ -z "$(git status --porcelain)" ]; then
     status "${REPOSITORY} repository clean!"
 else
     # Make sure that there's an upstream branch to push to; if this project
