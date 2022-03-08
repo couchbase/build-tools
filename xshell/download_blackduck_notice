@@ -25,7 +25,7 @@ while [ $count -lt 60 ] ; do
     if [ "${BUILD_STATUS}" = "200" ]; then
         BD_RESULT=$(curl -q http://dbapi.build.couchbase.com:8000/v1/builds/${PRODUCT}-${VERSION}-${BLD_NUM}/metadata | jq .data.blackduck_scan)
         if [[ "${BD_RESULT}" == *"pass"* ]]; then
-            curl -o ${WORKSPACE}/notices.txt  https://github.com/couchbase/product-metadata/blob/master/${PRODUCT}/blackduck/${VERSION}/notices.txt
+            curl -o ${WORKSPACE}/notices.txt  https://raw.githubusercontent.com/couchbase/product-metadata/master/${PRODUCT}/blackduck/${VERSION}/notices.txt
             exit
         elif [[ "${BD_RESULT}" == *"fail"* ]]; then
             echo "Blackduck scan failed, skip downloading notice.txt file."
