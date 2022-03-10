@@ -53,22 +53,25 @@ for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
     cp -av ${file} ${filename}
     sha256sum ${filename} > ${filename}.sha256
     aws s3 cp ${filename} \
-      s3://${upload_url_base}/${filename} --acl public-read
+        s3://${upload_url_base}/${filename} --acl public-read
     aws s3 cp --content-type "text/plain" ${filename}.sha256 \
-      s3://${upload_url_base}/${filename}.sha256 --acl public-read
-    UPLOADS=1
+        s3://${upload_url_base}/${filename}.sha256 --acl public-read
+    if [[ ! $file =~ .*manifest.* && ! $file =~ .*properties.* ]]; then
+        UPLOADS=1
+    fi
 done
 
 if [ "${UPLOADS}" = "1" ]; then
+    ignorefiles="manifest|properties"
+    links=$(aws s3 ls s3://${upload_url_base}/ | egrep -v "$ignorefiles" | awk -v s3dir=https://${upload_url_base}/ '{print s3dir $4}')
+    rel=$(echo "$links" | grep -v ".sha256")
+    rel_sha=$(echo "$links" | grep ".sha256")
+
     set +x
     echo :::::::::::::::::::::::::::::::
     echo UPLOADED URLS
     echo :::::::::::::::::::::::::::::::
 
-    ignorefiles="manifest|properties"
-    links=$(aws s3 ls s3://${upload_url_base}/ | egrep -v "$ignorefiles" | awk -v s3dir=https://${upload_url_base}/ '{print s3dir $4}')
-    rel=$(echo "$links" | grep -v ".sha256")
-    rel_sha=$(echo "$links" | grep ".sha256")
     echo "Binaries:"
     echo
     echo "$rel"
@@ -86,4 +89,4 @@ popd
 # Add git tag for release - this should take place after the S3 upload
 # to ensure artifacts are available to any subsequent workflow
 # execution
-tag_release "${PRODUCT}" "${public_tag}" "${BLD_NUM}"
+tag_release "${PRODUCT}" "${VERSION}" "${BLD_NUM}" "${public_tag}"

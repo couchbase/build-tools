@@ -18,17 +18,22 @@ function product_in_rhcc {
 # manifest with the exact name of the PRODUCT, and that that project
 # is the one to tag.
 function tag_release {
-    if [ ${#} -ne 3 ]
+    if [ ${#} -ne 4 ]
     then
-        error "expected [product] [version] [build_number], got ${@}"
+        error "expected [product] [version] [build_number] [tag], got ${@}"
     fi
     local PRODUCT=$1
     local VERSION=$2
     local BLD_NUM=$3
+    local TAG=$4
 
     curl --fail -LO http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml
 
     REVISION=$(xmllint --xpath "string(//project[@name=\"${PRODUCT}\"]/@revision)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
+    if [ -z "${REVISION}" ]; then
+        warn "Project named '${PRODUCT}' not found in manifest; skipping auto-tagging"
+        return
+    fi
 
     git clone "ssh://review.couchbase.org:29418/${PRODUCT}.git"
 
@@ -40,11 +45,11 @@ function tag_release {
     then
         error "Expected to find a commit, found a $(git cat-file -t ${REVISION}) instead"
     else
-        if [ $(git tag -l "${VERSION}") ]
+        if [ $(git tag -l "${TAG}") ]
         then
-            error "Tag ${VERSION} already exists, please investigate"
+            error "Tag ${TAG} already exists, please investigate"
         else
-            git tag -a "${VERSION}" "${REVISION}" -m "Version ${VERSION}"
+            git tag -a "${TAG}" "${REVISION}" -m "Release ${TAG}"
             git push "ssh://review.couchbase.org:29418/${PRODUCT}.git" ${VERSION}
         fi
     fi
