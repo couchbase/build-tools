@@ -32,8 +32,8 @@ set -e
 rm -f .restconfig.json
 
 # Copy out components and notices to product-metadata
-cp ${OUTPUT_DIR}/*-components.csv ${GIT_DIR}/components.csv
 cp ${OUTPUT_DIR}/*-notices.txt ${GIT_DIR}/notices.txt
+cp ${OUTPUT_DIR}/components.csv ${GIT_DIR}/components.csv
 
 pushd ${GIT_DIR}
 

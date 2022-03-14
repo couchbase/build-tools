@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import zipfile
+import pandas as pd
 
 from blackduck.HubRestApi import HubInstance
 from pathlib import Path
@@ -170,6 +171,24 @@ class ReportsDownloader:
         self.download_report("CSV reports", self.reports_location)
         self.download_report("Notices file", self.notices_location)
 
+    def remove_columns_from_csv(self):
+        #loading the file
+        file_path=next(self.output_dir.glob("*-components.csv"))
+        data_file = pd.read_csv(file_path)
+        data = pd.DataFrame(data_file)
+
+        # Use this list if you want to remove by columns names
+        columns_list = ['Operational Risk', 'Component policy status', 'Reviewed by', \
+                        'Reviewed at', 'Snippet Review status', 'License Risk', \
+                        'Fulfillment Required', 'Critical Vulnerability Count', \
+                        'High Vulnerability Count', 'Medium Vulnerability Count', \
+                        'Low Vulnerability Count', 'Comments']
+
+        data = data.drop(columns=columns_list)
+
+        # saving the data back to a csv
+        data.to_csv(os.path.join(self.output_dir, 'components.csv'), sep=',', encoding='utf-8')
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Download collection of reports from Black Duck Hub'
@@ -195,3 +214,4 @@ if __name__ == "__main__":
         args.output_dir
     )
     downloader.download()
+    downloader.remove_columns_from_csv()
