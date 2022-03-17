@@ -17,7 +17,7 @@ PROD_NAME=cb-non-package-installer
 RELEASE_DIR_BASE=/releases
 RELEASE_DIR=${RELEASE_DIR_BASE}/${PROD_NAME}/${VERSION_STRING}
 mkdir -p ${RELEASE_DIR}
-HTTPS_BASE=https://packages.couchbase.com/${PROD_NAME}
+HTTPS_BASE=https://packages.couchbase.com
 S3_ROOT=s3://packages.couchbase.com/${PROD_NAME}
 
 cd /latestbuilds/python_tools/${PROD_NAME}/${VERSION}/${BLD_NUM}
@@ -73,7 +73,7 @@ set +x
 echo ::::::::::::::::::
 echo Uploaded files for ${PROD_NAME} ${VERSION_STRING}
 echo ::::::::::::::::::
-echo Installers:
+echo Downloads:
 printf "${UPLOADED_URLS}" | sort
 echo SHAs:
 printf "${UPLOADED_URLS}" | sort | sed -e 's/$/.sha256/'
