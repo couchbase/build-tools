@@ -5,15 +5,21 @@
 
 JDK_VERSION=11.0.9+11
 MAVEN_VERSION=3.5.2-cb6
-mkdir deps
-pushd deps
+MINIFORGE3_VERSION=4.11.0-4
+mkdir ../deps
+pushd ../deps
 curl -L -o cbdep http://downloads.build.couchbase.com/cbdep/cbdep.linux
 chmod 755 cbdep
 
 ./cbdep install openjdk ${JDK_VERSION} -d .
 ./cbdep install maven ${MAVEN_VERSION} -d .
-export PATH=$(pwd)/maven-${MAVEN_VERSION}/bin:$(pwd)/openjdk-${JDK_VERSION}/bin:$PATH
+./cbdep install miniforge3 ${MINIFORGE3_VERSION} -d .
+export PATH=$(pwd)/miniforge3-${MINIFORGE3_VERSION}/bin:$(pwd)/maven-${MAVEN_VERSION}/bin:$(pwd)/openjdk-${JDK_VERSION}/bin:$PATH
 export JAVA_HOME=$(pwd)/openjdk-${JDK_VERSION}
+
+python3 -m venv couchbase-tableau-connector --clear
+source couchbase-tableau-connector/bin/activate
+
 popd
 
 mvn -B install -DskipTests -Dpython.path=$(which python3) -f cbtaco/pom.xml
@@ -31,3 +37,5 @@ popd
 mv couchbase-jvm-clients/core-io-deps .
 rm -rf couchbase-jvm-clients
 popd
+
+deactivate
