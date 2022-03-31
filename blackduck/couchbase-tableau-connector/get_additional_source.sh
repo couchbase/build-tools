@@ -26,7 +26,8 @@ mvn -B install -DskipTests -Dpython.path=$(which python3) -f cbtaco/pom.xml
 
 #Get additional dependencie from Couchase JVM Clients
 #Only core-io-deps is used by tabealu jdbc connector, hence the rest is removed.
-COREIO_VERSION=$(cat cbtaco/cbas/pom.xml | grep "<couchbase-coreio.version>" |awk -F "<|>" '{print $3}')
+COREIO_VERSION=`xmllint --xpath '//*[local-name()="profiles"]/*[local-name()="profile"]/*[local-name()="id"][contains(., "analytics-taco-couchbase-jdbc-repo")]/following-sibling::*[local-name()="properties"]/*[local-name()="couchbase-coreio.version"]/text()' cbtaco/cbas/pom.xml`
+
 pushd cbtaco/couchbase-jdbc-driver
 git clone https://github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
