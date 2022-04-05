@@ -10,10 +10,17 @@ pip install -r couchbase-operator-backup/requirements.txt
 # Since we're about to run "repo" again, need to kill existing .repo dir
 rm -rf .repo
 
-# We need these repositories from the Server build as well.
+# We need some repositories from the Server build as well.
 # Use the Docker tag of the vanilla Dockerfile's FROM directive to
 # determine the corresponding Server version.
-VERSION=$(grep FROM couchbase-operator-backup/Dockerfile | sed -e 's/.*://')
+VERSION=$(
+    docker run --rm $(
+        sed -nE 's/^FROM (couchbase\/server[^[:space:]]+).*/\1/p' \
+        couchbase-operator-backup/Dockerfile \
+        | head -1
+    ) cat /opt/couchbase/VERSION.txt \
+    | sed 's/-.*//'
+)
 mkdir server_src
 cd server_src
 repo init \
