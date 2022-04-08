@@ -70,6 +70,7 @@ build_php() {
         --with-zlib \
         ${LIBXML_OPT} --enable-xml --enable-xmlwriter --enable-dom \
         --with-pear \
+        --without-pcre-jit \
         --prefix=$PREFIX $ZTSARG CFLAGS="-ggdb3 $CFLAGS"
     make -j8
     make install install-sapi install-headers
