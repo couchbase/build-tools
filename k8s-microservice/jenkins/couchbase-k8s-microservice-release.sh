@@ -15,12 +15,17 @@ chk_set LATEST
 # as the version number, but sometimes we'll do things like 1.2.0-beta.)
 if [ -z "${PUBLIC_TAG}" ]; then
     public_tag=${VERSION}
+    suffix=""
 else
     public_tag=${PUBLIC_TAG}
+    suffix=${PUBLIC_TAG/$VERSION-/}
 fi
 
-# Publish images with this public tag, and a REBUILD number of 1.
-${script_dir}/util/publish-k8s-images.sh ${PRODUCT} ${VERSION}-${BLD_NUM} ${public_tag} 1 ${LATEST}
+# Normally we use the OpenShift REBUILD number "1", since this is presumed
+# to be the first release of a given version. However we allow overriding
+# it for emergencies, like when the initial upload fails RHCC scan validation.
+OS_BUILD=${OS_BUILD-1}
+${script_dir}/util/publish-k8s-images.sh ${PRODUCT} ${VERSION}-${BLD_NUM} ${public_tag} ${OS_BUILD} ${LATEST}
 
 case "${PRODUCT}" in
     couchbase-admission-controller|couchbase-operator-certification)
@@ -29,11 +34,20 @@ case "${PRODUCT}" in
         ;;
 esac
 
+# For convenience, save a trigger.properties for update_manifest_released.
+# Do this after the above check so that we will only propose changes for
+# images that have corresponding manifests.
+cat <<EOF > trigger.properties
+PRODUCT_PATH=${PRODUCT}
+RELEASE=${VERSION}
+VERSION=${VERSION}
+BLD_NUM=${BLD_NUM}
+SUFFIX=${suffix}
+EOF
+
 ################### ARTIFACTS
 
 # Upload artifacts to S3
-
-upload_path=${PRODUCT}/${public_tag}
 upload_url_base=packages.couchbase.com/${upload_path}
 release_dir=/releases/${upload_path}
 mkdir -p ${release_dir}
@@ -88,5 +102,10 @@ popd
 
 # Add git tag for release - this should take place after the S3 upload
 # to ensure artifacts are available to any subsequent workflow
-# execution
-tag_release "${PRODUCT}" "${VERSION}" "${BLD_NUM}" "${public_tag}"
+# execution.
+# As a heuristic special case, if OS_BUILD is not 1 we assume this is
+# an emergency re-release of RHCC, and therefore git tagging was
+# probably already done, so skip it.
+if [ "${OS_BUILD}" = "1" ]; then
+    tag_release "${PRODUCT}" "${VERSION}" "${BLD_NUM}" "${public_tag}"
+fi

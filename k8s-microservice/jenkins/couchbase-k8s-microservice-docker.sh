@@ -10,7 +10,8 @@ chk_set VERSION
 chk_set BLD_NUM
 
 # First build the images into the local cb-xxxxx organizations
-${script_dir}/util/build-k8s-images.sh ${PRODUCT} ${VERSION} ${BLD_NUM} 1
+OS_BUILD=${OS_BUILD-1}
+${script_dir}/util/build-k8s-images.sh ${PRODUCT} ${VERSION} ${BLD_NUM} ${OS_BUILD}
 
 # Figure out if this is the highest current version being built
 highest_version=$(
@@ -36,6 +37,10 @@ for product in *; do
         orgs="cb-vanilla cb-rhcc"
     else
         orgs="cb-vanilla"
+    fi
+
+    if [ "${RHCC_ONLY}" = "true" ]; then
+        orgs=${orgs/cb-vanilla/}
     fi
 
     for org in $orgs; do
