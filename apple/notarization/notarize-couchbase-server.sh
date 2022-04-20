@@ -8,6 +8,17 @@ EOF
     exit 1
 }
 
+staple () {
+    DMGFILE=$1
+    hdiutil attach ${DMGFILE}
+    #yes, there is a space after "Couchbase Installer"
+    cp -rp /Volumes/Couchbase\ Installer\ /Couchbase\ Server.app .
+    xcrun stapler staple Couchbase\ Server.app
+    dev=$(hdiutil info | grep "Couchbase Installer" | awk '{print $1}')
+    sudo hdiutil detach ${dev}
+    rm -rf Couchbase\ Server.app
+}
+
 check_notarization_status() {
     request=$1
 
@@ -140,7 +151,9 @@ while true; do
                 echo =========================================
                 xcrun stapler staple ${UNNOTARIZED[$i]}
                 notarized_file_name=`echo ${UNNOTARIZED[$i]} |sed "s/-unnotarized.dmg/.dmg/"`
-                mv ${UNNOTARIZED[$i]} $notarized_file_name
+                mv ${UNNOTARIZED[$i]} ${notarized_file_name}
+                # CBD-4749 staple app as well as the binaries that could potentially be launched from command line
+                staple ${notarized_file_name}
                 # Don't check this one anymore
                 unset REQUESTS[$i]
                 echo
