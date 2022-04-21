@@ -7,7 +7,7 @@ import yaml
 from jinja2 import Template
 from pathlib import Path
 
-def generate_filelist(product, release, version, build_num, template_file):
+def generate_filelist(product, release, version, build_num, template_file, debug=False):
     """
     Create a set of filenames for the given product, release, version
     and build number, using the specified template (which may be either
@@ -23,7 +23,7 @@ def generate_filelist(product, release, version, build_num, template_file):
         )
     elif template_file.name.endswith(".yaml.j2"):
         return generate_filelist_from_jinja(
-            product, release, version, build_num, Template(template)
+            product, release, version, build_num, Template(template), debug
         )
     else:
         print (f"Unrecognized extension on {template_file.name}!")
@@ -72,7 +72,7 @@ def generate_filelist_from_json(product, release, version, build_num, template):
 
     return req_files
 
-def generate_filelist_from_jinja(product, release, version, build_num, template):
+def generate_filelist_from_jinja(product, release, version, build_num, template, debug):
     """
     Create a set of filenames for a given set of build coordinates
     using a Jinja2 YAML template. The YAML file is expected to return
@@ -80,7 +80,14 @@ def generate_filelist_from_jinja(product, release, version, build_num, template)
     'product', 'release', 'version', and 'build_num'
     """
 
-    filenames = yaml.safe_load(template.render(locals()))['filenames']
+    try:
+        version_tuple = tuple(map(int, version.split('.')))
+    except ValueError:
+        version_tuple = ()
+    yaml_text = template.render(locals())
+    if debug:
+        print(f"\nGenerated YAML:\n\n{yaml_text}\n")
+    filenames = yaml.safe_load(yaml_text)['filenames']
     if filenames is not None:
         return set(filenames)
     else:
@@ -92,7 +99,7 @@ def main():
     """
 
     parser = argparse.ArgumentParser(
-        description='Update documents in build database'
+        description='Test a check_builds template'
     )
     parser.add_argument('-p', '--product', help='Product name', required=True)
     parser.add_argument('-r', '--release', help='Release name', required=True)
@@ -100,6 +107,8 @@ def main():
     parser.add_argument('-b', '--bld_num', help='Build number', required=True)
     parser.add_argument('datafile', type=Path,
                         help='Template for determining build information')
+    parser.add_argument('-d', '--debug', action="store_true",
+                        help='Display generated yaml')
     args = parser.parse_args()
 
     if not args.datafile.exists():
@@ -107,7 +116,7 @@ def main():
         sys.exit(1)
     filelist = generate_filelist(
         args.product, args.release, args.version, args.bld_num,
-        args.datafile
+        args.datafile, args.debug
     )
     for fname in filelist:
         print(fname)
