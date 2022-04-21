@@ -321,6 +321,11 @@ class ManifestBuilder:
             for child in top_level:
                 shutil.rmtree(child) if child.is_dir() else child.unlink()
 
+            # Silly work-around for git bug - sometimes you just need
+            # to run "git status" in a directory to fix "something"
+            with pushd(".repo/repo"):
+                run(['git', 'status'], check=True, stdout=PIPE)
+
             run(['repo', 'init', '-u', str(top_dir / 'manifest'), '-g', 'all',
                  '-m', str(self.manifest)], check=True)
             run(['repo', 'sync', '--jobs=6', '--force-sync'], check=True)
