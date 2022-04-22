@@ -22,7 +22,7 @@ import xml.etree.ElementTree as EleTree
 
 from datetime import datetime
 from pathlib import Path
-from subprocess import PIPE, STDOUT, run
+from subprocess import PIPE, STDOUT
 from typing import Union
 
 
@@ -32,12 +32,22 @@ from typing import Union
 def pushd(new_dir):
     old_dir = os.getcwd()
     os.chdir(new_dir)
+    print(f"++ pushd {os.getcwd()}")
 
     try:
         yield
     finally:
         os.chdir(old_dir)
+        print(f"++ popd (pwd now: {os.getcwd()})")
 
+# Echo command being executed - helpful for debugging
+def run(cmd, **kwargs):
+    print("++", *cmd)
+    return subprocess.run(cmd, **kwargs)
+
+def Popen(cmd, **kwargs):
+    print("++", *cmd)
+    return subprocess.Popen(cmd, **kwargs)
 
 # Save current path for program
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -224,7 +234,7 @@ class ManifestBuilder:
             # https://code-maven.com/python-capture-stdout-stderr-exit
             # Do the following so the output from the sub-script's stderr
             # and stdout aren't all out of order.
-            proc = subprocess.Popen(
+            proc = Popen(
                 [f'{script_dir}/update_manifest_from_submodules',
                  f'../manifest/{self.manifest}']
                 + module_projects, stdout=PIPE, stderr=STDOUT
@@ -323,8 +333,9 @@ class ManifestBuilder:
 
             # Silly work-around for git bug - sometimes you just need
             # to run "git status" in a directory to fix "something"
-            with pushd(".repo/repo"):
-                run(['git', 'status'], check=True, stdout=PIPE)
+            if os.path.exists(".repo/repo"):
+                with pushd(".repo/repo"):
+                    run(['git', 'status'], check=True, stdout=PIPE)
 
             run(['repo', 'init', '-u', str(top_dir / 'manifest'), '-g', 'all',
                  '-m', str(self.manifest)], check=True)
