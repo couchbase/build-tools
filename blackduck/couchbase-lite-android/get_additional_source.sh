@@ -1,6 +1,6 @@
 #!/bin/bash -ex
-NDK_VERSION=$(cat cbl-java/common/etc/android/install_toolchain.sh | grep ^NDK_VERSION |awk -F "\'|\"" '{print $2}')
-CMAKE_VERSION=$(cat cbl-java/common/etc/android/install_toolchain.sh | grep ^CMAKE_VERSION |awk -F "\'|\"" '{print $2}')
+NDK_VERSION=$(cat cbl-java/etc/jenkins/install_android_toolchain.sh | grep ^NDK_VERSION |awk -F "\'|\"" '{print $2}')
+CMAKE_VERSION=$(cat cbl-java/etc/jenkins/install_android_toolchain.sh | grep ^CMAKE_VERSION |awk -F "\'|\"" '{print $2}')
 TOOLS_DIR=/home/couchbase/tools
 SDK_DIR=${TOOLS_DIR}/android-sdk
 SDK_MGR=${SDK_DIR}/tools/bin/sdkmanager
