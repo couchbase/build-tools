@@ -29,12 +29,21 @@ def main(args):
     sha_src_dict = parse_src_input(args.sha_src)
     master_only = args.master_only
 
-    # Read input manifest and determine default revision
+    # Read input manifest
     tree = etree.parse(args.input)
+
+    # Determine default revision
     default_revision = "master"
     default_element = tree.find("default")
     if default_element is not None:
         default_revision = default_element.get("revision", default_revision)
+
+    # Determine VERSION annotation
+    product_version = "0.0.0"
+    version_element = tree.find("//annotation[@name='VERSION']")
+    if version_element is not None:
+        product_version = version_element.get("value", product_version)
+
 
     # Loop through input_src file
     # Replace the git SHA from src_lock_input xml
@@ -48,6 +57,13 @@ def main(args):
         revision = result.get('revision', default_revision)
         # If project is already locked to a SHA, skip it
         if sha_regex.match(revision):
+            continue
+        # If project is already pointing to a tag, skip it
+        if revision.startswith("refs/tags/"):
+            continue
+        # If project is already pointing to a branch with the same
+        # name as the manifest's VERSION annotation, skip it
+        if revision == product_version:
             continue
         # If master-only is specified and project isn't on master/main,
         # skip it. Note: we don't care if the manifest specifies a
