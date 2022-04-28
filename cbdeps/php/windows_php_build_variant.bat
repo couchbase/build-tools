@@ -55,7 +55,7 @@ rem Configure and build
 call buildconf || goto :error
 @echo on
 call configure --disable-all --enable-sockets --enable-mbstring ^
-  --with-iconv --with-xml --with-libxml --with-xmlwriter --enable-dom ^
+  --with-iconv --with-xml --with-libxml --enable-xmlwriter --with-dom ^
   --enable-session --enable-json --enable-cli --enable-tokenizer ^
   --enable-phar=shared ^
   %tsarg% ^
