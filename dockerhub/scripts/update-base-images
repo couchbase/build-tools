@@ -6,10 +6,7 @@
 # propagate to the various branches.
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
-
-status() {
-    echo "-- $@"
-}
+. "${script_dir}/../../utilities/shell-utils.sh"
 
 # Once a branch is identified as "potentially interesting", this function
 # does the heavy lifting of checking it out; checking the base image of
@@ -47,6 +44,9 @@ check_and_update() {
     git push origin HEAD:refs/heads/${branch}
 }
 
+
+# Check that any unusual commands we use are installed
+chk_cmd jq docker
 
 # Start by cloning / updating Docker repository
 if [ ! -e docker ]; then

@@ -27,3 +27,12 @@ function error {
     echo "${FUNCNAME[1]}: $@" >&2
     exit 1
 }
+
+function chk_cmd {
+    for cmd in $@; do
+        command -v $cmd > /dev/null 2>&1 || {
+            echo "ERROR: command '$cmd' not available!"
+            exit 5
+        }
+    done
+}
