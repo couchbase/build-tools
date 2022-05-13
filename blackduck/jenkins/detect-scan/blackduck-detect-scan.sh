@@ -3,6 +3,7 @@
 PRODUCT_PATH=${PRODUCT/::/\/}
 PROD_NAME=$(basename $PRODUCT_PATH)
 PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PROD_NAME}"
+DETECT_SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
 SCAN_CONFIG="${PROD_DIR}/scan-config.json"
 
 # Disable analytics
@@ -87,6 +88,22 @@ if [ "${KEEP_GIT}" != true ]; then
 fi
 find . -name .repo -print0 | xargs -0 rm -rf
 
+# Find any Black Duck manifests
+manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT}-black-duck-manifest.yaml) )
+if [ "${#manifest[@]}" != "0" ]; then
+  echo "Black Duck manifest(s) found; prepping python environment"
+  venv="${WORKSPACE}/.venv"
+  if [ ! -d "${venv}" ]; then
+    python3 -m venv "${venv}"
+  fi
+  source "${venv}/bin/activate"
+
+  pip3 install -r "${DETECT_SCRIPT_DIR}/manual-manifest-requirements.txt"
+
+  echo "Pruning any source directories referenced by Black Duck manifests"
+  "${DETECT_SCRIPT_DIR}/prune-from-manual-manifest" -d -m ${manifest[@]}
+fi
+
 # Product-specific script for pruning unwanted sources
 if [ -x "${PROD_DIR}/prune_source.sh" ]; then
   "${PROD_DIR}/prune_source.sh" \
@@ -106,7 +123,7 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
 fi
 
 # Invoke scan script
-"${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan/run-scanner" \
+"${DETECT_SCRIPT_DIR}/run-scanner" \
   ${DRY_RUN_ARG} \
   ${CONFIG_ARG} \
   --token ~/.ssh/blackduck-token.txt \
@@ -120,35 +137,20 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
   exit
 fi
 
-do-manual-manifest() {
-  venv="${WORKSPACE}/.venv"
-  if [ ! -d "${venv}" ]; then
-    python3 -m venv "${venv}"
-  fi
-  source "${venv}/bin/activate"
-
-  cd "${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
-  pip3 install -r manual-manifest-requirements.txt
-
-  echo "Loading product-specific Black Duck manifest ${manifest[0]}"
-  ./update-manual-manifest -d \
+# If there's a product-specific manual Black Duck manifest, load that as well
+if [ "${#manifest[@]}" != "0"]; then
+  echo "Loading product-specific Black Duck manifests: ${manifest[@]}"
+  "${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
       -c ~/.ssh/blackduck-creds.json \
       -m ${manifest[@]} \
       -p ${PRODUCT} -v ${VERSION}
-}
-
-# If there's a product-specific manual Black Duck manifest, load that as well
-manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT}-black-duck-manifest.yaml) )
-case ${#manifest[@]} in
-  0) echo "No product-specific Black Duck manifest; skipping"
-     ;;
-  *) do-manual-manifest
-     ;;
-esac
+else
+  echo "No product-specific Black Duck manifests; skipping"
+fi
 
 # setup parent/sub project dependency if sub-project.json exists
 if [ -f "${PROD_DIR}/sub-project.json" ]; then
-  "${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan/add_subproject.py" \
+  "${DETECT_SCRIPT_DIR}/add_subproject.py" \
     ${PRODUCT} \
     ${VERSION} \
     ${PROD_DIR}/sub-project.json
