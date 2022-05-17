@@ -4,7 +4,7 @@ INSTALL_DIR=$1
 ROOT_DIR=$2
 PLATFORM=$3
 
-OPENSSL_VER=1.1.1n-1
+OPENSSL_VER=1.1.1o-1
 cd "${ROOT_DIR}"
 cbdep --platform ${PLATFORM} install -d cbdeps openssl ${OPENSSL_VER}
 
