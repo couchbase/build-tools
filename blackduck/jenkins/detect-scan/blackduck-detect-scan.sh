@@ -6,6 +6,13 @@ PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PROD_NAME}"
 DETECT_SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
 SCAN_CONFIG="${PROD_DIR}/scan-config.json"
 
+# Arrange for cbdep to be on the PATH for everyone
+CBDEP_DIR="${WORKSPACE}/extra/cbdep"
+mkdir -p "${CBDEP_DIR}"
+curl -L -o "${CBDEP_DIR}/cbdep" http://downloads.build.couchbase.com/cbdep/cbdep.linux
+chmod 755 "${CBDEP_DIR}/cbdep"
+export PATH="${CBDEP_DIR}:${PATH}"
+
 # Disable analytics
 # https://community.synopsys.com/s/article/How-to-disable-Phone-Home-when-running-Detect
 export SYNOPSYS_SKIP_PHONE_HOME=true
@@ -17,8 +24,8 @@ fi
 
 # Reset src directory and cd into it
 SRC_DIR="${WORKSPACE}/src"
-rm -rf "${SRC_DIR}"
-mkdir "${SRC_DIR}"
+mkdir -p "${SRC_DIR}"
+rm -rf "${SRC_DIR}"/[A-z]*
 cd "${SRC_DIR}"
 
 # If the product doesn't have a bespoke get_source.sh, then look up the
@@ -50,7 +57,7 @@ else
     echo "Syncing manifest $MANIFEST at $SHA"
     echo ================================
     repo init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
-    repo sync --jobs=16
+    repo sync --jobs=8
     repo manifest -r > manifest.xml
     echo
 fi
@@ -138,7 +145,7 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
 fi
 
 # If there's a product-specific manual Black Duck manifest, load that as well
-if [ "${#manifest[@]}" != "0"]; then
+if [ "${#manifest[@]}" != "0" ]; then
   echo "Loading product-specific Black Duck manifests: ${manifest[@]}"
   "${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
       -c ~/.ssh/blackduck-creds.json \

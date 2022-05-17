@@ -8,12 +8,10 @@ MAVEN_VERSION=3.5.2-cb6
 MINIFORGE3_VERSION=4.11.0-4
 mkdir ../deps
 pushd ../deps
-curl -L -o cbdep http://downloads.build.couchbase.com/cbdep/cbdep.linux
-chmod 755 cbdep
 
-./cbdep install openjdk ${JDK_VERSION} -d .
-./cbdep install maven ${MAVEN_VERSION} -d .
-./cbdep install miniforge3 ${MINIFORGE3_VERSION} -d .
+cbdep install openjdk ${JDK_VERSION} -d .
+cbdep install maven ${MAVEN_VERSION} -d .
+cbdep install miniforge3 ${MINIFORGE3_VERSION} -d .
 export PATH=$(pwd)/miniforge3-${MINIFORGE3_VERSION}/bin:$(pwd)/maven-${MAVEN_VERSION}/bin:$(pwd)/openjdk-${JDK_VERSION}/bin:$PATH
 export JAVA_HOME=$(pwd)/openjdk-${JDK_VERSION}
 

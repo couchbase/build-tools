@@ -6,14 +6,7 @@ BLD_NUM=$3
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-get_cbdep() {
-  # Get cbdep tool
-  curl -L -o cbdep http://downloads.build.couchbase.com/cbdep/cbdep.linux
-  chmod 755 cbdep
-}
-
 download_analytics_jars() {
-  get_cbdep
   mkdir -p thirdparty-jars
 
   # Determine old version builds
@@ -21,18 +14,15 @@ download_analytics_jars() {
     perl -lne '/SET \(bc_build_[^ ]* "(.*)"\)/ && print $1' analytics/CMakeLists.txt
   ); do
 
-    ./cbdep install -d thirdparty-jars analytics-jars ${version}
+    cbdep install -d thirdparty-jars analytics-jars ${version}
 
   done
-
-  rm cbdep
 }
 
 create_analytics_poms() {
-  get_cbdep
   # This will be also be added to PATH by scan-environment.sh in case
   # Detect needs it
-  ./cbdep install -d ../extra/install openjdk 11.0.14+9
+  cbdep install -d ../extra/install openjdk 11.0.14+9
   javadir=$(pwd)/../extra/install/openjdk-11.0.14+9
   export PATH=${javadir}/bin:${PATH}
   export JAVA_HOME=${javadir}
@@ -58,6 +48,34 @@ create_analytics_poms() {
 }
 
 # Main script starts here - decide which action to take based on VERSION
+
+# Have to run cmake to extract list of GOVERSIONs. Couldn't find a reliable
+# way to extract the CMake version from the source (because CMake downloads
+# themselves are inconsistent), so just hardcode a recent CMake.
+CMAKE_VERSION=3.23.1
+NINJA_VERSION=1.10.2
+cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
+cbdep install -d "${WORKSPACE}/extra" ninja ${NINJA_VERSION}
+export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${WORKSPACE}/extra/ninja-${NINJA_VERSION}/bin:${PATH}"
+
+rm -rf "${WORKSPACE}/tempbuild"
+mkdir "${WORKSPACE}/tempbuild"
+pushd "${WORKSPACE}/tempbuild"
+LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
+
+YAML="${WORKSPACE}/src/couchbase-server-black-duck-manifest.yaml"
+cat <<EOF > "${YAML}"
+components:
+  golang:
+    bd-id: 6d055c2b-f7d7-45ab-a6b3-021617efd61b
+    versions:
+EOF
+
+for gover in $(perl -lne 'm#go-([0-9.]*?)/go# && print $1' build.ninja | sort -u); do
+    echo "      - ${gover}" >> "${YAML}"
+done
+
+popd
 
 if [ "6.6.5" = $(printf "6.6.5\n${VERSION}" | sort -n | head -1) ]; then
   # 6.6.5 or higher
