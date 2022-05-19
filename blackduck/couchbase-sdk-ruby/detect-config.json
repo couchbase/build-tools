@@ -3,6 +3,7 @@
     "detect.detector.search.depth": 9,
     "detect.detector.buildless": true,
     "detect.required.detector.types": "RUBYGEMS",
+    "detect.excluded.detector.types": "GRADLE",
     "logging.level.com.synopsys.integration": "DEBUG"
   }
 }
