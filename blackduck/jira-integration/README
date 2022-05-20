@@ -1,0 +1,36 @@
+Scripts here are used to create/update jira tickets from blackduck notifications
+
+Jenkins job: http://server.jenkins.couchbase.com/job/jira-blackduck-integration
+Target build agent: zz-lightweight
+Jira Project: https://issues.couchbase.com/projects/VULN/summary
+Jira bot account information is stored in lastpass
+
+Setup:
+    * Python 3.7+ is required
+    * Run pip -r requirements.txt to install required python packages
+
+    These files already exist on the build agent.
+    * Create ~/.ssh/jira-creds.json, which contains login information for jira
+        {
+            "username":
+            "apitoken":
+            "url":
+        }
+    * Create ~/.ssh/blackduck-creds.json, which contains login infomation for blackduck
+        {
+            "username":
+            "password":
+            "url":
+        }
+
+Usage:
+    python3 blackduck_to_jira.py -p ${project} -n "${previous_run}"
+
+    i.e.
+    python3 blackduck_to_jira.py -p couchbase-server -n "2022-05-09 20:05:01"
+    python3 blackduck_to_jira.py -p couchbase-server
+
+    * Currently, blackduck retains 30 days of notifications.  Without --newer (-n),
+      the script will process all of them.  It is a good idea to not use "--newer"
+      on the first run.  Subsequently, it is desired to pass in "--newer" option to
+      skip the older notifications that were already processed.
