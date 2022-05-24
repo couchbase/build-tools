@@ -89,6 +89,12 @@ if [ -x "${PROD_DIR}/scan-environment.sh" ]; then
   env
 fi
 
+# The Azure people are always causing problems. Now v64.2.0 is too large
+# to be considered a module, causing sum.golang.org to throw an error.
+# Since we don't know when something may indirectly refer to this
+# version, safest best is to just skip the checksum DB for this module.
+export GONOSUMDB=${GONOSUMDB},github.com/Azure/azure-sdk-for-go
+
 # Normally remove .git directories
 if [ "${KEEP_GIT}" != true ]; then
     find . -name .git -print0 | xargs -0 rm -rf
