@@ -66,7 +66,7 @@ LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
 YAML="${WORKSPACE}/src/couchbase-server-black-duck-manifest.yaml"
 cat <<EOF > "${YAML}"
 components:
-  golang:
+  go programming language:
     bd-id: 6d055c2b-f7d7-45ab-a6b3-021617efd61b
     versions:
 EOF
