@@ -230,6 +230,12 @@ class UpdateComponents:
             return version[4:] if version.startswith("OTP-") else version
         elif component_name.startswith("go programming language"):
             return version[2:] if version.startswith("go") else version
+        elif component_name in ("folly", "spdlog"):
+            # Quite a few components an have inconsistent "v" at the
+            # beginning. It might be worth making it a general
+            # canonicalization to strip that, but for now just listing a
+            # couple components we know have caused trouble.
+            return version[1:] if version.startswith("v") else version
         else:
             return version
 
