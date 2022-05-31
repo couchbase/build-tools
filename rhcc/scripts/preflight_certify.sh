@@ -117,4 +117,8 @@ fi
 echo
 echo ::::::::::::: RUNNING PREFLIGHT :::::::::::::::::::
 export PFLT_LOGFILE=./artifacts/preflight.log
+# preflight makes this 'artifacts' directory to store various logs, but
+# apparently not until after it tries to create PFLT_LOGFILE as you'll
+# get an error if it doesn't exist.
+mkdir artifacts
 ./preflight check container ${IMAGE} ${EXTRA_PREFLIGHT_ARGS}
