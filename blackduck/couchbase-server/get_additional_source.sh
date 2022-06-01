@@ -92,7 +92,11 @@ for stubmod in $(find . -name go.mod \! -execdir grep --quiet require '{}' \; -p
     cat ${SCRIPT_DIR}/go-mod-replace.txt >> ${stubmod}
 done
 
-# Need to fake the generated go files in eventing and eventing-ee
+# Need to fake the generated go files in indexing, eventing, and eventing-ee
+for dir in secondary/protobuf; do
+    mkdir -p goproj/src/github.com/couchbase/indexing/${dir}
+    touch goproj/src/github.com/couchbase/indexing/${dir}/foo.go
+done
 for dir in auditevent flatbuf/cfg flatbuf/header flatbuf/payload flatbuf/response parser version; do
     mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
     touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
