@@ -1,6 +1,27 @@
-# Format is "old BD component ID we use in manifests" : "current BD component ID"
+# The keys of this object are the *canonical* Black Duck component IDs.
+# The values are objects with the following possible keys:
+#
+#  bd-id-aliases: an array of Black Duck component IDs for this same
+#    component which have been used in manifests
+#
+#  fallback-versions: an object where both keys and values are single
+#    versions for the component. The key is the version that we are
+#    actually using. The value is a version known to exist in the
+#    Black Duck Knowledgebase. update-manual-manifests will fall
+#    back to the value version if the key version is not found when
+#    attempting to add it to the project.
 
 # Python Programming Language
-"ee4d67e0-63f9-409d-a9be-1c30de64873d" : "b86f5550-fa9f-4291-887d-53f685dde136"
+"b86f5550-fa9f-4291-887d-53f685dde136":
+  bd-id-aliases:
+    - "ee4d67e0-63f9-409d-a9be-1c30de64873d"
+
 # idna
-"0be5e619-2387-4fe3-915e-8a60146b57dd" : "a072b9e7-c0a3-447b-abe6-fa74c8869fb1"
+"a072b9e7-c0a3-447b-abe6-fa74c8869fb1":
+  bd-id-aliases:
+    - "0be5e619-2387-4fe3-915e-8a60146b57dd"
+
+# libcxx
+"587d3e15-ea76-449b-94b1-ef12538584e4":
+  fallback-versions:
+    "14.0.4": "14.0.0"

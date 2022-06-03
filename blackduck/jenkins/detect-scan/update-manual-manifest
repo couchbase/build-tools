@@ -5,6 +5,7 @@ import collections
 import dictdiffer
 import json
 import logging
+import os
 import pathlib
 import re
 import requests
@@ -76,15 +77,18 @@ class UpdateComponents:
         self.comp_map = collections.defaultdict(lambda: { "versions": set() })
 
         # Other globally-used structures, populated or initialized in
-        # _load_manual_components()
+        # _load_manual_components() or _load_bd_aliases()
         self.comp_ids = dict()
         self.components = None
+        self.bd_comp_id_aliases = {}
+        self.bd_comp_version_fallbacks = {}
 
         # Load BD component alias list
         self._load_bd_aliases()
 
         # Load all manually-added components currently in Black Duck
         self._load_manual_components()
+
 
     def _load_bd_aliases(self):
         """
@@ -95,14 +99,42 @@ class UpdateComponents:
         the ID in our manifests. It's important that we use the canonical
         ID when calling the REST API, because things such as search filters
         don't work if you use the aliased component ID.
+
+        Also, sometimes we want to use a new component-version that isn't
+        in the Black Duck Knowledgebase yet. In that case, we need to keep
+        a list of "fallback" versions, which we will use in place of those
+        new versions until the new version appears in the Knowledgebase.
         """
 
         script_dir = pathlib.Path(__file__).resolve().parent
-        alias_file = script_dir / "bd_aliases.yaml"
-        if alias_file.exists():
-            with open(alias_file) as aliases:
-                self.bd_alias = yaml.safe_load(aliases)
-                logging.debug(f"Loaded {len(self.bd_alias)} Black Duck component aliases")
+        alias_filepath = script_dir / "bd_aliases.yaml"
+        if not alias_filepath.exists():
+            return
+        with open(alias_filepath) as aliases_file:
+            aliases = yaml.safe_load(aliases_file)
+
+        for comp_id, comp_data in aliases.items():
+            # Create reverse mapping from alias IDs to canonical ID
+            for alias_id in comp_data.get("bd-id-aliases", []):
+                self.bd_comp_id_aliases[alias_id] = comp_id
+
+            # Create mapping from <component_id>::<version> to
+            # the specified fallback version
+            for real_ver, fallback_ver in comp_data.get(
+                "fallback-versions", {}
+            ).items():
+                real_ver = self.canonicalize_version(comp_id, real_ver)
+                fallback_ver = self.canonicalize_version(comp_id, fallback_ver)
+                key = f"{comp_id}::{real_ver}"
+                self.bd_comp_version_fallbacks[key] = fallback_ver
+
+        logging.debug(
+            f"Loaded {len(self.bd_comp_id_aliases)} "
+            "Black Duck component aliases and "
+            f"{len(self.bd_comp_version_fallbacks)} "
+            "component fallback versions"
+        )
+
 
     def _get_version_components(self, projectversion, limit=1000, filters={}):
         """
@@ -121,6 +153,7 @@ class UpdateComponents:
         )
         jsondata = response.json()
         return jsondata
+
 
     def _load_manual_components(self):
         """
@@ -146,14 +179,21 @@ class UpdateComponents:
             comp_version_name = self.canonicalize_version(
                 comp_name, comp.get('componentVersionName', "")
             )
+
             self.comp_map[comp_id]["bd-name"] = comp_name
             self.comp_map[comp_id]["versions"].add(comp_version_name)
+
+            # Also canonicalize self.components version names - might be
+            # referenced by remove_component() later.
+            comp['componentVersionName'] = comp_version_name
 
             # We also keep a map of lowercased full component names to
             # component ID.
             self.comp_ids[comp_name] = comp_id
+
         logging.debug(f"Final comp_map: {self.comp_map}")
         logging.debug(f"Final comp_ids: {self.comp_ids}")
+
 
     def add_manifest(self, manifest):
         """
@@ -186,20 +226,17 @@ class UpdateComponents:
                 comp_lower = value.get('bd-name', comp_name).lower()
                 comp_id = value.get('bd-id', None)
                 # Translate our manifest component ID to BD alias if necessary
-                comp_id = self.bd_alias.get(comp_id, comp_id)
-
-            # Ensure version values are all strings (YAML might read them as
-            # floats).
-            versions = [ str(ver) for ver in versions ]
+                comp_id = self.bd_comp_id_aliases.get(comp_id, comp_id)
 
             # If the BD manifest specifies no versions, skip it (probably just
             # there to keep the drift-detector happy).
             if len(versions) == 0:
                 continue
 
-            # Canonicalize version names.
+            # Canonicalize version names and ensure they're strings (YAML
+            # might read them as floats).
             versions = [
-                self.canonicalize_version(comp_lower, v) for v in versions
+                self.canonicalize_version(comp_lower, str(v)) for v in versions
             ]
 
             # The canonical manifest is keyed by bd-id. If we weren't given
@@ -211,11 +248,19 @@ class UpdateComponents:
             # of the requested versions. This will abort if it fails to find
             # anything, so no need to check the return value.
             if comp_id is None:
-                comp_id = self.find_component(comp_lower, versions[0])
+                comp_id = self.find_component_by_name(comp_lower, versions[0])
+
+            # Finally, check for fallback versions. Had to wait until now
+            # because this process depends on knowing comp_id.
+            versions = [
+                self.fallback_version_if_necessary(comp_name, comp_id, v)
+                for v in versions
+            ]
 
             logging.debug(f"Adding component {comp_lower} ({comp_id}) with versions {versions} to manifest")
             self.manifest[comp_id]["bd-name"] = comp_lower
             self.manifest[comp_id]["versions"].update(versions)
+
 
     def canonicalize_version(self, component_name, version):
         """
@@ -239,12 +284,71 @@ class UpdateComponents:
         else:
             return version
 
-    def find_version_for_component(self, component_name, component_url, version):
+    def fallback_version_if_necessary(self, comp_name, comp_id, manifest_ver):
+        """
+        Given a version name for a specified component, see whether it
+        needs to be replaced with a fallback version. This may require
+        checking the Knolwedgebase to see whether the specified version
+        exists there yet.
+        """
+
+        # Does this version have a potential fallback?
+        key = f"{comp_id}::{manifest_ver}"
+        fallback_ver = self.bd_comp_version_fallbacks.get(key, None)
+        if fallback_ver is None:
+            # No possible fallback, so no replacement necessary
+            return manifest_ver
+
+        # Is the current BOM pointing to the manifest-specified
+        # version?
+        curr_bom_vers = self.comp_map[comp_id]["versions"]
+        if manifest_ver in curr_bom_vers:
+            # Yes, BOM is up-to-date with desired version, so no
+            # replacement necessary
+            return manifest_ver
+
+        # At this point we know the BOM does not reflect the manifest's
+        # specified version. It could be a new component-version, or it
+        # could be that the BOM is already pointing to a fallback. In
+        # either case, we now need to check whether the Knowledgebase
+        # knows about the manifest-specified version.
+        logging.info(
+            f"Version {manifest_ver} of component {comp_name} "
+            f"is not in BOM but has potential fallbacks; "
+            f"checking Knowledgebase"
+        )
+        manifest_ver_url = self.find_version_for_component(
+            comp_name, comp_id, manifest_ver
+        )
+        if manifest_ver_url is not None:
+            # Yes, the Knowledgebase knows about the desired version!
+            # Therefore replacement is NOT necessary; the normal
+            # Dictdiffer process will handle the changes later.
+            logging.info(
+                f"Version {manifest_ver} of component {comp_name} "
+                f"found in Knowledgebase! Leaving manifest unchanged."
+            )
+            return manifest_ver
+        else:
+            # No, Knowledgebase doesn't know about it yet. So replace
+            # the desired version with the fallback version in the
+            # canonicalized manifest.
+            logging.info(
+                f"Version {manifest_ver} of component {comp_name} "
+                f"NOT in Knowledgebase; replacing with fallback "
+                f"version {fallback_ver}"
+            )
+            return fallback_ver
+
+
+    def find_version_for_component(self, component_name, component_id, version):
         """
         Looks up a component in the Knowledgebase via the BD REST API,
         and returns a component_version_url for that component if the
-        version is known.
+        version is known. Returns None if not found.
         """
+
+        component_url = self.comp_base + component_id
 
         # Sadly the BD search API doesn't like some legit characters like +, but
         # we can use _ as a single-character wildcard
@@ -263,10 +367,11 @@ class UpdateComponents:
             if version_name == version:
                 return ver_entry['_meta']['href']
 
-        logging.fatal(f"Found no matching version!")
-        sys.exit(3)
+        logging.warning(f"Found no matching version!")
+        return None
 
-    def find_component(self, component, version):
+
+    def find_component_by_name(self, component, version):
         """
         Finds URL for "best" component/version match on Hub - one that
         has an exact match score for the name, and has at least the
@@ -288,7 +393,8 @@ class UpdateComponents:
                 logging.debug(f"Skipping {component_name} because score is too low ({score})")
                 continue
             component_url = hit['component']
-            component_version = self.find_version_for_component(component_name, component_url, version)
+            component_id = os.path.basename(component_url)
+            component_version = self.find_version_for_component(component_name, component_id, version)
             if component_version is None:
                 logging.debug(f"Skipping {component_name} because it does not have a version {version}")
                 continue
@@ -296,16 +402,21 @@ class UpdateComponents:
         logging.fatal(f"Found no component-version for {component} {version}!")
         sys.exit(4)
 
+
     def add_component(self, comp_id, comp_name, version):
         """
-        Adds a component-version to this project-version
+        Adds a component-version to this project-version, which is presumed to
+        not already exist. This function may add a fallback version if the
+        requested version is not found.
         """
 
         logging.info(f"Adding component to Black Duck: {comp_name} ({comp_id}) version {version}")
-        comp_url = self.comp_base + comp_id
         component_version_url = self.find_version_for_component(
-            comp_name, comp_url, version
+            comp_name, comp_id, version
         )
+        if component_version_url is None:
+            logging.fatal(f"Could not find version {version} for {comp_name} in Knowledgebase!")
+            sys.exit(3)
         logging.debug(f"Component version URL is {component_version_url}")
 
         pv_components_url = self.hub.get_link(self.project_version, "components")
@@ -317,6 +428,7 @@ class UpdateComponents:
             response = self.hub.execute_post(pv_components_url, post_data, custom_headers=custom_headers)
             response.raise_for_status()
             logging.debug(f"{comp_id} version {version} added successfully")
+
 
     def remove_component(self, comp_id, comp_name, version):
         """
@@ -344,6 +456,7 @@ class UpdateComponents:
 
         logging.fatal(f"Failed to find component {comp_id} {version} to delete!!")
         sys.exit(1)
+
 
     def apply_manifests(self):
         """
