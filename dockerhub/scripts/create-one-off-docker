@@ -90,26 +90,6 @@ ${SCRIPT_DIR}/generate-dockerfile \
     -p ${PRODUCT} -v ${VERSION} -e ${EDITION} -r ${REPO} ${FORCE}
 
 # Figure out where is Dockerfile stored
-n=$(printf "7.1.0\n${VERSION}" |sort -n |head -n1)
-if [[ "$n" == "7.1.0" ]]; then
-  DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}/${ARCH}
-  case ${ARCH} in
-    "aarch64")
-      IMAGENAME=${IMAGE}:${VERSION}-${ARCH}
-      ;;
-    *)
-      IMAGENAME=${IMAGE}:${VERSION}
-    ;;
-  esac
-else
-  if [[ ${ARCH} == "aarch64" ]]; then
-    echo "Version: ${VERSION}\n"
-    echo "${ARCH} does not apply to version lower 7.1.0"
-    echo "exiting..."
-    exit
-  else
-    IMAGENAME=${IMAGE}:${VERSION}
-    DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}
-  fi
-fi
+IMAGENAME=${IMAGE}:${VERSION}
+DOCKER_DIR=docker/enterprise/couchbase-server/${VERSION}
 docker_build_publish
