@@ -19,6 +19,7 @@ call buildbase.bat ..\vs2017\libsodium.sln 15 || goto error
 popd
 
 rem Copy right stuff to output directory.
+mkdir %INSTALL_DIR%\bin
 mkdir %INSTALL_DIR%\lib
 mkdir %INSTALL_DIR%\include\sodium
 
