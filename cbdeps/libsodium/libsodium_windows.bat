@@ -22,9 +22,9 @@ rem Copy right stuff to output directory.
 mkdir %INSTALL_DIR%\lib
 mkdir %INSTALL_DIR%\include\sodium
 
-copy bin\Win32\Release\v141\dynamic\libsodium.lib %INSTALL_DIR%\lib || goto error
-copy bin\Win32\Release\v141\dynamic\libsodium.pdb %INSTALL_DIR%\lib || goto error
-copy bin\Win32\Release\v141\dynamic\libsodium.dll %INSTALL_DIR%\bin || goto error
+copy bin\x64\Release\v141\dynamic\libsodium.lib %INSTALL_DIR%\lib || goto error
+copy bin\x64\Release\v141\dynamic\libsodium.pdb %INSTALL_DIR%\lib || goto error
+copy bin\x64\Release\v141\dynamic\libsodium.dll %INSTALL_DIR%\bin || goto error
 
 copy src\libsodium\include\sodium.h %INSTALL_DIR%\include || goto error
 copy src\libsodium\include\sodium\*.h %INSTALL_DIR%\include\sodium || goto error
