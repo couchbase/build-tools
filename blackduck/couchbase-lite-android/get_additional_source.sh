@@ -1,6 +1,14 @@
 #!/bin/bash -ex
 NDK_VERSION=$(cat cbl-java/etc/jenkins/install_android_toolchain.sh | grep ^NDK_VERSION |awk -F "\'|\"" '{print $2}')
 CMAKE_VERSION=$(cat cbl-java/etc/jenkins/install_android_toolchain.sh | grep ^CMAKE_VERSION |awk -F "\'|\"" '{print $2}')
+if [ -z "${NDK_VERSION}" ]; then
+    echo "Could not detect NDK version - aborting!"
+    exit 1
+fi
+if [ -z "${CMAKE_VERSION}" ]; then
+    echo "Could not detect CMake version - aborting!"
+    exit 1
+fi
 TOOLS_DIR=/home/couchbase/tools
 SDK_DIR=${TOOLS_DIR}/android-sdk
 SDK_MGR=${SDK_DIR}/tools/bin/sdkmanager
