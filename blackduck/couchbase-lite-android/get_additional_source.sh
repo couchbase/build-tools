@@ -1,6 +1,14 @@
 #!/bin/bash -ex
-NDK_VERSION=$(cat cbl-java/etc/jenkins/install_android_toolchain.sh | grep ^NDK_VERSION |awk -F "\'|\"" '{print $2}')
-CMAKE_VERSION=$(cat cbl-java/etc/jenkins/install_android_toolchain.sh | grep ^CMAKE_VERSION |awk -F "\'|\"" '{print $2}')
+if [ -f "cbl-java/etc/jenkins/install_android_toolchain.sh" ]; then
+    toolchain_script="cbl-java/etc/jenkins/install_android_toolchain.sh"
+elif [ -f "cbl-java/ee/android/etc/jenkins/build.sh" ]; then
+    toolchain_script="cbl-java/ee/android/etc/jenkins/build.sh"
+else
+    echo "Could not locate toolchain script containing CMake and NDK_VERSION - aborting!"
+    exit 1
+fi
+NDK_VERSION=$(cat ${toolchain_script} | grep ^NDK_VERSION |awk -F "\'|\"" '{print $2}')
+CMAKE_VERSION=$(cat ${toolchain_script} | grep ^CMAKE_VERSION |awk -F "\'|\"" '{print $2}')
 if [ -z "${NDK_VERSION}" ]; then
     echo "Could not detect NDK version - aborting!"
     exit 1
