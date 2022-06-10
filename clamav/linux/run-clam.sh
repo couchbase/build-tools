@@ -6,10 +6,10 @@ sudo /usr/local/bin/cvd update
 # Download build
 echo "Downloading ${PRODUCT} ${VERSION}-${BLD_NUM} ${PLATFORM} binary ..."
 if [ "${PRODUCT}" = "sync_gateway" ]; then
-    PKG_NAME=couchbase-sync-gateway-${EDITION}_${VERSION}-${BLD_NUM}_x86_64.rpm
+    PKG_NAME=couchbase-sync-gateway-${EDITION}_${VERSION}-${BLD_NUM}_${ARCHITECTURE}.rpm
     SUDO=sudo
 else
-    PKG_NAME=${PRODUCT}-${EDITION}-${VERSION}-${BLD_NUM}-${PLATFORM}.x86_64.rpm
+    PKG_NAME=${PRODUCT}-${EDITION}-${VERSION}-${BLD_NUM}-${PLATFORM}.${ARCHITECTURE}.rpm
     SUDO=
 fi
 LATESTBUILDS=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PKG_NAME}
