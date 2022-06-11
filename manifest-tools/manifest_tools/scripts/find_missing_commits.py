@@ -66,7 +66,7 @@ class MissingCommits:
         self.merge_map = merge_map
 
         # Projects we don't care about
-        self.ignore_projects = ['testrunner', 'libcouchbase']
+        self.ignore_projects = ['testrunner', 'libcouchbase', 'product-texts', 'product-metadata']
 
         self.repo_bin = find_executable('repo')
 
@@ -216,7 +216,13 @@ class MissingCommits:
     def compare_summaries(old_summary, new_summary):
         """"""
 
-        return True if old_summary == new_summary else False
+        # If two commits have *exactly* the same summary line, and that
+        # summary line isn't trivially short, we can assume it was a
+        # cherry-pick
+        if old_summary == new_summary and len(old_summary) > 10:
+            return True
+        else:
+            return False
 
     """
     Pre-compiled regex for SHA
@@ -316,6 +322,7 @@ class MissingCommits:
             sys.exit(1)
 
         backport_message = ""
+        possible_missing_message = ""
         missing_message = ""
 
         if new_results:
@@ -368,7 +375,7 @@ class MissingCommits:
                 # At this point we know we have something to report. Save the
                 # message.
                 if match:
-                    missing_message += (
+                    possible_missing_message += (
                         f'    [Possible commit match] {sha[:8]} {comment:.80}\n'
                         f'              Check commit: {rev_sha[:8]} {rev_comment:.80}\n'
                     )
@@ -378,7 +385,7 @@ class MissingCommits:
                     )
 
             # Print project header, if anything to report
-            if missing_message != "" or backport_message != "":
+            if missing_message != "" or possible_missing_message != "" or backport_message != "":
                 self.log.info("")
                 self.log.info(f'Project {repo_path}:')
 
@@ -386,6 +393,14 @@ class MissingCommits:
                 self.log.info("")
                 self.log.info(missing_message)
                 self.missing_commits_found = True
+
+            # This is *usually* OK, and it's just too hard to verify everything
+            # by hand, so go ahead and assume it's OK.
+            # I'm leaving the code in place to display this if we want
+            # it again in future. - Ceej Jun 10 2022
+            if possible_missing_message != "":
+                self.log.info("")
+                self.log.info("This project has commits that were matched by commit message summary")
 
             # We believe this to be working now, so stop outputting the
             # message - makes it too hard to see actual issues.
