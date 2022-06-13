@@ -48,6 +48,7 @@ EOF
 ################### ARTIFACTS
 
 # Upload artifacts to S3
+upload_path=${PRODUCT}/${public_tag}
 upload_url_base=packages.couchbase.com/${upload_path}
 release_dir=/releases/${upload_path}
 mkdir -p ${release_dir}
