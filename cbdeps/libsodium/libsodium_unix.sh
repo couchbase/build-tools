@@ -13,4 +13,5 @@ if [ $(uname -s) = "Darwin" ]; then
     install_name_tool -id @rpath/libsodium.dylib ${INSTALL_DIR}/lib/libsodium.dylib
 fi
 
-#rm -rf ${INSTALL_DIR}/lib/pkgconfig
+rm -rf ${INSTALL_DIR}/lib/pkgconfig
+rm -f ${INSTALL_DIR}/lib/libsodium.la
