@@ -56,22 +56,21 @@ tag_and_publish() {
         docker rmi ${registry_image}
     }
 
-    echo @@@@@@@@@@@@@
-    echo Pushing ${external_image} image...
-    echo @@@@@@@@@@@@@
-    docker tag ${internal_image} ${external_image}
-    docker push ${external_image}
-    docker rmi ${external_image}
-
-    if [ x$LATEST = xtrue ]; then
-        external_latest_image=${vanilla_registry}/couchbase/${short_product}:latest
-        echo @@@@@@@@@@@@@
-        echo Updating ${external_latest_image}...
-        echo @@@@@@@@@@@@@
-        docker tag ${internal_image} ${external_latest_image}
-        docker push ${external_latest_image}
-        docker rmi ${external_latest_image}
+    images=(${external_image})
+    if [ "${org}" = "cb-vanilla" ]; then
+        images+=(${external_image}-dockerhub)
+        if [ "${LATEST}" = "true" ]; then
+            images+=(${vanilla_registry}/couchbase/${short_product}:latest)
+        fi
     fi
+    for image in ${images[@]}; do
+        echo @@@@@@@@@@@@@
+        echo Pushing ${image} image...
+        echo @@@@@@@@@@@@@
+        docker tag ${internal_image} ${image}
+        docker push ${image}
+        docker rmi ${image}
+    done
 
     docker rmi ${internal_image}
 }
@@ -93,9 +92,6 @@ if product_in_rhcc "${PRODUCT}"; then
     set +x
     docker login -u unused-login -p "$(cat ${conf_dir}/registry_key)" scan.connect.redhat.com
     set -x
-
-    # Never push :latest tag to RHCC
-    LATEST=false
 
     tag_and_publish cb-rhcc \
         ${rhcc_registry}/${project_id}/unused-image:${PUBLIC_TAG}-${OPENSHIFT_BUILD}
