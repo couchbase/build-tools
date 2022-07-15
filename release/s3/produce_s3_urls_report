@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+
+"""
+Update the given JIRA approval ticket with a list of the binaries
+for the given product and release.  The list is generated from
+accessing the S3 bucket packages.couchbase.com (via boto) and excluding
+undesired entries.
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+import boto3
+
+from jira import JIRA
+
+# List of file regexes to always exclude. Some other patterns (notably
+# .sha256) are handled separately, so don't add those here.
+exclude_regexes = [
+  r'manifest.*\.xml$',
+  r'.jar$',
+  r'.aar$',
+  r'doc',
+  r'carthage',
+  r'unsigned'
+]
+
+
+def connect_jira():
+    """
+    Uses private files in ~/.ssh to create a connection to Couchbase JIRA.
+
+    Expected files:
+      build_jira.pem - Private key registered with Jira Application
+      build_jira.json - JSON block with "access_token", "access_token_secret",
+          and "consumer_key" fields as generated per above URL
+    """
+
+    home_dir = os.environ['HOME']
+
+    with open(f'{home_dir}/.ssh/build_jira.pem') as key_cert_file:
+        key_cert_data = key_cert_file.read()
+
+    with open(f'{home_dir}/.ssh/build_jira.json') as oauth_file:
+        oauth_dict = json.load(oauth_file)
+
+    oauth_dict['key_cert'] = key_cert_data
+
+    return JIRA({'server': 'https://issues.couchbase.com'}, oauth=oauth_dict)
+
+
+def get_url_list(product, version):
+    """
+    Extract list of binaries from S3 for the given product and version,
+    excluding certain files (such as MD5/SHA files)
+    """
+
+    # Handle path differences on S3
+    if product == 'couchbase-server':
+        s3_dir = ''
+    elif product == 'sync_gateway':
+        s3_dir = '/couchbase-sync-gateway'
+    else:
+        s3_dir = f'/{product}'
+
+    # Product-specific exclude lists (hopefully few)
+    if product == 'couchbase-lite-java':
+        exclude_regexes.extend([r'macos.zip$', r'windows.zip$'])
+
+    s3_rel_bucket = 'packages.couchbase.com'
+    s3_rel_prefix = f'releases{s3_dir}/{version}/'
+
+    # Generate list of files from s3 for given release. This expects AWS
+    # credentials in the standard location (~/.aws/credentials).
+    s3 = boto3.resource('s3')
+    packages = s3.Bucket(s3_rel_bucket)
+    releases = packages.objects.filter(Prefix=s3_rel_prefix)
+    rel_files = [f.key.split('/')[-1] for f in releases.all()]
+    if len(rel_files) == 0:
+      print(f"{product} {version} has no files on S3!")
+      sys.exit(1)
+
+    # We pre-set this layout to take advantage of the Python 3.7+ feature
+    # that dicts retain insertion ordering. That way, the report will
+    # always be ordered the way we expect.
+    model_keys = ["Binaries", "Debug Binaries", "SHAs", "Debug SHAs"]
+    urls = {
+      'Enterprise': {k:[] for k in model_keys},
+      'Community': {k:[] for k in model_keys}
+    }
+
+    # Pre-compile all regexes, just to be neat
+    excl_re = [re.compile(x, flags=re.IGNORECASE) for x in exclude_regexes]
+    dbg_re = re.compile(r'dbg_|debuginfo-|PDB')
+    ee_re = re.compile(r'\bee\b|enterprise', flags=re.IGNORECASE)
+    ce_re = re.compile(r'community', flags=re.IGNORECASE)
+    sha_re = re.compile(r'.sha256$|.md5$')
+
+    # Separate out files into distinct sets
+    for rfile in rel_files:
+        # Check for always-exclude patterns
+        if any(x.search(rfile) is not None for x in excl_re):
+            continue
+
+        file_url = f'https://{s3_rel_bucket}/{s3_rel_prefix}{rfile}'
+
+        # Sort files into EE and CE; skip files that aren't explicitly
+        # Enterprise or Community
+        if ee_re.search(rfile):
+          urllist = urls['Enterprise']
+        elif ce_re.search(rfile):
+          urllist = urls['Community']
+        else:
+          continue
+
+        # Determine which list to add this URL to
+        if sha_re.search(rfile):
+          key = 'SHAs'
+        else:
+          key = 'Binaries'
+        if dbg_re.search(rfile):
+          key = f"Debug {key}"
+        urllist[key].append(file_url)
+
+    return urls
+
+
+def multiline_string(strarray):
+
+    return '\n'.join(strarray)
+
+
+def form_comment(urls, product, version, bldnum):
+    """Update the JIRA approval ticket with the list of binaries"""
+
+    content = f'{product} {version}-{bldnum} on S3\n'
+    content += '==============\n\n'
+
+    for edition, listkeys in urls.items():
+      # If no URLs to list for a given edition, skip it
+      if all(len(x) == 0 for x in listkeys.values()):
+        continue
+
+      content += f'{edition} URLs:\n'
+      content += '--------------\n\n'
+
+      for listkey, urls in listkeys.items():
+        if len(urls) == 0:
+          continue
+
+        content += f'{listkey}:\n\n{multiline_string(urls)}\n\n'
+
+    return content
+
+
+def update_jira_ticket(issue, content):
+    """
+    Post comment on Jira ticket with specified content
+    """
+
+    print(f"Posting URL list on Jira ticket {issue}...")
+    jira = connect_jira()
+    jira.add_comment(issue, content,
+                     visibility={'type': 'group', 'value': 'Membase Inc'})
+    print("Done!")
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Update JIRA approval ticket for product uploads'
+    )
+    parser.add_argument('product', type=str, help='Product to check')
+    parser.add_argument('version', type=str, help='Version of product')
+    parser.add_argument('bldnum', type=str, help='Build number')
+    parser.add_argument('--issue', type=str, help='Approval ticket for version')
+    parser.add_argument('--profile', type=str, help='AWS credentials profile')
+    args = parser.parse_args()
+
+    if args.profile:
+      boto3.setup_default_session(profile_name=args.profile)
+
+    urls = get_url_list(args.product, args.version)
+    content = form_comment(urls, args.product, args.version, args.bldnum)
+    print(content)
+    if args.issue is not None:
+        update_jira_ticket(args.issue, content)
