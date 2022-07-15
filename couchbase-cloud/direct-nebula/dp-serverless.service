@@ -1,0 +1,27 @@
+[Unit]
+Description=DP Agent Monitor for Couchbase Capella Nodes
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+LimitNOFILE=1024
+
+Restart=on-failure
+RestartSec=10
+startLimitIntervalSec=60
+
+WorkingDirectory=/home/ec2-user
+ExecStart=/home/ec2-user/dp-serverless
+
+# make sure log directory exists and owned by syslog
+PermissionsStartOnly=true
+ExecStartPre=/usr/bin/mkdir -p /var/log/dp-serverless
+ExecStartPre=/usr/bin/chmod 755 /var/log/dp-serverless
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dpagent
+
+[Install]
+WantedBy=graphical.target
