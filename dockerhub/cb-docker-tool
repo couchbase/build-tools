@@ -1,0 +1,712 @@
+#!/usr/bin/env -S python3 -u
+
+import argparse
+import contextlib
+import hashlib
+import logging
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+from typing import List, Optional
+
+
+class DockerTool:
+    """
+    Does lots of Docker things with github.com/couchbase/docker
+    """
+
+    product: str
+    version: str
+    edition: str
+    platform: str
+    imagenames: List[str]
+    buildargs: List[str]
+    gitrepo: Optional[str]
+    gitdir: Optional[pathlib.Path]
+    contextdir: Optional[pathlib.Path]
+    do_docker_push: bool
+    do_docker_save: bool
+    do_update_github: bool
+    force_update_github: bool
+    debug: bool
+    dryrun: bool
+    error_msg: Optional[str]
+
+    def __init__(
+        self, product: str, version: str, edition: str, platform: str,
+        githubrepo: str
+    ) -> None:
+
+        self.error_msg = None
+        self.product = product
+        self.version = version
+        self.edition = edition
+        self.platform = self._setup_platform(platform)
+        self.imagenames = []
+        self.buildargs = []
+        self.gitrepo = githubrepo
+        self.gitdir = None
+        self.contextdir = None
+        self.do_docker_push = False
+        self.do_docker_save = False
+        self.do_update_github = False
+        self.force_update_github = False
+        self.debug = False
+        self.dryrun = False
+
+
+    @contextlib.contextmanager
+    def pushd(self, new_dir: pathlib.Path) -> None:
+        """
+        Context manager for handling a given set of code/commands
+        being run from a given directory on the filesystem
+        """
+
+        old_dir = os.getcwd()
+        os.chdir(new_dir)
+        if self.debug:
+            print(f"++ pushd {os.getcwd()}")
+
+        try:
+            yield
+        finally:
+            os.chdir(old_dir)
+            if self.debug:
+                print(f"++ popd (pwd now: {os.getcwd()})")
+
+
+    def run(self, cmd: List[str], **kwargs) -> None:
+        """
+        Echo command being executed - helpful for debugging
+        """
+
+        # Always print the command when debugging
+        if self.debug:
+            print("++", *[
+                f"'{x}'" if ' ' in str(x) else x for x in cmd
+            ])
+
+        # If caller requested capture_output, don't muck with stderr/stdout;
+        # otherwise, suppress them unless debugging
+        if not "capture_output" in kwargs and not self.debug:
+            kwargs["stdout"] = subprocess.DEVNULL
+            kwargs["stderr"] = subprocess.DEVNULL
+
+        return subprocess.run(cmd, **kwargs, check=True)
+
+
+    def will_docker_push(self) -> None:
+        self.do_docker_push = True
+
+
+    def will_docker_save(self, tarfile: str) -> None:
+        self.docker_save_file = pathlib.Path(tarfile).resolve()
+        self.do_docker_save = True
+
+
+    def will_update_github(self, force: bool) -> None:
+        self.do_update_github = True
+        self.force_update_github = force
+
+
+    def will_write_context(self, context_dir: str) -> None:
+        # Only need to instruct the generator to write to a
+        # different location for this one
+        self.contextdir = pathlib.Path(context_dir).resolve()
+
+
+    def add_imagenames(self, imagenames: List[str]) -> None:
+        self.imagenames.extend(imagenames)
+
+
+    def add_staging_imagenames(self) -> None:
+        """
+        Create the set of imagenames (with :tags) appropriate for staging
+        """
+
+        if self.product == "couchbase-server":
+            if self.edition == "enterprise":
+                tag = self.version
+            else:
+                tag = f"community-{self.version}"
+            self.imagenames.extend([
+                f"registry.gitlab.com/cb-vanilla/server:{tag}",
+                f"build-docker.couchbase.com/couchbase/server-internal:{tag}",
+                f"build-docker.couchbase.com/cb-vanilla/server:{tag}"
+            ])
+        elif self.product == "sync-gateway":
+            self.imagenames.append(
+                f"registry.gitlab.com/cb-vanilla/sync_gateway:"
+                f"{self.version}-{self.edition}"
+            )
+
+
+    def add_release_imagenames(self, edition_tag: bool, latest_tag: bool) -> None:
+        """
+        Create the set of imagenames (with :tags) appropriate for a
+        product release
+        """
+        if self.product == "couchbase-server":
+            imagebase = "couchbase/server"
+            self.imagenames.append(f"{imagebase}:{self.edition}-{self.version}")
+            if self.edition == "enterprise":
+                self.imagenames.extend([
+                    f"{imagebase}:{self.version}",
+                    f"{imagebase}:{self.version}-dockerhub"
+                ])
+        elif self.product == "sync-gateway":
+            imagebase = "couchbase/sync-gateway"
+            self.imagenames.append(f"{imagebase}:{self.version}-{self.edition}")
+            if self.edition == "enterprise":
+                self.imagenames.append(
+                    f"{imagebase}:{self.version}-enterprise-dockerhub"
+                )
+
+        if edition_tag:
+            self.imagenames.append(f"{imagebase}:{self.edition}")
+        if latest_tag:
+            self.imagenames.append(f"{imagebase}:latest")
+
+
+    def set_from_latestbuilds(self, from_latestbuilds: bool) -> None:
+        """
+        Sets up the "docker build" step to pull the installer from latestbuilds
+        rather than packages.couchbase.com / packages-staging.couchbase.com.
+        This is just a convenience wrapper around a couple of buildargs, but it
+        will add an additional error check to check_ready() that VERSION is
+        specified as X.Y.Z-bbbb with a build number.
+        """
+
+        if not from_latestbuilds:
+            # Nothing to change
+            return
+        if not '-' in self.version:
+            self.error_msg = "VERSION must be of form X.Y.Z-bbb " \
+                "when using --from-latestbuilds"
+            return
+        version, bldnum = self.version.split('-')
+        self.add_buildargs([
+            "CB_SKIP_CHECKSUM=true",
+            "CB_RELEASE_URL=http://latestbuilds.service.couchbase.com/builds/"
+            f"latestbuilds/{self.product}/zz-versions/{version}/{bldnum}"
+        ])
+
+
+    def add_buildargs(self, buildargs: List[str]) -> None:
+        """
+        Specify build arguments to be passed to "docker buildx build"
+        """
+
+        self.buildargs.extend(buildargs)
+
+
+    def check_ready(self) -> Optional[str]:
+        """
+        Performs additional argument validation depending on the chosen
+        actions
+        """
+
+        # Any already-known problems
+        if self.error_msg is not None:
+            return self.error_msg
+
+        # Verify Go is available
+        msg = self._ensure_go()
+        if msg is not None:
+            return msg
+
+        if not any([
+            self.do_docker_push,
+            self.do_docker_save,
+            self.do_update_github,
+            self.contextdir is not None
+        ]):
+            return "No action specified - nothing to do!"
+
+        if len(self.imagenames) == 0 and any([
+            self.do_docker_save,
+            self.do_docker_push
+        ]):
+            return "No image names specified for Docker push/save action!"
+
+        if self.do_docker_push and self.do_docker_save:
+            return "--docker-push may not be combined with --docker-save"
+
+        if self.do_update_github and self.contextdir is not None:
+            return "--update-github may not be combined with --write-context"
+
+        if self.do_docker_save and ',' in self.platform:
+            return (
+                "May only specify one --platform when using --docker-save "
+                "(the default value for --platform may have multiple values)"
+            )
+
+        return None
+
+
+    def set_dryrun(self, is_dryrun: bool) -> None:
+        """
+        Sets whether tool should actually push to Docker Hub/GitHub
+        """
+
+        self.dryrun = is_dryrun
+        logging.debug (f"Now dryrun is {self.dryrun}")
+
+
+    def set_debug(self, is_debug: bool) -> None:
+        """
+        Sets whether tool should output debug information
+        """
+
+        self.debug = is_debug
+        logging.debug (f"Now debug is {self.debug}")
+
+
+    def execute(self) -> None:
+        """
+        Main generate/build/distribute logic here
+        """
+
+        self._initialize_github_repo()
+        self._determine_context_dir()
+        self._generate_context()
+        self._build_image()
+        if self.do_docker_save:
+            self._write_sha256()
+        if self.do_update_github:
+            self._update_github()
+        logging.info("\n\n*** All done! ***\n")
+
+
+    def _initialize_github_repo(self) -> None:
+        """
+        Performs the initial clone of the Docker repository from GitHub
+        """
+
+        self.gitdir = pathlib.Path("docker").resolve()
+        if not self.gitdir.exists():
+            logging.info (f"Cloning from {self.gitrepo}")
+            self.run(["git", "clone", self.gitrepo, self.gitdir])
+        logging.info (f"Updating {self.gitrepo} in {self.gitdir}")
+        with self.pushd(self.gitdir):
+            self.run(["git", "clean", "-dfx"])
+            self.run(["git", "config", "remote.origin.url", self.gitrepo])
+            self.run(["git", "fetch", "origin", "refs/heads/master"])
+            self.run(["git", "checkout", "-B", "master", "origin/master"])
+
+
+    def _setup_platform(self, platform: str) -> str:
+        """
+        Corrects platform argument (eg., aarch64 -> linux/arm64), and also
+        handles default values per product/version if platform is None
+        """
+
+        # Default values
+        if platform is None:
+            if self.product == "sync-gateway":
+                return "linux/amd64"
+            elif self.product == "couchbase-server":
+                intver = self._intver()
+                if intver >= 70100:
+                    return "linux/amd64,linux/arm64"
+                else:
+                    return "linux/amd64"
+
+        # Otherwise, split platform arg on comma and replace any uname-
+        # type architectures with Docker-type architectures
+        retval = []
+        for plat in platform.split(','):
+            if plat == "aarch64":
+                retval.append("linux/arm64")
+            elif plat == "x86_64":
+                retval.append("linux/amd64")
+            elif not plat.startswith("linux/"):
+                self.error_msg = (
+                    f"Unknown platform {plat} - should be either a Docker "
+                    "platform (eg. linux/arm64) or else a uname platform "
+                    "(eg. x86_64)"
+                )
+            else:
+                retval.append(plat)
+
+        return ",".join(retval)
+
+
+    def _intver(self) -> int:
+        """
+        Returns an integer representation of the current version, suitable
+        for numeric comparisons
+        """
+
+        # Ignore any trailing components after a hyphen
+        ver = self.version.split('-')[0]
+        return int("".join([x.zfill(2) for x in ver.split('.')]))
+
+
+    def _determine_context_dir(self) -> None:
+        """
+        Decide which directory to generate the Docker context into
+        """
+
+        clean_contextdir = False
+
+        if self.contextdir is not None:
+            # Already specified with --write-context; just make sure
+            # it doesn't exist yet
+            clean_contextdir = True
+
+        elif self.do_update_github:
+            # Write to pre-determined path in github repo
+            self.contextdir = \
+                self.gitdir / self.edition / self.product / self.version
+            clean_contextdir = self.force_update_github
+
+        else:
+            # Create a temporary directory to generate into. Hold on to
+            # the original TemporaryDirectory object so it will be
+            # cleaned up on process exit.
+            self.tempdir = tempfile.TemporaryDirectory(prefix="docker")
+            self.contextdir = pathlib.Path(self.tempdir.name)
+
+        # Empty directory if required
+        if clean_contextdir and self.contextdir.is_dir():
+            logging.debug(f"Removing context dir {self.contextdir}")
+            shutil.rmtree(self.contextdir)
+        else:
+            # If we didn't delete anything, pretend
+            # --force-update-github wasn't specified even if it was
+            # (ensures the git commit message later doesn't say
+            # "Force-recreating")
+            self.force_update_github = False
+
+        # Ensure the directory exists
+        if not self.contextdir.is_dir():
+            logging.debug(f"Creating context dir {self.contextdir}")
+            self.contextdir.mkdir(parents=True, exist_ok=True)
+
+
+    def _ensure_go(self) -> str:
+        """
+        If "go" is not on the path but "cbdep" is, install a recent Golang
+        """
+
+        if shutil.which("go") is not None:
+            return None
+
+        if shutil.which("cbdep") is None:
+            return "Cannot find 'go' or 'cbdep' on PATH!"
+
+        gover = "1.18.3"
+        logging.debug(f"Installing Golang {gover}")
+        self.run(["cbdep", "install", "golang", gover])
+        os.environ["PATH"] += os.pathsep + os.path.join(
+            os.getcwd(), "install", f"go{gover}", "bin"
+        )
+        return None
+
+
+    def _generate_context(self) -> None:
+        """
+        Runs the Docker generator program to create the Docker context
+        in contextdir. Will do nothing if contextdir/Dockerfile already
+        exists.
+        """
+
+        dockerfile = self.contextdir / "Dockerfile"
+        if dockerfile.exists():
+            logging.info(f"{dockerfile} exists; skipping generator")
+            return
+
+        gencmd = [
+            "go", "run", "generate.go", self.gitdir,
+            "--product", self.product,
+            "--version", self.version,
+            "--edition", self.edition,
+            "-o", self.contextdir
+        ]
+        logging.info(
+            f"Running Docker context generation into {self.contextdir}"
+        )
+        self.run(gencmd, cwd=self.gitdir / "generate" / "generator")
+
+
+    def _build_image(self) -> None:
+        """
+        Runs 'docker buildx build' with all appropriate arguments.
+        """
+
+        logging.info("Invoking 'docker buildx build'; may take a while")
+        buildcmd = [
+            "docker", "buildx", "build", "--pull",
+            "--platform", self.platform,
+            self.contextdir
+        ]
+        if self.do_docker_push:
+            if self.dryrun:
+                logging.info("...Skipping 'docker push' due to dryrun")
+            else:
+                logging.info("...Will push images to registries")
+                buildcmd.append("--push")
+        if self.do_docker_save:
+            logging.info(f"...Saving resulting image to {self.docker_save_file}")
+            buildcmd.extend([
+                "--output", f"type=docker,dest={self.docker_save_file}"
+            ])
+        for imagename in self.imagenames:
+            if not ':' in imagename:
+                logging.debug(f"...Providing tag :{self.version} for {imagename}")
+                imagename = f"{imagename}:{self.version}"
+            logging.info(f"...Applying image name {imagename}")
+            buildcmd.extend(["--tag", imagename])
+        for buildarg in self.buildargs:
+            logging.info(f"...Proving build-arg {buildarg}")
+            buildcmd.extend(["--build-arg", buildarg])
+
+        self.run(buildcmd)
+        logging.info(f"'docker buildx build' complete!")
+
+
+    def _write_sha256(self) -> None:
+        """
+        Writes the .sha256 file for the output tarball generated by
+        _build_image.
+        """
+
+        sha256_hash = hashlib.sha256()
+        filename = self.docker_save_file.name
+        checksum_file = self.docker_save_file.with_name(f"{filename}.sha256")
+        logging.info(f"Writing checksum file {checksum_file}")
+        with self.docker_save_file.open("rb") as f:
+            for byte_block in iter(lambda: f.read(4096),b""):
+                sha256_hash.update(byte_block)
+        with checksum_file.open("w") as f:
+            f.write(sha256_hash.hexdigest() + f"  {filename}\n")
+
+
+    def _update_github(self) -> None:
+        """
+        Commits any changes to the docker repository from github and
+        pushes it back
+        """
+
+        with self.pushd(self.gitdir):
+            self.run(["git", "add", self.contextdir.relative_to(self.gitdir)])
+            # See if anything needs to be committed. Note: "git diff-index"
+            # should be the right thing to do, but oddly, it reports a change
+            # when timestamps have changed but content has not; we don't want
+            # that. Checking this particular "git status" incantation for an
+            # empty-string result seems to be more reliable.
+            output = self.run(
+                ["git", "status", "--porcelain", "--untracked-files=no"],
+                capture_output=True
+            ).stdout
+            if output == b"":
+                logging.info(
+                    f"Note: No change to {self.gitrepo}; not updating GitHub"
+                )
+                return
+
+            if self.force_update_github:
+                verb = "Force-recreating"
+            else:
+                verb = "Adding"
+            msg = f"{verb} {self.product} {self.edition} {self.version}"
+            self.run(["git", "commit", "-m", msg])
+            if self.dryrun:
+                logging.info("Skipping 'git push' due to dryrun")
+            else:
+                logging.info(f"Pushing updates back to {self.gitrepo}")
+                self.run(["git", "push", "origin", "refs/heads/master"])
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Create and Manipulate Dockerfiles and Docker images",
+        usage="%(prog)s <required args> <action args> [<image name args>] [optional args]",
+        add_help=False
+    )
+
+    reqopts = parser.add_argument_group(
+        title="Required arguments"
+    )
+    reqopts.add_argument(
+        "-p", "--product", type=str, required=True,
+        choices=["couchbase-server", "sync-gateway"],
+        help="Product name"
+    )
+    reqopts.add_argument(
+        "-v", "--version", type=str, required=True,
+        help="Product version (may include build number)"
+    )
+    reqopts.add_argument(
+        "-e", "--edition", type=str, required=True,
+        choices=["enterprise", "community"],
+        help="Product edition"
+    )
+
+    actions = parser.add_argument_group(
+        title="Actions",
+        description="At least one of the following should be specified "
+        "to define what actions will be taken. Any combination of actions "
+        "may be provided, except as specified."
+    )
+    actions.add_argument(
+        "--docker-push", action="store_true",
+        help="Push all resulting images to their registries; "
+        "cannot be used with --docker-save"
+    )
+    actions.add_argument(
+        "--docker-save", type=str, metavar="TARFILE",
+        help="Save the resulting image to a tarfile (includes .sha256 file); "
+        "cannot be used with --docker-push"
+    )
+    actions.add_argument(
+        "--write-context", type=str, metavar="OUTDIR",
+        help="Write the Dockerfile and context files to named directory "
+        "(will be created and/or emptied as necessary); cannot be used "
+        "with --update-github"
+    )
+    actions.add_argument(
+        "--update-github", action="store_true",
+        help="Write the Dockerfile and context files to "
+        "github.com/couchbase/docker; cannot be used with --write-context"
+    )
+
+    imageopts = parser.add_argument_group(
+        title="Image name options",
+        description="Ways to specify the resulting image name(s). Any "
+        "combination is permitted, although generally --staging-imgaes and "
+        "--release-images should not be specified together since staging "
+        "images are built from a different download URL. No Image name "
+        "options are required unless --docker-save or --docker-push actions "
+        "are selected."
+    )
+    imageopts.add_argument(
+        "-i", "--image", type=str, action="append",
+        metavar="IMAGENAME", dest="images",
+        help="Complete image name; may be repeated. If IMAGENAME does not "
+        "have a :tag, :VERSION will be used."
+    )
+    imageopts.add_argument(
+        "--staging-images", action="store_true",
+        help="All image name:tags for staging images (build-docker, gitlab). "
+        "Note: should also specify --version X.Y.Z-staging"
+    )
+    imageopts.add_argument(
+        "--release-images", action="store_true",
+        help="All image name:tags for releases (docker.io/couchbase/*)"
+    )
+
+    extraopts = parser.add_argument_group(
+        title="Optional arguments"
+    )
+    extraopts.add_argument(
+        "--platform", type=str,
+        help="Comma-separated list of Docker architectures; must contain "
+        "only one platform when using --docker-save. Default is dependent "
+        "on the supported platforms for the specified product/version."
+        "For convenience, may also specify aarch64 or x86_64 here, which "
+        "will be translated to Docker terms."
+    )
+    extraopts.add_argument(
+        "--from-latestbuilds", action="store_true",
+        help="Pull installer from latestbuilds when building Docker image, "
+        "rather than packages.couchbase.com. Note this implies that VERSION "
+        "is of the form X.Y.Z-BBBB referring to a valid build number."
+    )
+    extraopts.add_argument(
+        "--force-update-github", action="store_true",
+        help="With --update-github, force-recreate Dockerfile"
+    )
+    extraopts.add_argument(
+        "--edition-tag", action="store_true",
+        help="With --release-images, also create image name with :EDITION tag"
+    )
+    extraopts.add_argument(
+        "--latest-tag", action="store_true",
+        help="With --release-images, also create image name with :latest tag"
+    )
+    extraopts.add_argument(
+        "--build-arg", type=str, action="append",
+        metavar="BUILDARG", dest="buildargs",
+        help="Docker build argument; may be repeated"
+    )
+    extraopts.add_argument(
+        "--dryrun", action="store_true",
+        help="Don't actually push to Docker registries or GitHub, only report"
+    )
+    extraopts.add_argument(
+        "--github-repo", type=str,
+        default="ssh://git@github.com/couchbase/docker",
+        help="GitHub repository URL to use for Dockerfiles; must be pushable "
+        "if --update-github is selected"
+    )
+    extraopts.add_argument(
+        "-d", "--debug", action="store_true",
+        help="Emit debug logging"
+    )
+    extraopts.add_argument(
+        "-h", "--help", action="help",
+        help="Print this usage message and exit"
+    )
+
+    args = parser.parse_args()
+
+    # Initialize logging
+    logging.basicConfig(
+        stream=sys.stderr,
+        format='%(asctime)s: %(levelname)s: %(message)s',
+        level=logging.DEBUG if args.debug else logging.INFO
+    )
+
+    # Argument validity checks - have to verify these here because they
+    # affect what functions/arguments we'll invoke on DockerTool
+    if args.latest_tag and not args.release_images:
+        parser.error("--latest-tag only applicable with --release-images")
+    if args.edition_tag and not args.release_images:
+        parser.error("--edition-tag only applicable with --release-images")
+    if args.force_update_github and not args.update_github:
+        parser.error(
+            "--force-update-github only applicable with --update-github"
+        )
+
+    tool = DockerTool(
+        args.product, args.version, args.edition,
+        args.platform, args.github_repo
+    )
+    tool.set_debug(args.debug)
+
+    # Prepare actions
+    if args.docker_push:
+        tool.will_docker_push()
+    if args.docker_save is not None:
+        tool.will_docker_save(args.docker_save)
+    if args.update_github:
+        tool.will_update_github(args.force_update_github)
+    if args.write_context is not None:
+        tool.will_write_context(args.write_context)
+
+    # Prepare tags
+    if args.images is not None:
+        tool.add_imagenames(args.images)
+    if args.staging_images:
+        tool.add_staging_imagenames()
+    if args.release_images:
+        tool.add_release_imagenames(args.edition_tag, args.latest_tag)
+
+    # Other tool config
+    tool.set_from_latestbuilds(args.from_latestbuilds)
+    if args.buildargs is not None:
+        tool.add_buildargs(args.buildargs)
+
+    # Ask tool if it's ready
+    errmsg = tool.check_ready()
+    if errmsg is not None:
+        parser.error(errmsg)
+
+    # Do it!
+    tool.set_dryrun(args.dryrun)
+    tool.execute()
