@@ -14,15 +14,14 @@
       ignore_errors: yes
 
     - name: SYNC GATEWAY | Uninstall the sgw package
-      yum:
+      apt:
         name: couchbase-sync-gateway
         state: absent
 
     # Install sync_gateway
     - name: SYNC GATEWAY | Install sync_gateway package
-      yum:
-        name: "{{ couchbase_sync_gateway_package_base_url }}/{{ couchbase_sync_gateway_package }}"
-        state: present
+      apt:
+        deb: "{{ couchbase_sync_gateway_package_base_url }}/{{ couchbase_sync_gateway_package }}"
 
     # Remove old data
     - name: Delete old data
