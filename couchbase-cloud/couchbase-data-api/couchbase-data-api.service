@@ -8,12 +8,12 @@ User=dataapi
 Group=dataapi
 LimitNOFILE=1024
 
-Restart=always
+Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=60
+startLimitIntervalSec=60
 
 WorkingDirectory=/home/dataapi
-ExecStart=/home/dataapi/rest-server
+ExecStart=/home/dataapi/rest-server --listenPort=8080
 
 # make sure log directory exists and owned by syslog
 PermissionsStartOnly=true
