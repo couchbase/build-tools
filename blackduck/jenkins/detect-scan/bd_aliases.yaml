@@ -25,9 +25,3 @@
 "587d3e15-ea76-449b-94b1-ef12538584e4":
   fallback-versions:
     "14.0.4": "14.0.0"
-
-# OpenJDK
-"324fb534-b708-4c94-95d0-25335b546471":
-  fallback-versions:
-    # this is hopefully temporary until Synopsys addresses Knowledgebase issues
-    "17.0.3+7": "17.0.3.0.7"
