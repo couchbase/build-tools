@@ -47,7 +47,13 @@ if [[ $(uname -s) != "Darwin" ]]; then
 fi
 
 # Build
-if [[ $(uname -s) != "Darwin" ]]; then
+if [[ $(uname -s) == "Darwin" ]]; then
+    # Experimentally, we need to add this rpath explicitly
+    # or else curl's configure process complains about libs
+    # available at link time but not runtime. Not sure why
+    # we don't also need to specify zlib's lib dir...
+    export LDFLAGS="-Wl,-rpath,${openssl_DIR}/lib"
+else
     export LDFLAGS="-Wl,-rpath,'\$\$ORIGIN/../lib'"
     export LD_LIBRARY_PATH="${openssl_DIR}/lib ${zlib_DIR}/lib"
 fi
@@ -66,7 +72,10 @@ autoreconf -i
             --without-libssh2 \
             --with-ssl=${openssl_DIR} \
             ${CABUNDLE_FLAG} \
-            --with-zlib=${zlib_DIR}
+            --with-zlib=${zlib_DIR} \
+            --without-nghttp2 \
+            --without-libidn2 \
+            --without-zstd
 make all
 make install
 
@@ -77,9 +86,17 @@ rm -rf ${INSTALL_DIR}/share
 rm -f ${INSTALL_DIR}/lib/libcurl.la
 
 if [[ $(uname -s) == "Darwin" ]]; then
-    # Fix rpath for macOS libraries
+    # Tell libcurl what it should tell other binaries that its own name is.
+    # MacOS is weird.
     install_name_tool -id @rpath/libcurl.4.dylib ${INSTALL_DIR}/lib/libcurl.4.dylib
+    # Fix the hardcoded path to libcurl in curl.
     install_name_tool -change ${INSTALL_DIR}/lib/libcurl.4.dylib @executable_path/../lib/libcurl.4.dylib ${INSTALL_DIR}/bin/curl
+    # Remove the hardcoded rpath to openssl in libcurl that we added earlier
+    # from both libcurl and curl. Have to remove it twice from libcurl. (?)
+    install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/lib/libcurl.4.dylib
+    install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/lib/libcurl.4.dylib
+    install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/bin/curl
+    # Finally add a basic rpath to curl.
     install_name_tool -add_rpath @executable_path/../lib ${INSTALL_DIR}/bin/curl
 else
     # Utilize wrapper script for Linux
