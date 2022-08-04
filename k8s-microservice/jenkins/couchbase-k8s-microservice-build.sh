@@ -8,16 +8,14 @@ chk_set PRODUCT
 chk_set VERSION
 chk_set BLD_NUM
 
-# Extract Golang version to use from manifest
-GOANNOTATION=$(xmllint \
-    --xpath 'string(//project[@name="build"]/annotation[@name="GOVERSION"]/@value)' \
-    manifest.xml)
-GOVERSION=${GOANNOTATION:-1.18.3}
+GOVERSION=$(gover_from_manifest)
 
-# Create temp directory in WORKSPACE to install golang
-GODIR=$(mktemp -d -q --tmpdir=$(pwd) golangXXXXX)
-cbdep install -d ${GODIR} golang ${GOVERSION}
-export PATH=${GODIR}/go${GOVERSION}/bin:${PATH}
+if [ ! -z "${GOVERSION}" ]; then
+    # Create temp directory in WORKSPACE to install golang
+    GODIR=$(mktemp -d -q --tmpdir=$(pwd) golangXXXXX)
+    cbdep install -d ${GODIR} golang ${GOVERSION}
+    export PATH=${GODIR}/go${GOVERSION}/bin:${PATH}
+fi
 
 cd ${PRODUCT}
 # Also pass GOVERSION to Make, since some projects expect to find it there
