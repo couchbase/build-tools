@@ -4,12 +4,13 @@ INSTALL_DIR=$1
 ROOT_DIR=$2
 PLATFORM=$3
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
+
 cd ${ROOT_DIR}
 
 DEPS=${WORKSPACE}/deps
 rm -rf ${DEPS}
-CBDEP_TOOL_VER=1.0.4
-GO_VER=1.16.5
 NODEJS_VER=16.5.0
 
 # Download cbdep, unless it's already available in the local .cbdepscache
@@ -24,14 +25,13 @@ else
     curl -o /tmp/cbdep ${CBDEP_URL}
 fi
 
-chmod +x /tmp/cbdep
-
-# Use cbdep to install golang
-/tmp/cbdep install -d ${DEPS} golang ${GO_VER}
+# Extract GOVERSION from manifest, and install using cbdep
+GO_VER=$(gover_from_manifest)
+cbdep install -d ${DEPS} golang ${GO_VER}
 export PATH=${DEPS}/go${GO_VER}/bin:${PATH}
 
 # Use cbdep to install nodejs
-/tmp/cbdep install -d ${DEPS} nodejs ${NODEJS_VER}
+cbdep install -d ${DEPS} nodejs ${NODEJS_VER}
 export PATH=${DEPS}/nodejs-${NODEJS_VER}/bin:${PATH}
 
 # Use nodejs to install yarn

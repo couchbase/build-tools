@@ -39,19 +39,21 @@ function chk_cmd {
 
 function gover_from_manifest {
 
-    # This function expects "manifest.xml" in the current directory, from
-    # either a build-from-manifest source tarball or the Black Duck script
-    # running "repo manifest -r". Fail with clear error if that's missing.
-    if [ ! -e manifest.xml ]; then
-        echo "Need to have manifest.xml in current directory!"
+    # Try to extract the annotation using "repo" if available, otherwise
+    # "xmllint" on "manifest.xml". If neither works, die!
+    if test -d .repo && command -v repo > /dev/null; then
+        GOVERSION=$(repo forall build -c 'echo $REPO__GOVERSION' 2> /dev/null)
+    elif test -e manifest.xml && command -v xmllint > /dev/null; then
+        # This version expects "manifest.xml" in the current directory, from
+        # either a build-from-manifest source tarball or the Black Duck script
+        # running "repo manifest -r".
+        GOVERSION=$(xmllint \
+            --xpath 'string(//project[@name="build"]/annotation[@name="GOVERSION"]/@value)' \
+            manifest.xml)
+    else
+        echo "Couldn't use repo or xmllint - can't continue!"
         exit 3
     fi
-
-    # Extract Golang version to use from manifest
-    GOANNOTATION=$(xmllint \
-        --xpath 'string(//project[@name="build"]/annotation[@name="GOVERSION"]/@value)' \
-        manifest.xml)
-    GOVERSION=${GOANNOTATION}
 
     # If the manifest doesn't specify *anything*, do nothing.
     if [ ! -z "${GOVERSION}" ]; then
