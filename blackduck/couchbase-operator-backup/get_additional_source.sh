@@ -13,12 +13,13 @@ rm -rf .repo
 # We need some repositories from the Server build as well.
 # Use the Docker tag of the vanilla Dockerfile's FROM directive to
 # determine the corresponding Server version.
-VERSION=$(
-    docker run --rm $(
-        sed -nE 's/^FROM (couchbase\/server[^[:space:]]+).*/\1/p' \
+SERVER_DOCKER_VER=$(
+    sed -nE 's/^FROM (couchbase\/server[^[:space:]]+).*/\1/p' \
         couchbase-operator-backup/Dockerfile \
-        | head -1
-    ) cat /opt/couchbase/VERSION.txt \
+    | head -1
+)
+VERSION=$(
+    docker run --rm ${SERVER_DOCKER_VER} cat /opt/couchbase/VERSION.txt \
     | sed 's/-.*//'
 )
 mkdir server_src
@@ -27,15 +28,18 @@ repo init \
     -u ssh://git@github.com/couchbase/manifest \
     -m released/couchbase-server/${VERSION}.xml \
     -g backup
-repo sync --jobs=8
-rm -rf forestdb
+repo sync backup cbauth gomemcached go-couchbase
 
-# Prior to 7.0, backup was built with GOPATH, so we want to eliminate any
-# "couchbase" packages before doing Black Duck signature scan. In 7.0,
-# backup is built with Go modules, and the 'backup' group in the manifest
-# already prunes out everything we don't need.
-if [[ "${VERSION}" =~ ^6 ]]; then
-    rm -rf go*/src/*/couchbase*
-    # Also delete any go.mod files - leads to false positives in BD
-    find go* -name go.mod -print0 | xargs -0 rm
-fi
+# Also take a peek at cbbackupmgr from there and determine what Go version
+# was used to compile it
+docker run --rm -v $(pwd):/mnt ${SERVER_DOCKER_VER} \
+    cp /opt/couchbase/bin/cbbackupmgr /mnt
+GOVERSION=$(go version cbbackupmgr | sed -Ee 's/^.*go([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
+
+# Cons up a black-duck-manifest for Golang
+cat <<EOF > "${WORKSPACE}/src/${PRODUCT}-black-duck-manifest.yaml"
+components:
+  go programming language:
+    bd-id: 6d055c2b-f7d7-45ab-a6b3-021617efd61b
+    versions: [ ${GOVERSION} ]
+EOF
