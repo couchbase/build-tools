@@ -14,7 +14,7 @@ rm -rf .repo
 # Use the Docker tag of the vanilla Dockerfile's FROM directive to
 # determine the corresponding Server version.
 SERVER_DOCKER_VER=$(
-    sed -nE 's/^FROM (couchbase\/server[^[:space:]]+).*/\1/p' \
+    sed -nE 's/^FROM +(couchbase\/server[^[:space:]]+).*/\1/p' \
         couchbase-operator-backup/Dockerfile \
     | head -1
 )

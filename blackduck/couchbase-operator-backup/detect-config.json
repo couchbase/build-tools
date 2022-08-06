@@ -1,6 +1,6 @@
 {
     "detect_opts": {
-        "detect.detector.search.depth": 9,
+        "detect.detector.search.depth": 3,
         "detect.included.detector.types": "PIP,GO_MOD",
         "logging.level.com.synopsys.integration": "DEBUG",
         "detect.detector.search.continue": true
