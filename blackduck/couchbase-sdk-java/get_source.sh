@@ -33,6 +33,10 @@ else
         echo "No tag $TAG, assuming master"
     fi
 
+    # The fit-performer packages are test-only and require a non-public
+    # jar, so they'll never be shipped; but their poms mess up the scans.
+    rm -rf *-fit-performer
+
     # And now we actually need to build stuff for it to be found
     # by the detector
     mvn --batch-mode dependency:resolve || {
