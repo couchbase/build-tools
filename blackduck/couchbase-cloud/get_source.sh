@@ -13,3 +13,4 @@ done
 echo "replace github.com/couchbasecloud/couchbase-cloud => ../couchbase-cloud" >> direct-nebula/go.mod
 echo "replace github.com/couchbasecloud/couchbase-cloud => ../couchbase-cloud" >> data-api/go.mod
 echo "replace github.com/couchbase/regulator => ../../extra/regulator" >> data-api/go.mod
+echo "replace github.com/couchbase/regulator => ../../extra/regulator" >> direct-nebula/go.mod
