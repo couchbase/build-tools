@@ -6,9 +6,11 @@ NODE_VERSION=16.15.1
 cbdep install -d ${WORKSPACE}/extra nodejs ${NODE_VERSION}
 export PATH=${WORKSPACE}/extra/nodejs-${NODE_VERSION}/bin:$PATH
 
-pushd couchbase-cloud/scripts/insomnia-plugin-cb-token-auth
-npm install
-popd
-pushd couchbase-cloud/clientSDKSamples/javascript
-npm install
-popd
+for dir in couchbase-cloud/scripts/insomnia-plugin-cb-token-auth \
+           couchbase-cloud/clientSDKSamples/javascript \
+           couchbase-cloud/cmd/cp-jungle-jim/go-playground
+do
+    pushd $dir
+    npm install
+    popd
+done
