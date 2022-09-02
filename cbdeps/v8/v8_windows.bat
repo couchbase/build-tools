@@ -1,81 +1,92 @@
 set INSTALL_DIR=%1
-
+set ROOT_DIR=%2
 set SCRIPTPATH=%cd%
 
-rem Get Google's depot_tools.
-if not exist depot_tools (
-    git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git || goto error
-    rem checkout specific commit id near v8 9.7.37
-    rem newer changes has a chance of breaking the build
-    cd depot_tools
-    git checkout 5ba5119227002ab191b0f916df435b7410c4ca3c
-    cd ..
+echo on
+
+rem
+
+rem Build gn.
+cd %ROOT_DIR%\gn
+python3 build/gen.py
+ninja -C out
+set PATH=%CD%/out;%PATH%
+
+rem Install specific Windows SDK, if necessary.
+cd %ROOT_DIR%
+if not exist "C:\Program Files (x86)\Windows Kits\10\Include\10.0.20348.0" (
+    curl -L -o winsdk.exe https://go.microsoft.com/fwlink/?linkid=2164145 || goto error
+    start /wait .\winsdk.exe /l winsdk-install.log /q /features OptionId.WindowsDesktopDebuggers OptionId.DesktopCPPx64
 )
-set PATH=%cd%\depot_tools;%PATH%
 
-rem Setting MSVC version specifically to 2019
-set GYP_MSVS_VERSION=2019
+rem Install Google's clang. It's just easier than making it use MSVC directly.
+cd v8
+python3 tools\clang\scripts\update.py
 
-rem Disable gclient getting Google-internal versions of stuff
+rem Recreate a couple droppings that would have been created by gclient
+echo # > build\config\gclient_args.gni
+python3 build\util\lastchange.py -o build/util/LASTCHANGE || goto error
+
+rem Fix their bundled ICU's buggy script
+copy /Y %SCRIPTPATH%\windows_patches\asm_to_inline_asm.py third_party\icu\scripts
+
+rem Fix their coding error
+call git apply --ignore-whitespace %SCRIPTPATH%\windows_patches\logging_cctype.patch
+
+rem Tell gn we want to use our own compiler
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 
-rem Set up gclient config for tag to pull for v8, then do sync
-rem (this handles the 'fetch v8' done by the usual process)
-echo solutions = [ { "url": "https://github.com/couchbasedeps/v8-mirror.git@9.7.37","managed": False, "name": "v8", "deps_file": "DEPS", }, ]; > .gclient
-call gclient sync || goto error
-
-echo on
-
-cd v8
-rem Apply necessary changes so that v8 can be built with MSVC.
-rem A few cppgc unittests are broken and have to be commented out due to recent changes in v8/include/cppgc/internal/pointer-policies.h
-call git apply --ignore-whitespace %SCRIPTPATH%\windows_patches\v8.patch
-cd build
-call git apply --ignore-whitespace %SCRIPTPATH%\windows_patches\build.patch
-
 rem Actual v8 configure and build steps - we build debug and release.
-cd ..
-rem Use double-quoting here because .bat quote removal is inscrutable.
-set V8_ARGS=target_cpu=""x64"" is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false is_clang=false treat_warnings_as_errors=false use_custom_libcxx=false v8_enable_verify_heap=false
+rem Ideally this set of args should match the corresponding set in
+rem v8_unix.sh.
 
-call gn gen out.gn/x64.release --args="%V8_ARGS% is_debug=false" || goto error
+set V8_ARGS=use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false
+
+call gn gen out-release --args="%V8_ARGS% is_debug=false" || goto error
 
 echo on
-call ninja -C out.gn/x64.release || goto error
+call ninja -C out-release v8 || goto error
 echo on
-call gn gen out.gn/x64.debug --args="%V8_ARGS% is_debug=true symbol_level=1" || goto error
+call gn gen out-debug --args="%V8_ARGS% is_debug=true v8_optimized_debug=true symbol_level=1 v8_enable_slow_dchecks=true" || goto error
 echo on
-call ninja -C out.gn/x64.debug || goto error
+call ninja -C out-debug v8 || goto error
 echo on
+
+rem Uninstall SDK if we installed it ourselves.
+if exist %ROOT_DIR%\winsdk.exe (
+    start /wait %ROOT_DIR%\winsdk.exe /q /uninstall || goto error
+)
 
 rem Copy right stuff to output directory.
 mkdir %INSTALL_DIR%\lib\Release
 mkdir %INSTALL_DIR%\lib\Debug
+mkdir %INSTALL_DIR%\include\cppgc
+mkdir %INSTALL_DIR%\include\cppgc\internal
 mkdir %INSTALL_DIR%\include\libplatform
 mkdir %INSTALL_DIR%\include\unicode
 
-cd out.gn\x64.release
+cd out-release
 copy v8.dll* %INSTALL_DIR%\lib\Release || goto error
-copy v8_lib* %INSTALL_DIR%\lib\Release || goto error
-copy icu*.* %INSTALL_DIR%\lib\Release || goto error
+copy v8_lib*.dll* %INSTALL_DIR%\lib\Release || goto error
+copy icu*.dll* %INSTALL_DIR%\lib\Release || goto error
 copy zlib.dll* %INSTALL_DIR%\lib\Release || goto error
-del %INSTALL_DIR%\lib\Release\*.exp || goto error
-del %INSTALL_DIR%\lib\Release\*.ilk || goto error
 
-cd ..\..\out.gn\x64.debug
+cd ..\out-debug
 copy v8.dll* %INSTALL_DIR%\lib\Debug || goto error
-copy v8_lib* %INSTALL_DIR%\lib\Debug || goto error
-copy icu*.* %INSTALL_DIR%\lib\Debug || goto error
+copy v8_lib*.dll* %INSTALL_DIR%\lib\Debug || goto error
+copy icu*.dll* %INSTALL_DIR%\lib\Debug || goto error
 copy zlib.dll* %INSTALL_DIR%\lib\Debug || goto error
-del %INSTALL_DIR%\lib\Debug\*.exp || goto error
-del %INSTALL_DIR%\lib\Debug\*.ilk || goto error
 
-cd ..\..\include
+cd ..\include
 copy v8*.h %INSTALL_DIR%\include || goto error
 cd libplatform
 copy *.h %INSTALL_DIR%\include\libplatform || goto error
+cd ..\cppgc
+copy *.h %INSTALL_DIR%\include\cppgc
+cd internal
+copy *.h %INSTALL_DIR%\include\cppgc\internal
 
-cd ..\..\third_party\icu\source\common\unicode
+cd ..\..\..\third_party\icu\source\common\unicode
 copy *.h %INSTALL_DIR%\include\unicode || goto error
 cd ..\..\io\unicode
 copy *.h %INSTALL_DIR%\include\unicode || goto error
@@ -83,6 +94,22 @@ cd ..\..\i18n\unicode
 copy *.h %INSTALL_DIR%\include\unicode || goto error
 cd ..\..\extra\uconv\unicode
 copy *.h %INSTALL_DIR%\include\unicode || goto error
+
+rem Fix unistr.h. This problem is caused by compiling icu with clang and
+rem then building Server with MSVC. ICU's UnicodeString class is
+rem reasonably declared __declspec(dllimport) for Server builds, which
+rem means all functions in that class are also __declspec(dllimport).
+rem UnicodeString also has a number of inline functions. Unfortunately
+rem MSVC has a special feature that effectively allows a DLL to include
+rem a pre-compiled definition for inline functions, which is clever and
+rem all, but clang doesn't do that. So our libicui18n.dll doesn't have
+rem those pre-compiled bits, leading to a link-time error in the Server
+rem build. Fortunately, at least currently, re-specifying all those
+rem inline functions with the (also MSVC-specific) "__forceinline"
+rem declaration allows Server to build. This script hacks unistr.h in
+rem the final package for use by MSVC.
+cd %INSTALL_DIR%\include\unicode
+python3 %SCRIPTPATH%\windows_patches\fix-unistr.py
 
 goto :eof
 

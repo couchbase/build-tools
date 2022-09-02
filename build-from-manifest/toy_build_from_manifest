@@ -93,8 +93,25 @@ repo sync --jobs=24 --quiet
 
 # Create build manifest for future reference. Do this before applying
 # changes because the local cherry-picked SHAs won't make sense in the
-# manifest anyway.
+# manifest.
 repo manifest -r > manifest.xml
+
+# Apply any changes from Gerrit - this may re-run "repo sync" if there
+# were Gerrit changes to the manifest repo, so we need to do it before
+# generating properties etc.
+if [ ! -z "${OPTS}" ]; then
+    echo "Applying changes from Gerrit"
+    echo ================================
+    "${SCRIPT_DIR}/../utilities/patch_via_gerrit" \
+        -d -c ${HOME}/.ssh/patch_via_gerrit.ini \
+        ${OPTS} -s .
+
+    # QQQ patch_via_gerrit should probably parse all <copyfile> and
+    # <linkfile> directives
+    if [ -f tlm/CMakeLists.txt ]; then
+        cp -f tlm/CMakeLists.txt CMakeLists.txt
+    fi
+fi
 
 # Have to populate build.properties at the WORKSPACE level
 popd
@@ -139,20 +156,6 @@ popd
 
 # Back into the repo sync for remaining operations
 pushd src
-
-# Apply any changes from Gerrit
-if [ ! -z "${OPTS}" ]; then
-    echo "Applying changes from Gerrit"
-    echo ================================
-    "${SCRIPT_DIR}/../utilities/patch_via_gerrit" \
-        -d -c ${HOME}/.ssh/patch_via_gerrit.ini \
-        ${OPTS} -s .
-
-    # QQQ this should probably parse all <copyfile> and <linkfile> directives
-    if [ -f tlm/CMakeLists.txt ]; then
-        cp -f tlm/CMakeLists.txt CMakeLists.txt
-    fi
-fi
 
 # Update any submodules listed in module-projects, if there's a product-config.json to look at
 PRODUCT_CONFIG="../manifest/${PRODUCT_PATH}/product-config.json"

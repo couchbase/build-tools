@@ -1,3 +1,5 @@
+set PLATFORM=%1
+
 if "%PLATFORM%" == "windows_msvc2019" (
   set tools_version=2019
   goto do_tools_version

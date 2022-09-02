@@ -11,6 +11,7 @@ chk_set PROFILE
 chk_set RELEASE
 chk_set VERSION
 chk_set BLD_NUM
+chk_set ARCH
 
 PROD_NAME=${PRODUCT#"cbdeps::"}
 PROD_PATH=${PRODUCT//::/\/}
@@ -32,15 +33,6 @@ if [ ! -e tools/cbdep ]; then
     chmod 755 tools/cbdep
 fi
 export PATH=$(pwd)/tools:${PATH}
-
-# Hacky support for cross-compiling Windows
-if [[ "${PLATFORM}" =~ -windowscrosscompile$ ]]; then
-    echo "CROSS COMPILING FOR WINDOWS!"
-    export PLATFORM=windows_msvc2017
-    export ARCH=amd64
-else
-    chk_set ARCH
-fi
 
 # Hacky fix for inconsistent naming of MacOS
 if [ "${PLATFORM}" == "macos" ]; then
