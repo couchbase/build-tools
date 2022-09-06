@@ -294,21 +294,18 @@ class ManifestBuilder:
         namely version and release
         """
 
-        build_element = self.input_manifest.find('./project[@name="build"]')
-
-        if build_element is None:
-            print(f'Input manifest {self.manifest} has no "build" project!')
-            sys.exit(4)
-
-        vers_annot = build_element.find('annotation[@name="VERSION"]')
-
+        # VERSION annotation is strictly required
+        vers_annot = self.input_manifest.find(
+            './project[@name="build"]/annotation[@name="VERSION"]'
+        )
         if vers_annot is not None:
             self.version = vers_annot.get('value')
             print(f'Input manifest version: {self.version}')
         else:
-            self.version = '0.0.0'
-            print(f'Default version to 0.0.0')
+            print(f'No "VERSION" annotation in manifest!')
+            sys.exit(4)
 
+        # Release may be omitted, will default to VERSION
         self.release = self.manifest_config.get('release', self.version)
 
     def perform_repo_sync(self):
@@ -453,20 +450,15 @@ class ManifestBuilder:
 
         last_build_manifest = EleTree.parse(self.build_manifest_filename)
 
-        build_element = last_build_manifest.find('./project[@name="build"]')
+        build_element = last_build_manifest.find(
+            './project[@name="build"]/annotation[@name="VERSION"]/..'
+        )
         insert_child_annot(build_element, 'BLD_NUM', str(self.build_num))
         insert_child_annot(build_element, 'PRODUCT', self.product)
         insert_child_annot(build_element, 'RELEASE', self.release)
 
         if self.go_version is not None:
             insert_child_annot(build_element, 'GO_VERSION', self.go_version)
-
-        version_annot = last_build_manifest.find(
-            './project[@name="build"]/annotation[@name="VERSION"]'
-        )
-
-        if version_annot is None:
-            insert_child_annot(build_element, 'VERSION', self.version)
 
         last_build_manifest.write(self.build_manifest_filename)
 
