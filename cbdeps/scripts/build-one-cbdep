@@ -13,6 +13,13 @@ chk_set VERSION
 chk_set BLD_NUM
 chk_set ARCH
 
+# One special-case for cross-compiling Windows; it always wants to be
+# arch "amd64". build-one-cbdep.bat enforces this, so we also do it
+# here.
+if [ "${PLATFORM}" = "windows" -a "${ARCH}" = "x86_64" ]; then
+    ARCH=amd64
+fi
+
 PROD_NAME=${PRODUCT#"cbdeps::"}
 PROD_PATH=${PRODUCT//::/\/}
 
