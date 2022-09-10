@@ -44,11 +44,6 @@ heading() {
     echo @@@@@@@@@@@@@@@@@
 }
 
-# Ensure 'images' directory exists but is empty
-rm -rf images
-mkdir images
-cd images
-
 if [ -z "${BLD_NUM}" ]; then
     tag=${VERSION}
     base_url=http://releases.service.couchbase.com/builds/releases/${PRODUCT}/${VERSION}
@@ -56,8 +51,18 @@ else
     tag=${VERSION}-${BLD_NUM}
     base_url=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}
 fi
+manifest_filename=${PRODUCT}-${tag}-manifest.xml
 filename=${PRODUCT}-image_${tag}.tgz
 url=${base_url}/${filename}
+
+heading "Downloading manifest ${manifest_filename} to compute GOVERSION"
+curl --fail -L -o manifest.xml ${base_url}/${manifest_filename}
+GOVERSION=$(gover_from_manifest)
+
+# Ensure 'images' directory exists but is empty
+rm -rf images
+mkdir images
+cd images
 
 heading "Downloading ${url}..."
 curl --fail -LO ${url}
@@ -83,6 +88,7 @@ for local_product in *; do
         -t cb-vanilla/${short_product}:${tag} \
         --build-arg PROD_VERSION=${VERSION} \
         --build-arg PROD_BUILD=${BLD_NUM} \
+        --build-arg GO_VERSION=${GOVERSION} \
         .
 
     # Some projects don't do RHCC
@@ -92,6 +98,7 @@ for local_product in *; do
             -t cb-rhcc/${short_product}:${tag} \
             --build-arg PROD_VERSION=${VERSION} \
             --build-arg PROD_BUILD=${BLD_NUM} \
+            --build-arg GO_VERSION=${GOVERSION} \
             --build-arg OS_BUILD=${OPENSHIFT_BUILD} \
             .
     fi

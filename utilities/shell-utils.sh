@@ -64,7 +64,15 @@ function gover_from_manifest {
         if [[ ! ${GOVERSION} =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
             # Ok, GOVERSION is a major-only version (eg. "1.18"). Look up the
             # currently supported Go minor version from the 'golang'
-            # repository. At this point we know the project has "opted in" to
+            # repository. If the repository isn't there, go grab it.
+            if [ ! -d golang ]; then
+                GOLANGSHA=$(xmllint \
+                    --xpath 'string(//project[@name="golang"]/@revision)' \
+                    manifest.xml)
+                git clone https://github.com/couchbaselabs/golang
+                git -C golang checkout ${GOLANGSHA}
+            fi
+            # At this point we know the project has "opted in" to
             # the centralized Go version management, therefore it is an error
             # if the specified major version is not supported.
             GOVERFILE=golang/versions/${GOVERSION}.txt
