@@ -20,7 +20,7 @@ if __name__ == '__main__':
     details = get_metadata_for_manifest(args.manifest_dir, args.manifest_file)
     args.output_file.write(
         f'PRODUCT={details.get("product")}\n'
-        f'RELEASE={details.get("release")}\n'
+        f'RELEASE={details.get("release", details.get("version"))}\n'
         f'VERSION={details.get("version")}\n'
         f'BLD_NUM={args.bld_num}\n'
         f'PROD_NAME={details.get("prod_name")}\n'
