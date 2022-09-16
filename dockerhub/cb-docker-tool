@@ -142,6 +142,8 @@ class DockerTool:
                 f"registry.gitlab.com/cb-vanilla/sync_gateway:"
                 f"{self.version}-{self.edition}"
             )
+        elif self.product == "server-sandbox":
+            self.error_msg = "No staging imagenames for server-sandbox (sorry)"
 
 
     def add_release_imagenames(self, edition_tag: bool, latest_tag: bool) -> None:
@@ -164,11 +166,17 @@ class DockerTool:
                 self.imagenames.append(
                     f"{imagebase}:{self.version}-enterprise-dockerhub"
                 )
+        elif self.product == "server-sandbox":
+            if self.edition == "community":
+                self.error_msg = "server-sandbox images must be 'enterprise'"
+                return
+            self.imagenames.append(f"couchbase/server-sandbox:{self.version}")
 
-        if edition_tag:
-            self.imagenames.append(f"{imagebase}:{self.edition}")
-        if latest_tag:
-            self.imagenames.append(f"{imagebase}:latest")
+        if self.product != "server-sandbox":
+            if edition_tag:
+                self.imagenames.append(f"{imagebase}:{self.edition}")
+            if latest_tag:
+                self.imagenames.append(f"{imagebase}:latest")
 
 
     def set_from_latestbuilds(self, from_latestbuilds: bool) -> None:
@@ -184,7 +192,7 @@ class DockerTool:
             # Nothing to change
             return
         if not '-' in self.version:
-            self.error_msg = "VERSION must be of form X.Y.Z-bbb " \
+            self.error_msg = "VERSION must be of form X.Y.Z-bbbb " \
                 "when using --from-latestbuilds"
             return
         version, bldnum = self.version.split('-')
@@ -308,7 +316,8 @@ class DockerTool:
         if platform is None:
             if self.product == "sync-gateway":
                 return "linux/amd64"
-            elif self.product == "couchbase-server":
+            elif self.product == "couchbase-server" or \
+                 self.product == "server-sandbox":
                 intver = self._intver()
                 if intver >= 70100:
                     return "linux/amd64,linux/arm64"
@@ -534,7 +543,7 @@ if __name__ == "__main__":
     )
     reqopts.add_argument(
         "-p", "--product", type=str, required=True,
-        choices=["couchbase-server", "sync-gateway"],
+        choices=["couchbase-server", "sync-gateway", "server-sandbox"],
         help="Product name"
     )
     reqopts.add_argument(
