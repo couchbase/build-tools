@@ -73,7 +73,12 @@ popd
 pushd "${OUTDIR}"
 echo "Syncing manifest $MANIFEST at $SHA"
 echo ================================
+# "repo init" has a "--no-git-lfs" options, but the implementation is exactly
+# backwards, so we need to specify "--git-lfs" to *disable* Git LFS. Do this
+# the manual way with git config, since some older versions of repo don't yet
+# support --git-lfs.
 repo init -u "${WORKDIR}/${BUILD_MANI_DIR}" -b $SHA -g all -m $MANIFEST
+git config -C .repo/manifests.git config repo.git-lfs true
 repo sync --jobs=8
 repo manifest -r > manifest.xml
 echo
