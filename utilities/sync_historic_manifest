@@ -78,7 +78,7 @@ echo ================================
 # the manual way with git config, since some older versions of repo don't yet
 # support --git-lfs.
 repo init -u "${WORKDIR}/${BUILD_MANI_DIR}" -b $SHA -g all -m $MANIFEST
-git config -C .repo/manifests.git config repo.git-lfs true
+git -C .repo/manifests.git config repo.git-lfs true
 repo sync --jobs=8
 repo manifest -r > manifest.xml
 echo
