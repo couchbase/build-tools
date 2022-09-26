@@ -196,11 +196,19 @@ class DockerTool:
                 "when using --from-latestbuilds"
             return
         version, bldnum = self.version.split('-')
-        self.add_buildargs([
-            "CB_SKIP_CHECKSUM=true",
-            "CB_RELEASE_URL=http://latestbuilds.service.couchbase.com/builds/"
-            f"latestbuilds/{self.product}/zz-versions/{version}/{bldnum}"
-        ])
+        if self.product == "sync-gateway":
+            self.add_buildargs([
+                "SGW_PACKAGE=http://latestbuilds.service.couchbase.com/builds/"
+                f"latestbuilds/{self.product.replace('-','_')}/{version}/"
+                f"{bldnum}/couchbase-{self.product}-{self.edition}_{version}"
+                f"-{bldnum}_@@ARCH@@.deb"
+            ])
+        else:
+            self.add_buildargs([
+                "CB_SKIP_CHECKSUM=true",
+                "CB_RELEASE_URL=http://latestbuilds.service.couchbase.com/builds/"
+                f"latestbuilds/{self.product}/zz-versions/{version}/{bldnum}"
+            ])
 
 
     def add_buildargs(self, buildargs: List[str]) -> None:
