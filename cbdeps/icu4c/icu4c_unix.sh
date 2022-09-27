@@ -9,8 +9,11 @@ cd ${ROOT_DIR}/icu/icu4c/source
 make -j8
 make install prefix="${INSTALL_DIR}"
 
-rm -rf "${INSTALL_DIR}/bin"
-rm -rf "${INSTALL_DIR}/lib/icu"
-rm -rf "${INSTALL_DIR}/lib/pkgconfig"
-rm -rf "${INSTALL_DIR}/sbin"
-rm -rf "${INSTALL_DIR}/share"
+cd "${INSTALL_DIR}"
+rm -rf bin
+rm -rf lib/icu
+rm -rf lib/pkgconfig
+rm -rf sbin
+rm -rf share
+cd lib
+rm -f libicuio* libicutest* libicutu*
