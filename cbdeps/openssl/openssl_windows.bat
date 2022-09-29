@@ -22,14 +22,12 @@ call rmdir /s /q %INSTALL_DIR%\html || goto error
 
 set STATIC_DIR=%INSTALL_DIR%\lib\VC\static
 if "%PROFILE%" == "server" (
-    rem Erlang wants static openssl libs, and has some specific ideas about
-    rem where they should be and what they should be named. Since nobody
-    rem else cares, go along with that. Put them in a top-level "staticlib"
-    rem subdirectory so they don't get installed as part of the Server
-    rem build.
+    rem Erlang wants static openssl libs, and expects them to be named
+    rem the way OpenSSL distributions do. Since nobody else cares, go
+    rem along with that.
     call mkdir %STATIC_DIR% || goto error
-    call copy libcrypto_static.lib %STATIC_DIR%\libcryptoMD.lib || goto error
-    call copy libssl_static.lib %STATIC_DIR%\libsslMD.lib || goto error
+    call copy libcrypto_static.lib %STATIC_DIR%\libcrypto64MD.lib || goto error
+    call copy libssl_static.lib %STATIC_DIR%\libssl64MD.lib || goto error
     goto :eof
 )
 

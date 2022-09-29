@@ -1,6 +1,6 @@
 @echo on
 
-set OPENSSL_VER=1.1.1o-1
+set OPENSSL_VER=1.1.1p-2
 
 set INSTALL_DIR=%1
 set ROOT_DIR=%2
