@@ -134,12 +134,15 @@ class DockerTool:
                 tag = f"community-{self.version}"
             self.imagenames.extend([
                 f"registry.gitlab.com/cb-vanilla/server:{tag}",
+                f"ghcr.io/cb-vanilla/server:${tag}",
                 f"build-docker.couchbase.com/couchbase/server-internal:{tag}",
                 f"build-docker.couchbase.com/cb-vanilla/server:{tag}"
             ])
         elif self.product == "sync-gateway":
             self.imagenames.append(
-                f"registry.gitlab.com/cb-vanilla/sync_gateway:"
+                f"registry.gitlab.com/cb-vanilla/sync-gateway:"
+                f"{self.version}-{self.edition}",
+                f"ghcr.io/cb-vanilla/sync-gateway:"
                 f"{self.version}-{self.edition}"
             )
         elif self.product == "server-sandbox":
@@ -609,7 +612,7 @@ if __name__ == "__main__":
     )
     imageopts.add_argument(
         "--staging-images", action="store_true",
-        help="All image name:tags for staging images (build-docker, gitlab). "
+        help="All image name:tags for staging images (build-docker, GHCR). "
         "Note: should also specify --version X.Y.Z-staging"
     )
     imageopts.add_argument(

@@ -45,7 +45,7 @@ for product in *; do
 
     for org in $orgs; do
         local_org_image=${org}/${short_product}:${version_build}
-        for registry in build-docker.couchbase.com registry.gitlab.com; do
+        for registry in build-docker.couchbase.com registry.gitlab.com ghcr.io; do
             for tag in ${tags}; do
                 remote_org_image=${registry}/${org}/${short_product}:${tag}
 
