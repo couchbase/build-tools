@@ -87,6 +87,38 @@ else
             exit 1
         fi
     fi
+
+    # MB-53924: couchstore map-reduce code uses jemalloc as the
+    # default C++ heap allocator, by virtue of linking to
+    # couchbase/platform which overrides global operator new/delete to
+    # allocate via jemalloc.
+    #
+    # That requires that the various 'operator new/delete' symbols are
+    # weak symbols inside libcouchstore, and all dependencies also
+    # have 'operator new/delete' as weak symbols - including V8.
+    #
+    # This can be examined via the 'nm' command - the operator new /
+    # delete symbols in libcouchstore / lib8 should look like:
+    #
+    #     $ nm -m libv8.dylib | rg __ZdlPv | c++filt
+    #                      (undefined) weak external __ZdlPv (from libc++)
+    #
+    # Note symbol defined as weak:     ^^^^
+    #
+    # This _should_ be automatic behavior - the libc++-abi headers
+    # define the various operator new/delete functions as "default"
+    # visibility which means they should be weak when linked into a
+    # library.
+    #
+    # However, if we use lld as the linker for V8, then it *doesn't*
+    # mark 'operator new' et al as weak for some unknown reason,
+    # resulting in heap mismatches when V8 is used - libv8 itself
+    # allocates (and frees) via the system heap, whereas
+    # couchstore_views allocates via jemalloc's heap. Given they
+    # pass objects between each other this results in various aborts /
+    # crashes when trying to free an allocation from a mismatched heap.
+    # Fix by disabling lld and using system linker.
+    V8_ARGS="use_lld=false"
 fi
 
 # One little dropping left over from "gclient sync" that isn't actually
