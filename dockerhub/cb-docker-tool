@@ -134,7 +134,7 @@ class DockerTool:
                 tag = f"community-{self.version}"
             self.imagenames.extend([
                 f"registry.gitlab.com/cb-vanilla/server:{tag}",
-                f"ghcr.io/cb-vanilla/server:${tag}",
+                f"ghcr.io/cb-vanilla/server:{tag}",
                 f"build-docker.couchbase.com/couchbase/server-internal:{tag}",
                 f"build-docker.couchbase.com/cb-vanilla/server:{tag}"
             ])
