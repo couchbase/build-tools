@@ -326,7 +326,11 @@ class DockerTool:
         # Default values
         if platform is None:
             if self.product == "sync-gateway":
-                return "linux/amd64"
+                intver = self._intver()
+                if intver >= 30004:
+                    return "linux/amd64,linux/arm64"
+                else:
+                    return "linux/amd64"
             elif self.product == "couchbase-server" or \
                  self.product == "server-sandbox":
                 intver = self._intver()
@@ -482,7 +486,7 @@ class DockerTool:
             logging.info(f"...Applying image name {imagename}")
             buildcmd.extend(["--tag", imagename])
         for buildarg in self.buildargs:
-            logging.info(f"...Proving build-arg {buildarg}")
+            logging.info(f"...Providing build-arg {buildarg}")
             buildcmd.extend(["--build-arg", buildarg])
 
         self.run(buildcmd)
