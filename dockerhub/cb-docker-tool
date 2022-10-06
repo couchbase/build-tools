@@ -139,12 +139,12 @@ class DockerTool:
                 f"build-docker.couchbase.com/cb-vanilla/server:{tag}"
             ])
         elif self.product == "sync-gateway":
-            self.imagenames.append(
+            self.imagenames.extend([
                 f"registry.gitlab.com/cb-vanilla/sync-gateway:"
                 f"{self.version}-{self.edition}",
                 f"ghcr.io/cb-vanilla/sync-gateway:"
                 f"{self.version}-{self.edition}"
-            )
+            ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
 
