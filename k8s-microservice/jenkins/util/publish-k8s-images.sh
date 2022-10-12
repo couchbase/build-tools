@@ -2,25 +2,23 @@
 
 # This script is passed a PRODUCT, an INTERNAL_TAG, a PUBLIC_TAG, an
 # OPENSHIFT_BUILD number, and a true/false value LATEST.
-# It presumes that the following images are available
-# locally:
-#    cb-vanilla/${short_product}:${INTERNAL_TAG}
-#    cb-rhcc/${short_product}:${INTERNAL_TAG}
+# It presumes that the following images are available:
+#    build-docker.couchbase.com/cb-vanilla/${short_product}:${INTERNAL_TAG}
+#    build-docker.couchbase.com/cb-rhcc/${short_product}:${INTERNAL_TAG}
 # where short_product is PRODUCT with the leading "couchbase-" removed.
-# If those images aren't available locally, they will be pulled from
-# the build-docker.couchbase.com registry.
-# It will retag those images with the appropriate external registry
-# names and the public tag and push them to Docker Hub and RHCC -
+# Those images will be copied from the source registry to their destinations
+#  on Docker Hub and RHCC -
 # for RHCC it will append the OPENSHIFT_BUILD number to the public tag.
 # If LATEST=true it will also update the :latest tag in Docker Hub (for Red
 # Hat that has to be done via RHCC UI).
-# It will also clean up all images locally after publishing.
 
 PRODUCT=$1
 INTERNAL_TAG=$2
 PUBLIC_TAG=$3
 OPENSHIFT_BUILD=$4
 LATEST=$5
+
+internal_repo=build-docker.couchbase.com
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
@@ -42,19 +40,11 @@ rhcc_registry=scan.connect.redhat.com
 #vanilla_registry=build-docker.couchbase.com
 #rhcc_registry=build-docker.couchbase.com
 
-tag_and_publish() {
+publish() {
     org=$1
     external_image=$2
 
-    internal_image=${org}/${short_product}:${INTERNAL_TAG}
-
-    # See if we need to pull the internal image
-    docker inspect --format ' ' ${internal_image} || {
-        registry_image=build-docker.couchbase.com/${internal_image}
-        docker pull ${registry_image}
-        docker tag ${registry_image} ${internal_image}
-        docker rmi ${registry_image}
-    }
+    internal_image=${internal_repo}/${org}/${short_product}:${INTERNAL_TAG}
 
     images=(${external_image})
     if [ "${org}" = "cb-vanilla" ]; then
@@ -65,19 +55,16 @@ tag_and_publish() {
     fi
     for image in ${images[@]}; do
         echo @@@@@@@@@@@@@
-        echo Pushing ${image} image...
+        echo Copying ${internal_image} to ${image}...
         echo @@@@@@@@@@@@@
-        docker tag ${internal_image} ${image}
-        docker push ${image}
-        docker rmi ${image}
+        skopeo copy --authfile /home/couchbase/.docker/config.json --all \
+            docker://${internal_image} docker://${image}
     done
-
-    docker rmi ${internal_image}
 }
 
 ################ VANILLA
 
-tag_and_publish cb-vanilla \
+publish cb-vanilla \
     ${vanilla_registry}/couchbase/${short_product}:${PUBLIC_TAG}
 
 
@@ -93,6 +80,6 @@ if product_in_rhcc "${PRODUCT}"; then
     docker login -u unused-login -p "$(cat ${conf_dir}/registry_key)" scan.connect.redhat.com
     set -x
 
-    tag_and_publish cb-rhcc \
+    publish cb-rhcc \
         ${rhcc_registry}/${project_id}/unused-image:${PUBLIC_TAG}-${OPENSHIFT_BUILD}
 fi

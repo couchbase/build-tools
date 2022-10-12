@@ -10,6 +10,23 @@ function product_in_rhcc {
     return 0
 }
 
+function product_platforms {
+    local PRODUCT=$1
+    local REGISTRY=$2
+
+    if [ "${PRODUCT}" = "couchbase-service-broker" \
+      -o "${PRODUCT}" = "couchbase-observability-stack" \
+      -o "${PRODUCT}" = "couchbase-exporter" \
+      -o "${PRODUCT}" = "couchbase-fluent-bit" \
+      -o "${PRODUCT}" = "couchbase-operator-backup" \
+      -o "${REGISTRY}" = "rhcc" ]; then
+        echo "linux/amd64"
+    else
+        echo "linux/amd64,linux/arm64"
+    fi
+}
+
+
 # NOTE: this function assumes that VERSION == RELEASE; in particular it
 # uses VERSION for the path on latestbuilds, which should be RELEASE.
 # So don't use this function for products that use different values

@@ -1,5 +1,7 @@
 #!/bin/bash -ex
 
+internal_repo=build-docker.couchbase.com
+
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
 source ${script_dir}/../../utilities/shell-utils.sh
@@ -44,16 +46,13 @@ for product in *; do
     fi
 
     for org in $orgs; do
-        local_org_image=${org}/${short_product}:${version_build}
+        internal_org_image=${internal_repo}/${org}/${short_product}:${version_build}
         for registry in build-docker.couchbase.com registry.gitlab.com ghcr.io; do
             for tag in ${tags}; do
                 remote_org_image=${registry}/${org}/${short_product}:${tag}
-
-                docker tag ${local_org_image} ${remote_org_image}
-                docker push ${remote_org_image}
-                docker rmi ${remote_org_image}
+                skopeo copy --authfile /home/couchbase/.docker/config.json --all \
+                    docker://${internal_org_image} docker://${remote_org_image}
             done
         done
-        docker rmi ${local_org_image}
     done
 done

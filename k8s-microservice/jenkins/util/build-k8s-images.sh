@@ -10,15 +10,15 @@
 # here:
 # https://hub.internal.couchbase.com/confluence/display/CR/Grand+Unified+Build+and+Release+Process+for+Operator
 #
-# It will tag the resulting images with fake orgs:
-#     cb-vanilla/${short_product}:${tag}
-#     cb-rhcc/${short_product}:${tag}
+# Images will be built and pushed to our internal registry with fake orgs
+# cb-vanilla and cb-rhcc, i.e:
+#     build-docker.couchbase.com/cb-vanilla/${short_product}:${tag}
+#     build-docker.couchbase.com/cb-rhcc/${short_product}:${tag}
 # where short_product is PRODUCT with the leading "couchbase-" removed, and
 # tag is either VERSION-BLD_NUM or just VERSION if BLD_NUM is empty.
 #
-# It is up to the calling code to re-tag those images depending on where they
-# are to be published and what they are to be named, and then remove all
-# cb-* images when then are done.
+# These images are then be published (or republished) via a `skopeo copy` to
+# their destination in publish-k8s-images.sh
 
 shopt -s extglob
 
@@ -26,6 +26,8 @@ PRODUCT=$1
 VERSION=$2
 BLD_NUM=$3
 OPENSHIFT_BUILD=$4
+
+internal_repo=build-docker.couchbase.com
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
@@ -84,8 +86,10 @@ for local_product in *; do
 
     short_product=${local_product/couchbase-/}
     heading "Building Vanilla image for ${short_product}:${tag}..."
-    DOCKER_BUILDKIT=1 docker build --ssh default --pull -f Dockerfile \
-        -t cb-vanilla/${short_product}:${tag} \
+    docker buildx build \
+        --platform "$(product_platforms ${PRODUCT} vanilla)" \
+        --ssh default --push --pull -f Dockerfile \
+        -t ${internal_repo}/cb-vanilla/${short_product}:${tag} \
         --build-arg PROD_VERSION=${VERSION} \
         --build-arg PROD_BUILD=${BLD_NUM} \
         --build-arg GO_VERSION=${GOVERSION} \
@@ -93,9 +97,11 @@ for local_product in *; do
 
     # Some projects don't do RHCC
     if product_in_rhcc "${PRODUCT}"; then
-        heading "Building RHCC image for ${short_product}..."
-        DOCKER_BUILDKIT=1 docker build --ssh default --pull -f Dockerfile.rhel \
-            -t cb-rhcc/${short_product}:${tag} \
+        heading "Building RHCC image for ${short_product}:${tag}..."
+        docker buildx build \
+            --platform "$(product_platforms ${PRODUCT} rhcc)" \
+            --ssh default --push --pull -f Dockerfile.rhel \
+            -t ${internal_repo}/cb-rhcc/${short_product}:${tag} \
             --build-arg PROD_VERSION=${VERSION} \
             --build-arg PROD_BUILD=${BLD_NUM} \
             --build-arg GO_VERSION=${GOVERSION} \
