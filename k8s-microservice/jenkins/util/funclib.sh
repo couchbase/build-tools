@@ -16,9 +16,6 @@ function product_platforms {
 
     if [ "${PRODUCT}" = "couchbase-service-broker" \
       -o "${PRODUCT}" = "couchbase-observability-stack" \
-      -o "${PRODUCT}" = "couchbase-exporter" \
-      -o "${PRODUCT}" = "couchbase-fluent-bit" \
-      -o "${PRODUCT}" = "couchbase-operator-backup" \
       -o "${REGISTRY}" = "rhcc" ]; then
         echo "linux/amd64"
     else
