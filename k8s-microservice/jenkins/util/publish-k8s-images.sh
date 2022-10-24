@@ -7,10 +7,11 @@
 #    build-docker.couchbase.com/cb-rhcc/${short_product}:${INTERNAL_TAG}
 # where short_product is PRODUCT with the leading "couchbase-" removed.
 # Those images will be copied from the source registry to their destinations
-#  on Docker Hub and RHCC -
-# for RHCC it will append the OPENSHIFT_BUILD number to the public tag.
-# If LATEST=true it will also update the :latest tag in Docker Hub (for Red
-# Hat that has to be done via RHCC UI).
+# on Docker Hub and RHCC - for RHCC it will also append the OPENSHIFT_BUILD
+# number to the public tag.
+# On both Docker Hub and RHCC it will also create the redundant -dockerhub
+# and -rhcc tags.
+# If LATEST=true it will also update the :latest tag.
 
 PRODUCT=$1
 INTERNAL_TAG=$2
@@ -21,8 +22,8 @@ LATEST=$5
 internal_repo=build-docker.couchbase.com
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
-
-source ${script_dir}/../../../utilities/shell-utils.sh
+build_tools_dir=$(git -C "${script_dir}" rev-parse --show-toplevel)
+source ${build_tools_dir}/utilities/shell-utils.sh
 source ${script_dir}/funclib.sh
 
 chk_set PRODUCT
@@ -34,52 +35,41 @@ chk_set LATEST
 short_product=${PRODUCT/couchbase-/}
 
 vanilla_registry=index.docker.io
-rhcc_registry=scan.connect.redhat.com
 
 # Uncomment when doing local testing
 #vanilla_registry=build-docker.couchbase.com
-#rhcc_registry=build-docker.couchbase.com
 
-publish() {
-    org=$1
-    external_image=$2
-
-    internal_image=${internal_repo}/${org}/${short_product}:${INTERNAL_TAG}
-
-    images=(${external_image})
-    if [ "${org}" = "cb-vanilla" ]; then
-        images+=(${external_image}-dockerhub)
-        if [ "${LATEST}" = "true" ]; then
-            images+=(${vanilla_registry}/couchbase/${short_product}:latest)
-        fi
-    fi
-    for image in ${images[@]}; do
-        echo @@@@@@@@@@@@@
-        echo Copying ${internal_image} to ${image}...
-        echo @@@@@@@@@@@@@
-        skopeo copy --authfile /home/couchbase/.docker/config.json --all \
-            docker://${internal_image} docker://${image}
-    done
-}
+#
+# Publish to public registries, including redundant tags
+#
 
 ################ VANILLA
 
-publish cb-vanilla \
-    ${vanilla_registry}/couchbase/${short_product}:${PUBLIC_TAG}
-
+status Publishing to Docker Hub...
+internal_image=${internal_repo}/${org}/${short_product}:${INTERNAL_TAG}
+external_base=${vanilla_registry}/couchbase/${short_product}
+images=(${external_base}:${PUBLIC_TAG} ${external_base}:${PUBLIC_TAG}-dockerhub)
+if ${LATEST}; then
+    images+=(${external_base}:latest)
+fi
+for image in ${images[@]}; do
+    echo @@@@@@@@@@@@@
+    echo Copying ${internal_image} to ${image}...
+    echo @@@@@@@@@@@@@
+    skopeo copy --authfile ${HOME}/.docker/config.json --all \
+        docker://${internal_image} docker://${image}
+done
 
 ################## RHCC
 
 # There is no RHEL build for some products
 if product_in_rhcc "${PRODUCT}"; then
-    # This bit of code is shared with files in the redhat-openshift repository
-    conf_dir=/home/couchbase/openshift/${PRODUCT}
-    project_id=$(cat ${conf_dir}/project_id)
-    # Need to login for production (Red Hat) registry
-    set +x
-    docker login -u unused-login -p "$(cat ${conf_dir}/registry_key)" scan.connect.redhat.com
-    set -x
-
-    publish cb-rhcc \
-        ${rhcc_registry}/${project_id}/unused-image:${PUBLIC_TAG}-${OPENSHIFT_BUILD}
+    if ${LATEST}; then
+        EXTRA_ARG="-r latest"
+    fi
+    ${build_tools_dir}/rhcc/rhcc-certify-and-publish.sh -s -b \
+        -c ${HOME}/.docker/rhcc-metadata.json \
+        -p ${PRODUCT} -t ${INTERNAL_TAG} \
+        -r ${PUBLIC_TAG} -r ${PUBLIC_TAG}-${OPENSHIFT_BUILD} \
+        -r ${PUBLIC_TAG}-rhcc ${EXTRA_ARG}
 fi

@@ -1,3 +1,2 @@
-preflight
-temp-auths.json
-artifacts/*
+workdir/
+build/
