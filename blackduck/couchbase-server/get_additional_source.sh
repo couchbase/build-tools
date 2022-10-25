@@ -106,21 +106,25 @@ for dir in gen/nftp/client evaluator/impl/gen/parser; do
     touch goproj/src/github.com/couchbase/eventing-ee/${dir}/foo.go
 done
 
-# Also work around sloppy go.mod files
-for gomod in $(find . -name go.mod); do
-    pushd $(dirname ${gomod})
-    grep --quiet require go.mod || {
+# Ensure all go.mod files are fully tidied
+cd "${WORKSPACE}/src"
+init_checksum=$(repo diff -u | sha256sum)
+while true; do
+    for gomod in $(find . -name go.mod); do
+        pushd $(dirname ${gomod})
+        grep --quiet require go.mod || {
+            popd
+            continue
+        }
+        go mod tidy
         popd
-        continue
-    }
-    cp go.sum go.sum.orig
-    go mod tidy
-    diff go.sum.orig go.sum || cat <<EOF
-
-:::::::::::::::::::::::::::::::::::::::::::::::
-WARNING: ${gomod} has out of date go.sum!!!!!!!
-:::::::::::::::::::::::::::::::::::::::::::::::
-
-EOF
-    popd
+    done
+    curr_checksum=$(repo diff -u | sha256sum)
+    if [ "${init_checksum}" = "${curr_checksum}" ]; then
+        break
+    fi
+    echo
+    echo "Repo was changed - re-running go mod tidy"
+    echo
+    init_checksum="${curr_checksum}"
 done
