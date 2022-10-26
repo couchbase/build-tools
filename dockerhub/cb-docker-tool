@@ -327,7 +327,7 @@ class DockerTool:
         if platform is None:
             if self.product == "sync-gateway":
                 intver = self._intver()
-                if intver >= 30004:
+                if intver >= 30003:
                     return "linux/amd64,linux/arm64"
                 else:
                     return "linux/amd64"
