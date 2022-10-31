@@ -1,0 +1,10 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.detector.search.continue": true,
+        "detect.sbt.path": "../extra/sbt/bin/sbt",
+        "detect.sbt.arguments": "-Dsbt.log.noformat=true"
+    }
+}
