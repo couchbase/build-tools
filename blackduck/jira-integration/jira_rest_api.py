@@ -20,10 +20,10 @@ class JiraRestApi:
 
     def search_issues (self, jira_proj_key, bd_comp, bd_comp_ver, bd_proj, bd_proj_ver=None):
         if bd_proj_ver:
-            search_str = (f'project={jira_proj_key} and BD_COMPONENT~"{bd_comp}" and BD_COMP_VERSION~"'
+            search_str = (f'project={jira_proj_key} and BD_COMPONENT~"\\"{bd_comp}\\"" and BD_COMP_VERSION~"'
                           f'{bd_comp_ver}" and BD_PROJECT~"{bd_proj}" and BD_PROJ_VERSION~"{bd_proj_ver}"')
         else:
-            search_str = (f'project={jira_proj_key} and BD_COMPONENT~"{bd_comp}" and BD_COMP_VERSION~"'
+            search_str = (f'project={jira_proj_key} and BD_COMPONENT~"\\"{bd_comp}\\"" and BD_COMP_VERSION~"'
                           f'{bd_comp_ver}" and BD_PROJECT~"{bd_proj}"')
         issues=self.jira.search_issues(search_str)
         return issues
