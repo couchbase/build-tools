@@ -286,8 +286,8 @@ for notification in notifications:
 # repeatedly.  It is safe to ignore the older duplicates and to focus on the latest.  First, sort the notifications by component, version,
 # add/remove, and date.  Then, use groupby to keep the latest unique entry on the list
 
-scan_notifications.sort(key = lambda x: (x['component_name'], x['version'], x['notification_type'], x['date']))
-unique_scan_notifications = [max(g, key=lambda j: j['date']) for k,g in groupby(scan_notifications , key=lambda x: (x['component_name'], x['version']))]
+scan_notifications.sort(key = lambda x: (x['component_name'], x['version'], x['project_version'], x['notification_type'], x['date']))
+unique_scan_notifications = [max(g, key=lambda j: j['date']) for k,g in groupby(scan_notifications , key=lambda x: (x['component_name'], x['version'], x['project_version']))]
 # Update_notifications might only make partial change the component's CVEs; thus treating each as an unique.
 # Usually, there are not a lot of updates.
 
