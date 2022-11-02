@@ -1,0 +1,52 @@
+#!/bin/bash -e
+
+script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
+build_tools_dir=$(git -C "${script_dir}" rev-parse --show-toplevel)
+source ${build_tools_dir}/utilities/shell-utils.sh
+
+min_timestamp=$(date +%s -d "1 week ago")
+
+# Given a product/release/version, determine whether the most recent build
+# number is less than one week old. If so, trigger Docker build.
+function check_needed() {
+    product=$1
+    release=$2
+    version=$3
+
+    status "${product} ${release} ${version}"
+    if [[ "${product}" == "couchbase-server" && "${release}" == "master" ]]; then
+        status "... skipping branch-master builds"
+        return 0
+    fi
+    latest=$(dbapi_builds ${product} ${release} ${version} last_complete)
+    if [[ ${latest} == 0 ]]; then
+        status "... last build not known; skipping"
+        return 0
+    fi
+    status ... latest build number is ${latest}
+    timestamp=$(dbapi builds/${product}-${version}-${latest} | jq .timestamp)
+
+    if [[ ${timestamp} > ${min_timestamp} ]]; then
+        status "... Newer than 1 week old - will trigger build"
+        if [[ "${product}" == "sync_gateway" ]]; then
+            prodarg=sync-gateway
+        else
+            prodarg=${product}
+        fi
+        cat > ${prodarg}-${release}-${version}-dockerbuild.properties <<EOF
+PRODUCT=${prodarg}
+VERSION=${version}
+BLD_NUM=${latest}
+EOF
+    fi
+}
+
+for product in couchbase-server sync_gateway; do
+    for release in $(dbapi_releases ${product}); do
+        for version in $(
+            dbapi_versions ${product} ${release}
+        ); do
+            check_needed ${product} ${release} ${version}
+        done
+    done
+done

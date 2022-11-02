@@ -86,3 +86,54 @@ function gover_from_manifest {
 
     echo ${GOVERSION}
 }
+
+# Functions for interacting with the Build Database REST API.
+# https://hub.internal.couchbase.com/confluence/display/CR/Build+Database+REST+API
+DBAPI_BASE=http://dbapi.build.couchbase.com:8000/v1
+
+
+# Raw function for calling the build database REST API, for endpoints
+# that may return any type of data. Returns the straight JSON response.
+function dbapi() {
+    path=$1
+    filter=$2
+
+    if [ ! -z "${filter}" ]; then
+        filter="?filter=${filter}"
+    fi
+    curl --fail --silent ${DBAPI_BASE}/${path}${filter}
+}
+
+# Convenience function for calling the build database REST API for
+# endpoints that return simple data - an object with a single key whose
+# value is a single string or array of strings.
+# Pass an API path (after the leading /v1/) and optionally a filter
+# name. Return value will be a newline-separated set of strings matching
+# the result.
+function dbapi_simple() {
+    path=$1
+    filter=$2
+
+    # Return just the value of the single top-level object key
+    output=$(dbapi ${path} ${filter} | jq -r '.[]')
+
+    # If this output is still an array, process it again
+    [[ ${output} = [* ]] && output=$(echo "${output}" | jq -r '.[]')
+
+    echo "${output}"
+}
+
+# Even more convenient functions for certain common endpoints.
+dbapi_products() {
+    dbapi_simple products
+}
+dbapi_releases() {
+    dbapi_simple products/$1/releases
+}
+dbapi_versions() {
+    dbapi_simple products/$1/releases/$2/versions
+}
+dbapi_builds() {
+    # This one can also take a filter
+    dbapi_simple products/$1/releases/$2/versions/$3/builds $4
+}
