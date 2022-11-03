@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+
+  # The gerrit service is brought up after interactive configuration is
+  # complete
+  gerrit:
+    image: gerritcodereview/gerrit:3.5.0
+    ports: &ports
+      - 10001:8080
+      - 10002:29418
+    volumes: &volumes
+      - ./files/gerrit.config:/bootstrap/gerrit.config
+      - ./files/oauth.jar:/var/gerrit/plugins/oauth.jar
+      - ./container-storage/data:/var/gerrit/data
+      - ./container-storage/db:/var/gerrit/db
+      - ./container-storage/etc:/var/gerrit/etc
+      - ./container-storage/git:/var/gerrit/git
+      - ./container-storage/index:/var/gerrit/index
+      - ./container-storage/lib:/var/gerrit/lib
+    environment: &environment
+      - CANONICAL_WEB_URL=http://localhost:10001
+
+  # The interactive service is brought up first, it is the gerrit container
+  # sans-entrypoint and is used to set up gerrit interactively (so we can
+  # provide keys)
+  interactive:
+    image: gerritcodereview/gerrit:3.5.0
+    ports: *ports
+    volumes: *volumes
+    environment: *environment
+    entrypoint: ["bash", "-c", "echo 'started' && tail -f /dev/null"]
