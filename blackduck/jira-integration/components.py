@@ -1,4 +1,4 @@
-COMPONENTS={
+COMPONENTS = {
     "couchbase-server": {
         'CBAS': ('algebricks', 'commons', 'parquet', 'asterix', 'hyracks', 'jackson', 'java', 'netty'),
         'ns_server': ('prometheus'),
