@@ -1,16 +1,7 @@
 # Need to update/sync latest required dependencies
 
 # Escrow Product
-VERSION=7.0.0
+VERSION=7.1.2
 PRODUCT=couchbase-server
-RELEASE=cheshire-cat
+RELEASE=neo
 MANIFEST_FILE=${PRODUCT}/${RELEASE}.xml
-
-DISTROS="amzn2
-centos7
-debian9
-debian10
-suse12
-suse15
-ubuntu18
-ubuntu20"

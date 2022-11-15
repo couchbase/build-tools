@@ -2,14 +2,9 @@
 
 The scripts, source, and data in this directory can be used to produce
 installer binaries of Couchbase Server @@VERSION@@ Enterprise Edition for any
-supported version of CentOS, Debian, or Ubuntu Linux, or SuSE 11. (SuSE 12
-or later can be made to work with the information here, but we cannot provide
-the buildslave Docker image as it contains licensed code.)
-
-NOTE: Oracle Enterprise Linux 6 (OEL 6) was also a supported platform for
-Couchbase Server @@VERSION@@. The installer binaries for this platform were
-the same as for Centos 6. Therefore you should follow these instructions
-as for Centos 6 when building for OEL 6.
+supported version of CentOS, Debian, or Ubuntu Linux (SuSE 12 or later can be
+made to work with the information here, but we cannot provide the Docker
+worker image as it contains licensed code.)
 
 ## Requirements
 
@@ -58,21 +53,24 @@ where <platform> is one of the following exact strings:
 That is all. The build will take roughly 30 minutes depending on the
 speed of the machine.
 
+Note: The `linux` worker is based on Centos7, and should be used for x86_64
+builds, to build on arm, use `amzn2`.
+
 Once the build is complete, the requested installer will be located alongside
 the `couchbase-server-@@VERSION@@` directory. The name of the installer binary
-various from Linux flavor to flavor. For example, the Centos 6 binary is
+various from Linux flavor to flavor. For example, the Centos 7 binary is
 named:
 
-    couchbase-server-enterprise-@@VERSION@@-centos6.x86_64.rpm
+    couchbase-server-enterprise-@@VERSION@@-centos7.x86_64.rpm
 
 There will also be a corresponding debug-symbols package. This package
 occasionally made available by Couchbase Support when debugging specific
 problems on customer installations. This package should be installed on
 a customer machine _in addition_ to the main installer. The filename of
 this debug-symbols package again varies from flavor to flavor; on Centos
-6 it is named
+7 it is named
 
-    couchbase-server-enterprise-debug-@@VERSION@@-centos6.x86_64.rpm
+    couchbase-server-enterprise-debug-@@VERSION@@-centos7.x86_64.rpm
 
 ## Build Synopsis
 
@@ -118,7 +116,7 @@ build will expect to find them.
 
 The Couchbase Server source code is located in the `src` directory.
 Note: This directory is created originally by a tool named
-[repo](https://source.android.com/source/downloading.html), which
+[repo](https://source.android.com/docs/setup/download#repo), which
 was developed for the Google Android project. It takes as input an
 XML manifest which specifies a number of Git repositories. These
 Git repositories are downloaded from specified branches and laid out
@@ -191,7 +189,7 @@ installer packages from inside to the container to the host directory.
 
 - The scripts are not heavily tested for re-builds. So we
   recommend that if you make local modifications, you should do one final
-  clean build by first ensuring that the Docker build slave container is
-  destroyed. You can use `docker rm -f <slavename>` for this. The slave
-  name will always be "<platform>`-buildslave`", eg. `centos6-buildslave`.
+  clean build by first ensuring that the Docker worker container is
+  destroyed. You can use `docker rm -f <worker>` for this. The worker
+  name will always be "<platform>`-worker`", eg. `linux-worker`.
   You can use `docker ps -a` to show you any existing containers.

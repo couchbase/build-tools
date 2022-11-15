@@ -22,7 +22,7 @@ popd
 escrow=${host_path}/$PRODUCT-$VERSION
 
 uid=$(id -u)
-[ "$(uname)" = "Darwin" ] && gid=$(id -g daemon) || gid=$(id -g root)
+[ "$(uname)" = "Darwin" ] && gid=$(id -g daemon) || gid=$(id -g)
 
 # Build
 docker build . -t escrow
@@ -31,10 +31,11 @@ docker run -it --name escrow --rm \
   -e PUID=$uid \
   -e PGID=$gid \
   -e PLATFORM=${PLATFORM} \
+  -v ~/.ssh/known_hosts:/home/couchbase/.ssh/known_hosts \
   -v ${ssh_key}:/home/couchbase/.ssh/id_rsa \
   -v $(pwd):/app \
   -v ${host_path}:/output \
-  -v /var/run/docker.sock$([[ "$OSTYPE" == "darwin"* ]] && echo ".raw"):/var/run/docker.sock \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   escrow
 
 # Test

@@ -22,7 +22,7 @@ sudo rm -rf $(which python)
 sudo ln -s $(which python2) /usr/bin/python
 
 # Error-check. This directory should exist due to the "docker run" mount.
-if [ ! -e /escrow ]
+if [ ! -e /home/couchbase/escrow ]
 then
   echo "This script is intended to be run inside a specifically-configured "
   echo "Docker container. See build-couchbase-server-from-escrow.sh."
@@ -30,23 +30,12 @@ then
 fi
 
 WORKDIR=$1
-DOCKER_PLATFORM=$2
+PLATFORM=$2
 SERVER_VERSION=$3
 
-CBDEPS_VERSIONS="@@CBDEPS_VERSIONS@@"
+CBDEP_VERSIONS="@@CBDEP_VERSIONS@@"
 
 source "${WORKDIR}/escrow/escrow_config"
-
-# Convert Docker platform to Build platform (sorry they're different)
-if [ "${DOCKER_PLATFORM}" = "ubuntu18" ]
-then
-  PLATFORM=ubuntu18.04
-elif [ "${DOCKER_PLATFORM}" = "ubuntu16" ]
-then
-  PLATFORM=ubuntu16.04
-else
-  PLATFORM="${DOCKER_PLATFORM}"
-fi
 
 export PLATFORM
 
@@ -63,45 +52,37 @@ export ROOT="${WORKDIR}/escrow"
 CACHE="${WORKDIR}/.cbdepscache"
 TLMDIR="${WORKDIR}/tlm"
 
-# Not sure why this is necessary, but it is for v8
-if [ "${PLATFORM}" = "ubuntu16.04" ]
-then
-  heading "Installing pkg-config..."
-  sudo apt-get update && sudo apt-get install -y pkg-config
-fi
-
 # Create all cbdeps. Start with the cache directory.
 mkdir -p "${CACHE}"
 mkdir -p "${WORKDIR}/.cbdepcache"
 
 (
-  cd /escrow/.cbdepscache/
+  cd ${WORKDIR}/.cbdepscache/
   for package in analytics*
   do
     ver_build=$(echo $package | sed -e 's/analytics-jars-//' -e 's/\.tar\.gz//')
     version=$(echo $ver_build | sed 's/-.*//')
     build=$(echo $ver_build | sed 's/.*-//')
-    /escrow/deps/cbdep-0.9.18-linux install analytics-jars ${version}-${build} --cache-local-file analytics-jars-${version}-${build}.tar.gz
+    ${WORKDIR}/deps/cbdep-1.1.2-linux-$(uname -m) install analytics-jars ${version}-${build} --cache-local-file analytics-jars-${version}-${build}.tar.gz
   done
 )
 
 # Pre-populate cbdeps
-heading "Populating ${PLATFORM} cbdeps... (${CBDEPS_VERSIONS})"
+heading "Populating ${PLATFORM} cbdeps... (${CBDEP_VERSIONS})"
 
 case "${PLATFORM}" in
   mac*) cbdeps_platform='macos' ;;
   win*) cbdeps_platform='window';;
      *) cbdeps_platform='linux' ;;
 esac
-for cbdep_ver in ${CBDEPS_VERSIONS}
+for cbdep_ver in ${CBDEP_VERSIONS}
 do
   echo "Checking ${cbdep_ver}"
   if [ ! -d "${CACHE}/cbdep/${cbdep_ver}/" -o ! -f "${CACHE}/cbdep/${cbdep_ver}/cbdep-${cbdep_ver}-${cbdeps_platform}" ]
   then
     echo "Copying"
     mkdir -p "${CACHE}/cbdep/${cbdep_ver}/"
-    cp -aL /escrow/deps/cbdep-${cbdep_ver}-${cbdeps_platform} "${CACHE}/cbdep/${cbdep_ver}/"
-    cp -aL /escrow/deps/cbdep-${cbdep_ver}-${cbdeps_platform} "${CACHE}/cbdep/${cbdep_ver}/"
+    cp -aL ${WORKDIR}/deps/cbdep-${cbdep_ver}-${cbdeps_platform}* "${CACHE}/cbdep/${cbdep_ver}/"
   fi
 done
 

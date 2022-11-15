@@ -8,7 +8,7 @@ RUN set -x \
     && curl --fail https://storage.googleapis.com/git-repo-downloads/repo -o /usr/local/bin/repo \
     && chmod a+x /usr/local/bin/repo
 
-RUN curl -Lo /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$DOCKER_VERSION.tgz \
+RUN curl -Lo /tmp/docker.tgz https://download.docker.com/linux/static/stable/$(uname -m)/docker-$DOCKER_VERSION.tgz \
     && cd /tmp \
     && tar -zxvf docker.tgz \
     && chmod +x docker/* \
