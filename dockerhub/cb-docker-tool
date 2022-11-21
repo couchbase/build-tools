@@ -367,7 +367,10 @@ class DockerTool:
 
         # Ignore any trailing components after a hyphen
         ver = self.version.split('-')[0]
-        return int("".join([x.zfill(2) for x in ver.split('.')]))
+
+        # Also only use major.minor.patch - that's specific enough for
+        # version comparisons
+        return int("".join([x.zfill(2) for x in ver.split('.')[0:3]]))
 
 
     def _determine_context_dir(self) -> None:
