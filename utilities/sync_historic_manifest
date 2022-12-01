@@ -83,14 +83,16 @@ repo sync --jobs=8
 repo manifest -r > manifest.xml
 echo
 
-# If pvg options available, patch away
+# If pvg options available, patch away. Ignore any changes for the 'manifest'
+# repo, as we're syncing from some form of build-manifests repo and those
+# changes wouldn't apply.
 if [ -e "${PROPERTIES}" ]; then
     eval $(sed -e 's/=\(.*\)/="\1"/' "${PROPERTIES}")
     if [ ! -z "${PATCH_VIA_GERRIT_OPTS}" ]; then
         "${SCRIPT_DIR}/../utilities/patch_via_gerrit" \
             ${PATCH_VIA_GERRIT_OPTS} -d \
             -c ~/.ssh/patch_via_gerrit.ini \
-            -s .
+            -s . --ignore-manifest
     fi
 fi
 popd

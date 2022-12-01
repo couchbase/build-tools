@@ -21,51 +21,6 @@ else
     TOY_BLD_NUM=$((BUILD_NUMBER + 50000))
 fi
 
-# Two possible ways to be invoked: Standard toy build or Historic toy build.
-# MANIFEST_REPO is the switch between the two.
-if [[ -n $MANIFEST_REPO ]]; then
-    # Standard toy build
-    chk_set MANIFEST_FILE
-else
-    # Historic toy build
-    chk_set PRODUCT
-    chk_set RELEASE
-    chk_set VERSION
-    chk_set BLD_NUM
-
-    PRODUCT_PATH=${PRODUCT/::/\/}
-
-    # Determine SHA in build-manifests to use
-    MANIFEST_REPO=https://github.com/couchbase/build-manifests
-    git clone ${MANIFEST_REPO}
-    pushd build-manifests
-    MANIFEST_BRANCH=$(git log -1 --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
-    MANIFEST_FILE=${PRODUCT_PATH}/${RELEASE}/${VERSION}.xml
-    popd
-
-    # QQQ This is pretty hacky, but there's currently a disconnect in
-    # the manifest world - several pieces of information that should be
-    # in these .properties files are only available in
-    # product-config.json, which means only when processing an *input*
-    # manifest. When processing a historic build manifest, we only have
-    # the basics. Still, this is largely duplicated code from
-    # sync_historic_manifest; we should be able to do better than this.
-    # We also have to assume the default value for BUILD_JOB, so
-    # customized build jobs won't work.
-    cat <<EOF > build.properties
-PRODUCT=$PRODUCT
-RELEASE=$RELEASE
-VERSION=$VERSION
-BLD_NUM=$TOY_BLD_NUM
-PROD_NAME=$(basename $PRODUCT_PATH)
-PRODUCT_PATH=$PRODUCT_PATH
-BUILD_JOB=${PRODUCT}-build
-EOF
-
-    # To avoid any confusion, unset historic build coordinate variables now
-    unset PRODUCT RELEASE VERSION BLD_NUM
-fi
-
 # Read possible Gerrit patches from environment
 OPTS=""
 if [[ -n $GERRIT_REVIEW_IDS ]]; then
@@ -76,35 +31,71 @@ elif [[ -n $GERRIT_TOPICS ]]; then
     OPTS+="-t $GERRIT_TOPICS "
 fi
 
-MANIFEST_PARAMS="-u ${MANIFEST_REPO} -m ${MANIFEST_FILE}"
-if [[ -n $MANIFEST_BRANCH ]]; then
-    MANIFEST_PARAMS+=" -b ${MANIFEST_BRANCH}"
+# Two possible ways to be invoked: Standard toy build or Historic toy build.
+# MANIFEST_REPO is the switch between the two.
+if [[ -n $MANIFEST_REPO ]]; then
+    # Standard toy build - we are syncing from the main 'manifest' repo,
+    # or a fork of it, so it's reasonable to attempt applying any Gerrit
+    # changes to the 'manifest' repo.
+
+    chk_set MANIFEST_FILE
+
+    # Sync to empty.xml first - guaranteed to exist
+    MANIFEST_PARAMS="-u ${MANIFEST_REPO}"
+    MANIFEST_PARAMS+=" -m python_tools/patch_via_gerrit/empty.xml"
+    if [[ -n $MANIFEST_BRANCH ]]; then
+        MANIFEST_PARAMS+=" -b ${MANIFEST_BRANCH}"
+    fi
+
+    rm -rf src
+    mkdir src
+    pushd src
+
+    # Initial repo sync
+    echo "Syncing manifest repo - empty manifest only"
+    echo ================================
+    repo init --no-repo-verify ${MANIFEST_PARAMS} -g all --reference=~/reporef
+    repo sync --jobs=4 --quiet
+
+    # Attempt to apply Gerrit changes to 'manifest' repo
+    if [ ! -z "${OPTS}" ]; then
+        echo "Applying manifest changes from Gerrit"
+        echo ================================
+        "${SCRIPT_DIR}/../utilities/patch_via_gerrit" \
+            -d -c ${HOME}/.ssh/patch_via_gerrit.ini \
+            ${OPTS} -s . --only-manifest
+    fi
+
+    # Now re-init and re-sync to the desired input manifest
+    echo "Syncing to manifest file ${MANIFEST_FILE}"
+    echo ================================
+    repo init -m "${MANIFEST_FILE}"
+    repo sync --jobs=24 --quiet
+else
+    # Historic toy build
+    "${SCRIPT_DIR}/../utilities/sync_historic_manifest" \
+        "${PRODUCT}" "${RELEASE}" "${VERSION}" "${BLD_NUM}" ./src
+    pushd src
+
+    # To avoid any confusion, unset historic build coordinate variables now,
+    # and remove the faked properties - we'll create new ones later
+    unset PRODUCT RELEASE VERSION BLD_NUM
+    rm -f build-properties.json build.properties
 fi
-
-rm -rf src
-mkdir src
-pushd src
-
-# Initial repo sync
-echo "Syncing manifest $MANIFEST"
-echo ================================
-repo init --no-repo-verify ${MANIFEST_PARAMS} -g all --reference=~/reporef
-repo sync --jobs=24 --quiet
 
 # Create build manifest for future reference. Do this before applying
 # changes because the local cherry-picked SHAs won't make sense in the
 # manifest.
 repo manifest -r > manifest.xml
 
-# Apply any changes from Gerrit - this may re-run "repo sync" if there
-# were Gerrit changes to the manifest repo, so we need to do it before
-# generating properties etc.
+# Apply any changes from Gerrit - ignore any 'manifest' repo changes at
+# this point; would have been done earlier if feasible
 if [ ! -z "${OPTS}" ]; then
     echo "Applying changes from Gerrit"
     echo ================================
     "${SCRIPT_DIR}/../utilities/patch_via_gerrit" \
         -d -c ${HOME}/.ssh/patch_via_gerrit.ini \
-        ${OPTS} -s .
+        ${OPTS} -s . --ignore-manifest
 
     # QQQ patch_via_gerrit should probably parse all <copyfile> and
     # <linkfile> directives
