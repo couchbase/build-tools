@@ -11,11 +11,11 @@ metadata_dir=/data/metadata
 # Update reporef. Note: This script requires /home/couchbase/reporef
 # to exist in two places, with that exact path:
 #  - The Docker host (currently mega3), so it's persistent
-#  - Mounted in the Jenkins slave container, so this script can be run
+#  - Mounted in the Jenkins agent container, so this script can be run
 #    to update it
 # It is then mounted into the container running this script as
 # /data/reporef Remember that when passing -v arguments to "docker run"
-# from within a container (like the Jenkins slave), the path is
+# from within a container (like the Jenkins agent), the path is
 # interpreted by the Docker daemon, so the path must exist on the
 # Docker *host*.
 if [ -z "$(ls -A $reporef_dir)" ]
@@ -36,7 +36,7 @@ repo sync --jobs=6 > /dev/null
 cd "${metadata_dir}"
 
 # This script also expects a /home/couchbase/check_missing_commits to be
-# available on the Docker host, and mounted into the Jenkins slave container
+# available on the Docker host, and mounted into the Jenkins agent container
 # at /data/metadata, for basically the same reasons as above.
 # Note: I tried initially to use a named Docker volume for this
 # to avoid needing to create the directory on the host; however, Docker kept

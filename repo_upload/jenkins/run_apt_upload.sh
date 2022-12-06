@@ -4,7 +4,7 @@
 docker pull couchbasebuild/ubuntu-1604-apt-upload:latest
 
 # This script expects a /home/couchbase/repo_upload to be available
-# on the Docker host, and mounted into the Jenkins slave container at
+# on the Docker host, and mounted into the Jenkins agent container at
 # /home/couchbase/repo_upload
 cd /home/couchbase/repo_upload
 rm -rf product-metadata

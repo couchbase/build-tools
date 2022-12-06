@@ -4,7 +4,7 @@
 docker pull couchbasebuild/centos-74-yum-upload:latest
 
 # This script expects a /home/couchbase/repo_upload to be available
-# on the Docker host, and mounted into the Jenkins slave container at
+# on the Docker host, and mounted into the Jenkins agent container at
 # /home/couchbase/repo_upload
 cd /home/couchbase/repo_upload
 rm -rf product-metadata

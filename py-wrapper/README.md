@@ -22,6 +22,6 @@ Studio to put cl.exe on the PATH. Then:
 skip the -D CMAKE_C_COMPILER argument.)
 
 This program was used to create the "repo.exe" which is on the newest
-Windows build slaves. The "repo" Python script itself came from
+Windows build agents. The "repo" Python script itself came from
 https://raw.githubusercontent.com/esrlabs/git-repo/stable/repo and is based
 on https://github.com/esrlabs/git-repo, a port of Repo to Windows.

@@ -4,7 +4,7 @@
 docker pull couchbasebuild/check-builds:latest
 
 # This script expects a /home/couchbase/check_builds to be available
-# on the Docker host, and mounted into the Jenkins slave container at
+# on the Docker host, and mounted into the Jenkins agent container at
 # /home/couchbase/check_builds
 cd /home/couchbase/check_builds
 rm -rf product-metadata
