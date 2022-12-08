@@ -273,7 +273,7 @@ get_cbdeps_versions() {
 }
 
 # Retrieve list of current Docker image/tags from stackfile
-stackfile=$(curl -L --fail https://raw.githubusercontent.com/couchbase/build-infra/master/docker-stacks/couchbase-server/server-jenkins-agents.yml)
+stackfile=$(curl -L --fail https://raw.githubusercontent.com/couchbase/build-infra/master/docker-stacks/couchbase-server/server-jenkins-agents.yaml)
 
 python3 -m venv escrow_venv
 source escrow_venv/bin/activate
