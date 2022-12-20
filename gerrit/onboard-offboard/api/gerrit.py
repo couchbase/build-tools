@@ -365,6 +365,7 @@ class Gerrit(API):
                 logger.critical(
                     f"Failed to add users {member_ids} to gerrit group "
                     f"{group}")
+            actions = actions + "\n"
         return actions
 
     def remove_members_from_group(self, group, members, reason):
@@ -401,6 +402,7 @@ class Gerrit(API):
                     f"Failed to remove users {member_ids} from gerrit group "
                     f"{group} - status: {res.status_code}")
                 sys.exit(1)
+            actions = actions + "\n"
         return actions
 
     def group_members(self, group_name):

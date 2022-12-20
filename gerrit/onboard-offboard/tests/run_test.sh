@@ -4,9 +4,6 @@ SCRIPT_DIR=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TEMP_DIR}"' EXIT
 
-export GERRIT_NOOP_USERIDS="1,2,3"
-export GERRIT_NOOP_GROUPS="a,b,c"
-
 bold=$(tput bold)
 underline=$(tput smul)
 regular=$(tput sgr0)
@@ -21,7 +18,7 @@ function alert() {
 }
 
 function cleanup() {
-    rm -rf container-storage/{data,db,etc,git,index,lib,test*}
+    rm -rf ${SCRIPT_DIR}/container-storage/{data,db,etc,git,index,lib,test*}
     ssh-keygen -R "[localhost]:10002" &>/dev/null
 }
 
@@ -67,7 +64,7 @@ function ssh_setup() {
 }
 
 function add_ini_file() {
-    cp files/test.ini container-storage
+    cp files/test.ini ${SCRIPT_DIR}/container-storage
 }
 
 function log_in_user() {
@@ -81,7 +78,7 @@ function log_in_user() {
 
 function create_http_password() {
     url="http://localhost:10001/settings/#HTTPCredentials"
-    while grep -q 'token = GERRIT_HTTP_AUTH_TOKEN' container-storage/test.ini
+    while grep -q 'token = GERRIT_HTTP_AUTH_TOKEN' ${SCRIPT_DIR}/container-storage/test.ini
     do
         alert "${bold}Generating an HTTP password${regular}\n\nA new browser tab will open shortly, leading to %s, click 'Generate new password' under HTTP credentials, and paste the generated password into the prompt below" "${url}"
         sleep 5
@@ -89,13 +86,13 @@ function create_http_password() {
         printf "generated password> "
         read GERRIT_HTTP_AUTH_TOKEN
         GERRIT_HTTP_AUTH_TOKEN=$(printf '%s' "$GERRIT_HTTP_AUTH_TOKEN" | sed -e 's/[\/&]/\\&/g')
-        [ "$GERRIT_HTTP_AUTH_TOKEN" != "" ] && sed -i.bak "s/GERRIT_HTTP_AUTH_TOKEN/$GERRIT_HTTP_AUTH_TOKEN/" container-storage/test.ini
+        [ "$GERRIT_HTTP_AUTH_TOKEN" != "" ] && sed -i.bak "s/GERRIT_HTTP_AUTH_TOKEN/$GERRIT_HTTP_AUTH_TOKEN/" ${SCRIPT_DIR}/container-storage/test.ini
     done
 }
 
 function add_github_token() {
     url="https://github.com/settings/tokens"
-    while grep -q 'token = GITHUB_PERSONAL_ACCESS_TOKEN' container-storage/test.ini
+    while grep -q 'token = GITHUB_PERSONAL_ACCESS_TOKEN' ${SCRIPT_DIR}/container-storage/test.ini
     do
         alert "${bold}Generating a Github personal access token${regular}\n\nA new browser tab will open shortly, leading to %s, click 'Generate new token', give it a sensible name choose a suitable expiry length, and choose the following permissions:\n\n    read:org\n    read:user\n    user:email\n\nOnce created, paste the token below." "${url}"
         sleep 5
@@ -103,25 +100,30 @@ function add_github_token() {
         printf "github token> "
         read GITHUB_PERSONAL_ACCESS_TOKEN
         GITHUB_PERSONAL_ACCESS_TOKEN=$(printf '%s' "$GITHUB_PERSONAL_ACCESS_TOKEN" | sed -e 's/[\/&]/\\&/g')
-        [ "$GITHUB_PERSONAL_ACCESS_TOKEN" != "" ] && sed -i.bak "s/GITHUB_PERSONAL_ACCESS_TOKEN/$GITHUB_PERSONAL_ACCESS_TOKEN/" container-storage/test.ini
+        [ "$GITHUB_PERSONAL_ACCESS_TOKEN" != "" ] && sed -i.bak "s/GITHUB_PERSONAL_ACCESS_TOKEN/$GITHUB_PERSONAL_ACCESS_TOKEN/" ${SCRIPT_DIR}/container-storage/test.ini
     done
 }
 
 function get_github_username() {
-    while grep -q 'username = GITHUB_USERNAME' container-storage/test.ini
+    while grep -q 'username = GITHUB_USERNAME' ${SCRIPT_DIR}/container-storage/test.ini
     do
         alert "${bold}Enter your github username when prompted${regular}"
         printf "> "
         read GITHUB_USERNAME
         GITHUB_USERNAME=$(printf '%s' "$GITHUB_USERNAME" | sed -e 's/[\/&]/\\&/g')
-        [ "$GITHUB_USERNAME" != "" ] && sed -i.bak "s/GITHUB_USERNAME/$GITHUB_USERNAME/" container-storage/test.ini
+        [ "$GITHUB_USERNAME" != "" ] && sed -i.bak "s/GITHUB_USERNAME/$GITHUB_USERNAME/" ${SCRIPT_DIR}/container-storage/test.ini
     done
+}
+
+function get_userid() {
+    response=$(curl -s -X GET "http://localhost:10001/accounts/?suggest&q=${1// /%20}" | tail -n1 | jq -r ".[]._account_id")
+    echo $response
 }
 
 function add_ssh_key() {
     alert "${bold}Adding ssh key to user account${regular}"
-    username=$(grep 'username =' container-storage/test.ini | awk '{print $3}')
-    gerrit_token=$(grep 'gerrit_token =' container-storage/test.ini | awk '{print $3}')
+    username=$(grep 'username =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
+    gerrit_token=$(grep 'gerrit_token =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
     curl -X POST http://localhost:10001/a/accounts/self/sshkeys \
          -u "$username:$gerrit_token" \
          -H "Content-Type: text/plain" \
@@ -138,9 +140,9 @@ function add_access_database_capacity() {
 
 function add_group() {
     alert "${bold}Adding group $1${regular}"
-    username=$(grep 'username =' container-storage/test.ini | awk '{print $3}')
-    gerrit_token=$(grep 'gerrit_token =' container-storage/test.ini | awk '{print $3}')
-    curl -X POST http://localhost:10001/a/groups/$1 \
+    username=$(grep 'username =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
+    gerrit_token=$(grep 'gerrit_token =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
+    curl -X POST http://localhost:10001/a/groups/${1// /%20} \
          -u "$username:$gerrit_token" \
          -H "Content-Type: application/json" \
          -d '{
@@ -151,10 +153,10 @@ function add_group() {
 }
 
 function remove_autoadded_user_from_group() {
-    username=$(grep 'username =' container-storage/test.ini | awk '{print $3}')
-    gerrit_token=$(grep 'gerrit_token =' container-storage/test.ini | awk '{print $3}')
+    username=$(grep 'username =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
+    gerrit_token=$(grep 'gerrit_token =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
     alert "${bold}Removing auto-added user $username from group $1${regular}"
-    curl -X POST http://localhost:10001/a/groups/$1/members.delete \
+    curl -X POST http://localhost:10001/a/groups/${1// /%20}/members.delete \
          -u "$username:$gerrit_token" \
          -H "Content-Type: application/json" \
          -d "{
@@ -164,18 +166,24 @@ function remove_autoadded_user_from_group() {
 
 function create_user() {
     alert "${bold}Creating user $1${regular}"
-    username=$(grep 'username =' container-storage/test.ini | awk '{print $3}')
-    gerrit_token=$(grep 'gerrit_token =' container-storage/test.ini | awk '{print $3}')
-    curl -X POST http://localhost:10001/a/accounts/$1 \
+    username=$(grep 'username =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
+    gerrit_token=$(grep 'gerrit_token =' ${SCRIPT_DIR}/container-storage/test.ini | awk '{print $3}')
+    curl -X POST http://localhost:10001/a/accounts/${1// /%20} \
          -u "$username:$gerrit_token" \
          -H "Content-Type: application/json" \
          -d "{
             \"name\": \"$1\",
-            \"display_name\": \"Test User\",
-            \"email\": \"test@example.com\",
+            \"display_name\": \"${1}\",
+            \"email\": \"$(printf ${RANDOM} | md5sum | head -c 12)@example.com\",
             \"groups\": [
                 \"$2\"
             ]}" &>/dev/null
+}
+
+function update_noop_userids() {
+    NoopUser1UserID=$(get_userid NoopUser1)
+    NoopUser2UserID=$(get_userid NoopUser2)
+    sed -i.bak "s/noop_userids.*/noop_userids = ${NoopUser1UserID},${NoopUser2UserID}/" ${SCRIPT_DIR}/container-storage/test.ini
 }
 
 trap finish EXIT
@@ -227,9 +235,18 @@ then
     get_github_username
     add_ssh_key
     add_access_database_capacity
-    add_group ${GERRIT_GROUP}
-    create_user TestUser ${GERRIT_GROUP}
-    remove_autoadded_user_from_group ${GERRIT_GROUP}
+    add_group "${GERRIT_GROUP}"
+    add_group "noop group 1"
+    add_group "noop group 2"
+    create_user TestUser "${GERRIT_GROUP}"
+    create_user NoopGroup1User "noop group 1"
+    create_user NoopGroup2User "noop group 2"
+    create_user NoopUser1 "${GERRIT_GROUP}"
+    create_user NoopUser2 "${GERRIT_GROUP}"
+    update_noop_userids
+    remove_autoadded_user_from_group "${GERRIT_GROUP}"
+    remove_autoadded_user_from_group "noop group 1"
+    remove_autoadded_user_from_group "noop group 2"
     echo
 else
     python_setup
@@ -242,7 +259,7 @@ cd "${SCRIPT_DIR}/.."
 
 alert "Running test..."
 
-python3 app.py --config "${SCRIPT_DIR}/../tests/container-storage/test.ini" ${DRY_RUN} --noop-userids 9999996,9999997 --noop-groups 9999998,9999999 --gerrit-group ${GERRIT_GROUP} --github-org "${GITHUB_ORG}"
+python3 app.py --config "${SCRIPT_DIR}/container-storage/test.ini" ${DRY_RUN} --gerrit-group ${GERRIT_GROUP} --github-org "${GITHUB_ORG}"
 
 if [ "${DRY_RUN}" = "--dry-run" ]
 then
