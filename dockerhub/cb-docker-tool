@@ -133,17 +133,14 @@ class DockerTool:
             return
         plain_version, _ = self.version.split('-')
         if self.product == "couchbase-server":
-            if self.edition == "enterprise":
-                tag = self.version
-            else:
-                tag = f"community-{self.version}"
+            prefix = "community-" if self.edition == "community" else ""
             self.imagenames.extend([
-                f"registry.gitlab.com/cb-vanilla/server:{tag}",
-                f"registry.gitlab.com/cb-vanilla/server:{plain_version}",
-                f"ghcr.io/cb-vanilla/server:{tag}",
-                f"ghcr.io/cb-vanilla/server:{plain_version}",
-                f"build-docker.couchbase.com/cb-vanilla/server:{tag}",
-                f"build-docker.couchbase.com/cb-vanilla/server:{plain_version}",
+                f"registry.gitlab.com/cb-vanilla/server:{prefix}{self.version}",
+                f"registry.gitlab.com/cb-vanilla/server:{prefix}{plain_version}",
+                f"ghcr.io/cb-vanilla/server:{prefix}{self.version}",
+                f"ghcr.io/cb-vanilla/server:{prefix}{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/server:{prefix}{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/server:{prefix}{plain_version}",
             ])
         elif self.product == "sync-gateway":
             self.imagenames.extend([
