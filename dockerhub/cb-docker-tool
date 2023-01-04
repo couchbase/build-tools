@@ -127,6 +127,11 @@ class DockerTool:
         Create the set of imagenames (with :tags) appropriate for staging
         """
 
+        if not '-' in self.version:
+            self.error_msg = "VERSION must be of form X.Y.Z-bbbb " \
+                "when using --staging-images"
+            return
+        plain_version, _ = self.version.split('-')
         if self.product == "couchbase-server":
             if self.edition == "enterprise":
                 tag = self.version
@@ -134,16 +139,22 @@ class DockerTool:
                 tag = f"community-{self.version}"
             self.imagenames.extend([
                 f"registry.gitlab.com/cb-vanilla/server:{tag}",
+                f"registry.gitlab.com/cb-vanilla/server:{plain_version}",
                 f"ghcr.io/cb-vanilla/server:{tag}",
-                f"build-docker.couchbase.com/couchbase/server-internal:{tag}",
-                f"build-docker.couchbase.com/cb-vanilla/server:{tag}"
+                f"ghcr.io/cb-vanilla/server:{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/server:{tag}",
+                f"build-docker.couchbase.com/cb-vanilla/server:{plain_version}",
             ])
         elif self.product == "sync-gateway":
             self.imagenames.extend([
                 f"registry.gitlab.com/cb-vanilla/sync-gateway:"
                 f"{self.version}-{self.edition}",
+                f"registry.gitlab.com/cb-vanilla/sync-gateway:"
+                f"{plain_version}-{self.edition}",
                 f"ghcr.io/cb-vanilla/sync-gateway:"
-                f"{self.version}-{self.edition}"
+                f"{self.version}-{self.edition}",
+                f"ghcr.io/cb-vanilla/sync-gateway:"
+                f"{plain_version}-{self.edition}",
             ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
@@ -576,7 +587,7 @@ if __name__ == "__main__":
 
     actions = parser.add_argument_group(
         title="Actions",
-        description="At least one of the following should be specified "
+        description="At least one of the following must be specified "
         "to define what actions will be taken. Any combination of actions "
         "may be provided, except as specified."
     )
@@ -605,7 +616,7 @@ if __name__ == "__main__":
     imageopts = parser.add_argument_group(
         title="Image name options",
         description="Ways to specify the resulting image name(s). Any "
-        "combination is permitted, although generally --staging-imgaes and "
+        "combination is permitted, although generally --staging-images and "
         "--release-images should not be specified together since staging "
         "images are built from a different download URL. No Image name "
         "options are required unless --docker-save or --docker-push actions "
@@ -620,7 +631,8 @@ if __name__ == "__main__":
     imageopts.add_argument(
         "--staging-images", action="store_true",
         help="All image name:tags for staging images (build-docker, GHCR). "
-        "Note: should also specify --version X.Y.Z-staging"
+        "Note: VERSION must be of the form X.Y.Z-BBBB including build number; "
+        "usually used with --from-latestbuilds."
     )
     imageopts.add_argument(
         "--release-images", action="store_true",
