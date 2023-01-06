@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import logging
+import pprint
+import requests
+import sys
+import time
+
+from blackduck import Client
+from urllib.parse import urlparse
+
+class BlackDuckFlatten:
+    """
+    Given a Black Duck project and version, replace all "scanned from source code"
+    components with identical "manually added" components
+    """
+
+    # There are two important data structures in this class: comp_map and manifest.
+    # comp_map represents the current state in Black Duck (when the program is
+    # first run), while manifest represents the desired state as specified by the
+    # BD manifests. Both of these structures are in "canonicalized" form, which is
+    # a dict.
+    #
+    # The keys of the dict are Black Duck component IDs; for example,
+    # eae20828-18b8-478f-83b3-4a058748a28b is the ID for "fmtlib/fmt".
+    #
+    #  - for comp_map, these keys will be directly from Black Duck.
+    #  - for manifest, these keys will be from the "bd-id" field in the manifest
+    #    (preferred). If bd-id is not available, it will be discovered:
+    #     - if there is any component in comp_map with the identical bd-name,
+    #       use that component's ID
+    #     - if no such component exists (ie, this is an entirely new component),
+    #       search Black Duck using the REST API for a component matching bd-name
+    #       that also has a version matching the first specified version
+    #
+    #    Searching Black Duck using the REST API is not completely reliable,
+    #    so it is encouraged to use the bd-id field in manifests as much as
+    #    possible.
+    #
+    # The values of the dict are dicts with the following entries:
+    #    "versions": a Python set of strings, eg. {"7.1.3", "7.1.4"}.
+    #    "bd-name": the lowercased name for the component.
+    #
+    #  - for comp_map, "bd-name" will always be the componentName directly from
+    #    Black Duck (lowercased)
+    #  - for manifest, "bd-name" will be the "bd-name" field from the manifest
+    #    (lowercased) or, if that doesn't exist, the key of the component itself.
+
+    def __init__(self, url, token, project, version, dryrun):
+        self.dryrun = dryrun
+        logging.info(f"Preparing to flatten components for {project} {version}")
+        self.bd = Client(base_url=url, token=token, verify=False)
+
+        # Save Black Duck's data about the project-version
+        self.name = f"{project} {version}"
+        logging.debug(f"Looking up project {project}")
+        self.project = self._get_resource_by_name("projects", project)
+        logging.debug(f"Project is {pprint.pformat(self.project)}")
+        logging.debug(f"Looking up project version {version}")
+        self.project_version = self._get_resource_by_name("versions", version, parent=self.project, key="versionName")
+        logging.debug(f"Project-version is {pprint.pformat(self.project_version)}")
+        logging.debug(f"available resources are {pprint.pformat(self.bd.list_resources(self.project_version))}")
+        pv_components_url = self.bd.list_resources(self.project_version)["components"]
+        self.pv_components_url = urlparse(pv_components_url).path
+        logging.debug(f"Project-version components URL is {self.pv_components_url}")
+
+
+    def _get_resource_by_name(self, resource, name, parent=None, key="name"):
+        """
+        Convenience function to retrieve a single child resource by name,
+        or optionally by some key other than 'name'
+        """
+
+        result = self.bd.get_resource(
+            resource,
+            parent=parent,
+            params={'q':[f'{key}:{name}']},
+            items=False,
+        )
+        assert result["totalCount"] == 1
+        return result["items"][0]
+
+
+    def read_scan_components(self):
+        """
+        Discovers all components associated with the project-version
+        that originate from a signature scan. Returns a tuple of:
+          * list of component dicts with keys "uri", "name", "version".
+          * set of scan hrefs
+        """
+
+        components = []
+        scan_hrefs = set()
+        for component in self.bd.get_resource(
+            "components",
+            parent=self.project_version,
+            params = {
+                "filter": [
+                    "bomMatchType:file_exact",
+                    "bomMatchType:files_exact",
+                    "bomMatchType:files_modified",
+                    "bomMatchType:files_added_deleted",
+                    "bomMatchType:manually_identified",
+                ]
+            }
+        ):
+            # Identify the scans associated with any matched files for
+            # this component
+            for match in self.bd.get_resource("matched-files", parent=component):
+                scan_hrefs.add(self.bd.list_resources(match)["codelocations"])
+
+            # Remember everything about the component
+            entry = {
+                "name": component["componentName"],
+                "version": component.get("componentVersionName", "<none>"),
+                "uri": component.get("componentVersion", component["component"]),
+            }
+            components.append(entry)
+            logging.debug(f"Found component {entry['name']} version {entry['version']}")
+
+        logging.info(f"Loaded {len(components)} signature-scan-based components from {len(scan_hrefs)} signature scan(s)")
+
+        return (components, scan_hrefs)
+
+
+    def delete_scans(self, scan_hrefs):
+        """
+        Finds any signature-scan code locations and removes them from the project-version
+        """
+
+        for scan in scan_hrefs:
+            logging.info(f"Deleting scan {scan}")
+            if self.dryrun:
+                logging.info("DRYRUN: not updating Black Duck")
+                continue
+
+            response = self.bd.session.delete(scan)
+            response.raise_for_status()
+
+        if self.dryrun:
+            return
+
+        # Verify that the project-version now has no components from signature scan
+        while True:
+            time.sleep(2)
+            (components, _) = self.read_scan_components()
+            if len(components) == 0:
+                logging.debug("Verified 0 signature scan components after deleting scan(s)!")
+                break
+            logging.debug("There are still signature scan components, waiting...")
+
+
+    def flatten_component(self, comp):
+        """
+        Adds a component-version to this project-version, which is presumed to
+        not already exist.
+        """
+
+        logging.info(f"Adding component: {comp['name']} version {comp['version']}")
+
+        if self.dryrun:
+            logging.info("DRYRUN: not updating Black Duck")
+        else:
+            post_data = { 'component': comp['uri'] }
+            try:
+                response = self.bd.session.post(self.pv_components_url, json=post_data)
+                response.raise_for_status()
+            except requests.HTTPError as ee:
+                logging.fatal(ee.response.json())
+                sys.exit(5)
+            logging.debug(f"{comp['name']} version {comp['version']} added successfully")
+
+
+    def flatten(self):
+        """
+        Flattens all components
+        """
+
+        (components, scan_hrefs) = self.read_scan_components()
+
+        # Need to detach the scan results first, or else certain components
+        # (those with no origins, for whatever reason) will fail with a
+        # "cannot add to BOM because it already exists" error.
+        self.delete_scans(scan_hrefs)
+
+        # Iterate over all component URIs
+        for component in components:
+            self.flatten_component(component)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Get components from hub"
+    )
+    parser.add_argument('-d', '--debug', action='store_true',
+        help="Produce debugging output")
+    parser.add_argument('-u', '--url', required=True,
+        help="Black Duck Hub URL")
+    parser.add_argument('-t', '--tokenfile', required=True,
+        type=argparse.FileType('r'),
+        help="File containing Black Duck API token")
+    parser.add_argument('-p', '--project', required=True,
+        help="project from Black Duck server")
+    parser.add_argument('-v', '--version', required=True,
+        help="Version of <project>")
+    parser.add_argument('-n', '--dryrun', action='store_true',
+        help="Dry run - don't update Black Duck, just report actions")
+    args = parser.parse_args()
+
+    if args.debug:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logging.basicConfig(
+        stream=sys.stderr,
+        format='%(threadName)s: %(asctime)s: %(levelname)s: %(message)s',
+        level=log_level
+    )
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+    flattener = BlackDuckFlatten(
+        args.url,
+        args.tokenfile.read().rstrip(),
+        args.project,
+        args.version,
+        args.dryrun
+    )
+    flattener.flatten()
