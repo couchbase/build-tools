@@ -24,7 +24,7 @@ exclude_regexes = [
   r'.jar.sha256$',
   r'.aar$',
   r'.aar.sha256$',
-  r'doc',
+  r'doc[^k]',
   r'carthage',
   r'unsigned'
 ]
@@ -87,7 +87,7 @@ def get_url_list(product, version):
     # We pre-set this layout to take advantage of the Python 3.7+ feature
     # that dicts retain insertion ordering. That way, the report will
     # always be ordered the way we expect.
-    model_keys = ["Binaries", "Debug Binaries", "SHAs", "Debug SHAs"]
+    model_keys = ["Binaries", "Debug Binaries", "Docker Images", "Binaries SHAs", "Debug Binaries SHAs", "Docker Images SHAs"]
     urls = {
       'Enterprise': {k:[] for k in model_keys},
       'Community': {k:[] for k in model_keys}
@@ -98,6 +98,7 @@ def get_url_list(product, version):
     dbg_re = re.compile(r'dbg_|debuginfo-|PDB')
     ee_re = re.compile(r'\bee\b|enterprise', flags=re.IGNORECASE)
     ce_re = re.compile(r'community', flags=re.IGNORECASE)
+    docker_re = re.compile(r'docker.tar', flags=re.IGNORECASE)
     sha_re = re.compile(r'.sha256$|.md5$')
 
     # Separate out files into distinct sets
@@ -108,8 +109,8 @@ def get_url_list(product, version):
 
         file_url = f'https://{s3_rel_bucket}/{s3_rel_prefix}{rfile}'
 
-        # Sort files into EE and CE; skip files that aren't explicitly
-        # Enterprise or Community
+        # Sort files into EE or CE; skip files that aren't explicitly
+        # either of those.
         if ee_re.search(rfile):
           urllist = urls['Enterprise']
         elif ce_re.search(rfile):
@@ -118,20 +119,25 @@ def get_url_list(product, version):
           continue
 
         # Determine which list to add this URL to
-        if sha_re.search(rfile):
-          key = 'SHAs'
+        if docker_re.search(rfile):
+          key = 'Docker Images'
+        elif dbg_re.search(rfile):
+          key = 'Debug Binaries'
         else:
           key = 'Binaries'
-        if dbg_re.search(rfile):
-          key = f"Debug {key}"
+        if sha_re.search(rfile):
+          key = f'{key} SHAs'
         urllist[key].append(file_url)
 
     return urls
 
 
-def multiline_string(strarray):
+def md_list(strarray):
+    """
+    Renders an array of strings as a single Markdown-compatible bullet list
+    """
 
-    return '\n'.join(strarray)
+    return "* " + '\n* '.join(strarray)
 
 
 def form_comment(urls, product, version, bldnum):
@@ -152,7 +158,7 @@ def form_comment(urls, product, version, bldnum):
         if len(urls) == 0:
           continue
 
-        content += f'{listkey}:\n\n{multiline_string(urls)}\n\n'
+        content += f'{listkey}:\n\n{md_list(urls)}\n\n'
 
     return content
 
