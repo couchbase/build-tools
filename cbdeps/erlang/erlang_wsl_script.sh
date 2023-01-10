@@ -3,7 +3,7 @@ INSTALL_DIR=$(wslpath "$1")
 # Expects to be called in the directory containing this script,
 # which is three levels deep in build-tools
 cd ../../..
-OPENSSL_DIR=$(echo $(pwd)/cbdeps/openssl-*)
+OPENSSL_DIR=$(echo "$(pwd)/cbdeps/openssl-"*)
 
 # Now into the OTP source code
 cd erlang
