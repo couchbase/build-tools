@@ -12,7 +12,7 @@ set PATH=C:\Perl64\bin;%PATH%
 set DRIVE=c:
 set SERVER_DIR=Program Files\Couchbase\Server
 set PREFIX=%DRIVE%\%SERVER_DIR%
-set OPENSSLDIR=%SERVER_DIR%
+set OPENSSLDIR=%SERVER_DIR%\etc\openssl
 
 rem Build OpenSSL binary and libraries
 if "%ARCH%" == "x86" (
@@ -24,7 +24,6 @@ if "%ARCH%" == "x86" (
 
 if EXIST VERSION.dat (
     rem OpenSSL 3.x
-    set OPENSSLDIR=%SERVER_DIR%\etc\openssl
     if "%VERSION:~-4%" == "fips" (
         rem OpenSSL 3.x + FIPS
         set CONFIG=%CONFIG% enable-fips
@@ -52,6 +51,13 @@ if "%PROFILE%" == "server" (
     call mkdir "%STATIC_DIR%" || goto error
     call copy libcrypto_static.lib "%STATIC_DIR%\libcrypto64MD.lib" || goto error
     call copy libssl_static.lib "%STATIC_DIR%\libssl64MD.lib" || goto error
+
+    call move "%INSTALL_DIR%\Program Files\Couchbase\Server\bin" "%INSTALL_DIR%"
+    call move "%INSTALL_DIR%\Program Files\Couchbase\Server\etc" "%INSTALL_DIR%"
+    call move "%INSTALL_DIR%\Program Files\Couchbase\Server\include" "%INSTALL_DIR%"
+    call move "%INSTALL_DIR%\Program Files\Couchbase\Server\lib" "%INSTALL_DIR%"
+    call rmdir /s /q "%INSTALL_DIR%\Program Files"
+
     goto :eof
 )
 

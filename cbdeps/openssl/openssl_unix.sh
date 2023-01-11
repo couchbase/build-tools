@@ -13,11 +13,10 @@ cd "${ROOT_DIR}/openssl"
 ENABLE_FIPS=""
 
 PREFIX=/opt/couchbase
-OPENSSLDIR=${INSTALL_DIR}
+OPENSSLDIR=${PREFIX}/etc/openssl
 
 if [ -f 'VERSION.dat' ]; then
     # openssl 3.x.x
-    OPENSSLDIR=${PREFIX}/etc/openssl
     DYLIB_VER="3"
     NO_SSL2=""
     if [[ "${VERSION}" == *"fips"* ]]; then
@@ -109,3 +108,7 @@ rm -rf ${INSTALL_DIR}/${PREFIX}/man ${INSTALL_DIR}/${PREFIX}/share/doc ${INSTALL
 
 # Or pkgconfig files
 rm -rf ${INSTALL_DIR}/${PREFIX}/lib/pkgconfig
+
+mv ${INSTALL_DIR}/opt/couchbase/{bin,etc,include,lib,share} ${INSTALL_DIR}
+
+rm -rf ${INSTALL_DIR}/opt

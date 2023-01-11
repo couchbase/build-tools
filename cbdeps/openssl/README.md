@@ -19,6 +19,9 @@ on linux/mac, and
 `C:\Jenkins\workspace\cbdeps-platform-build\install\Program Files\Couchbase\Server`
 on Windows.
 
+We then flatten these down to INSTALL_DIR after the fact, moving bin, lib, etc,
+include and share (the latter only on mac/linux) to the root of INSTALL_DIR
+
 Finally in `CMakeLists.txt`, we copy the bin, etc and lib directories from our
 build into `CMAKE_INSTALL_PREFIX`. It should be ok for these files to land
 anywhere for non-FIPS builds (as the openssl conf files would be unused)
