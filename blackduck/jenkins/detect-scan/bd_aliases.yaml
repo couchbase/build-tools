@@ -30,3 +30,8 @@
 "6d055c2b-f7d7-45ab-a6b3-021617efd61b":
   fallback-versions:
     "1.19": "go1.19rc2"
+
+# Python cffi
+"a136afda-2456-41df-a8f4-2d74ef679b21":
+  bd-id-aliases:
+    - "043e4252-a86b-4281-a1a3-a762fe0470de"
