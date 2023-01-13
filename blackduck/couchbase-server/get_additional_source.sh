@@ -101,7 +101,7 @@ for dir in auditevent flatbuf/cfg flatbuf/header flatbuf/payload flatbuf/respons
     mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
     touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
 done
-for dir in gen/nftp/client evaluator/impl/gen/parser; do
+for dir in gen/nftp/client evaluator/impl/gen/parser evaluator/impl/v8wrapper/process_manager/gen/flatbuf/payload; do
     mkdir -p goproj/src/github.com/couchbase/eventing-ee/${dir}
     touch goproj/src/github.com/couchbase/eventing-ee/${dir}/foo.go
 done
