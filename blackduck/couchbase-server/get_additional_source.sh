@@ -22,20 +22,13 @@ download_analytics_jars() {
 create_analytics_poms() {
   # This will be also be added to PATH by scan-environment.sh in case
   # Detect needs it
-  cbdep install -d ../extra/install openjdk 11.0.14+9
-  javadir=$(pwd)/../extra/install/openjdk-11.0.14+9
-  export PATH=${javadir}/bin:${PATH}
-  export JAVA_HOME=${javadir}
 
   # We need to ask Analytics to build us a BOM, which we then convert
   # to a series of poms that Black Duck can scan. Unfortunately this
   # requires actually building most of Analytics. However, it does
   # allow us to bypass having Detect scan the analytics/ directory.
-  pushd analytics
-  mvn --batch-mode \
-    -DskipTests -Drat.skip -Dformatter.skip=true \
-    -Dcheckstyle.skip=true -Dimpsort.skip=true \
-    -pl :cbas-install -am install
+  pushd "${WORKSPACE}/tempbuild"
+  ninja analytics
   popd
 
   mkdir -p analytics-boms
@@ -57,6 +50,7 @@ NINJA_VERSION=1.10.2
 cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
 cbdep install -d "${WORKSPACE}/extra" ninja ${NINJA_VERSION}
 export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${WORKSPACE}/extra/ninja-${NINJA_VERSION}/bin:${PATH}"
+export CB_MAVEN_REPO_LOCAL=~/.m2/repository
 
 rm -rf "${WORKSPACE}/tempbuild"
 mkdir "${WORKSPACE}/tempbuild"
