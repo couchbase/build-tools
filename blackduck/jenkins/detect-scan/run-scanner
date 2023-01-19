@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import json
 import os
 import string
@@ -31,10 +32,47 @@ if args.config is not None:
 else:
     config = { "detect_opts": {} }
 
-# Download latest detect script
-url = 'https://detect.synopsys.com/detect.sh'
-urllib.request.urlretrieve(url, '/tmp/detect.sh')
-os.chmod('/tmp/detect.sh', 0o755)
+# Download desired Detect jar, if necessary
+cache_dir = os.path.join(
+    os.environ.get("HOME"),
+    ".cache",
+    "synopsys-detect"
+)
+if not os.path.exists(cache_dir):
+    os.makedirs(cache_dir, exist_ok=True)
+
+detect_ver = os.environ.get("DETECT_JAR_VERSION", "7.10.0")
+detect_jar = os.path.join(cache_dir, f"synopsys-detect-{detect_ver}.jar")
+if not os.path.exists(detect_jar):
+    # Ask Synopsys's Artifactory API for details, so we can verify checksum
+    print(f"\n\n********\nDownloading {detect_jar}...")
+    artifact_url = "https://sig-repo.synopsys.com/artifactory/api/storage" \
+        "/bds-integrations-release/com/synopsys/integration/synopsys-detect" \
+        f"/{detect_ver}/synopsys-detect-{detect_ver}.jar"
+    try:
+        res = urllib.request.urlopen(artifact_url)
+        artifact = json.loads(res.read().decode("utf-8"))
+        jar_url = artifact["downloadUri"]
+        jar_sha256 = artifact["checksums"]["sha256"]
+
+        urllib.request.urlretrieve(jar_url, detect_jar)
+
+        # Verify checksum
+        sha256_hash = hashlib.sha256()
+        with open(detect_jar, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        if sha256_hash.hexdigest() != jar_sha256:
+            print(
+                "\n\nDownloaded file checksum did not match!!!!! Deleting..."
+            )
+            raise RuntimeError("Downloaded synopsys-detect.jar was invalid")
+
+    except:
+        if os.path.exists(detect_jar):
+            os.remove(detect_jar)
+        raise
+    print("....done!\n********\n\n")
 
 # Start with default properties, then update with config-file-provided
 # ones; this allows config file to override defaults
@@ -62,7 +100,7 @@ properties.update(config["detect_opts"])
 
 # Construct command line by translating properties to args
 detect_args = [
-    "/tmp/detect.sh"
+    "java", "-jar", detect_jar
 ]
 if args.dry_run:
     # Suggested by Black Duck support

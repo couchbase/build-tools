@@ -136,7 +136,7 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
 fi
 
 # Invoke scan script
-"${DETECT_SCRIPT_DIR}/run-scanner" \
+python3 -u "${DETECT_SCRIPT_DIR}/run-scanner" \
   ${DRY_RUN_ARG} \
   ${CONFIG_ARG} \
   --token ~/.ssh/blackduck-token.txt \
