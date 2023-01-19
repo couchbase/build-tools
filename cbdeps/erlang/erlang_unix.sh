@@ -10,17 +10,23 @@ cbdep --platform ${PLATFORM} install -d cbdeps openssl ${OPENSSL_VER}
 
 cd erlang
 
+JIT_OPTIONS="--enable-jit"
+
 case "$PLATFORM" in
     macosx)
         export MACOSX_DEPLOYMENT_TARGET=10.10
         ulimit -u 1024
 
-        #JIT is currently not supported on M1.  It won't be supported until OTP-25.
-        #It is automatically disabled in native M1, arm64.  However, it causes
-        #"Segmentation fault: 11" failure in Rosetta mode, CBD-4513.
-        #Hence we need to disable it on mac.  It should have minimal impact on
-        #performance.
-        EXTRA_CONFIG_OPTIONS="--disable-jit"
+        # JIT is broken in v24 on arm and causes segfaults under rosetta in
+        # v24 and v25, so we explicitly disable it everywhere problems occur
+        # (see CBD-4513)
+        JIT_OPTIONS="--disable-jit"
+        if [ "25" = $(printf "25\n$(cat OTP_VERSION)" | sort -n | head -1) ]; then
+            if [ "$(arch)" = "arm64" ]; then
+                # JIT's ok on arm in v25+, so we can enable it there
+                JIT_OPTIONS="--enable-jit"
+            fi
+        fi
         ;;
     *)
     # Arg.. you got to hate autoconf and trying to get something
@@ -47,7 +53,7 @@ esac
       --without-megaco \
       --with-ssl="${ROOT_DIR}/cbdeps/openssl-${OPENSSL_VER}" \
       $SSL_RPATH \
-      $EXTRA_CONFIG_OPTIONS \
+      $JIT_OPTIONS \
       CFLAGS="-fno-strict-aliasing -O3 -ggdb3"
 
 make -j4
