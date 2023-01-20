@@ -22,7 +22,7 @@ LATEST=$5
 internal_repo=build-docker.couchbase.com
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
-build_tools_dir=$(git -C "${script_dir}" rev-parse --show-toplevel)
+build_tools_dir=$(cd "${script_dir}" && git rev-parse --show-toplevel)
 source ${build_tools_dir}/utilities/shell-utils.sh
 source ${script_dir}/funclib.sh
 
