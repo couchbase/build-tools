@@ -46,7 +46,7 @@ vanilla_registry=index.docker.io
 ################ VANILLA
 
 status Publishing to Docker Hub...
-internal_image=${internal_repo}/${org}/${short_product}:${INTERNAL_TAG}
+internal_image=${internal_repo}/cb-vanilla/${short_product}:${INTERNAL_TAG}
 external_base=${vanilla_registry}/couchbase/${short_product}
 images=(${external_base}:${PUBLIC_TAG} ${external_base}:${PUBLIC_TAG}-dockerhub)
 if ${LATEST}; then
