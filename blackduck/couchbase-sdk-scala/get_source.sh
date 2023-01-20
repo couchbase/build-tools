@@ -23,10 +23,10 @@ rm -rf *-fit-performer
 # And now we actually need to build stuff for it to be found
 # by the detector
 mvn --batch-mode dependency:resolve || {
-    for project in core-io-deps test-utils . ; do
-        pushd $project
-        mvn --batch-mode -Dmaven.test.skip=true install
-        popd
+    for project in protostellar core-io-deps test-utils . ; do
+        if [ -e "$project" ]; then
+            mvn --batch-mode -f "$project/pom.xml" -Dmaven.test.skip=true clean install
+        fi
     done
 }
 
