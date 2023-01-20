@@ -15,8 +15,7 @@ function product_platforms {
     local REGISTRY=$2
 
     if [ "${PRODUCT}" = "couchbase-service-broker" \
-      -o "${PRODUCT}" = "couchbase-observability-stack" \
-      -o "${REGISTRY}" = "rhcc" ]; then
+      -o "${PRODUCT}" = "couchbase-observability-stack" ]; then
         echo "linux/amd64"
     else
         echo "linux/amd64,linux/arm64"
