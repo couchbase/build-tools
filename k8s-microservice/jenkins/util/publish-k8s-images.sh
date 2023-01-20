@@ -67,7 +67,7 @@ if product_in_rhcc "${PRODUCT}"; then
     if ${LATEST}; then
         EXTRA_ARG="-r latest"
     fi
-    ${build_tools_dir}/rhcc/rhcc-certify-and-publish.sh -s -b \
+    ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh -s -b \
         -c ${HOME}/.docker/rhcc-metadata.json \
         -p ${PRODUCT} -t ${INTERNAL_TAG} \
         -r ${PUBLIC_TAG} -r ${PUBLIC_TAG}-${OPENSHIFT_BUILD} \
