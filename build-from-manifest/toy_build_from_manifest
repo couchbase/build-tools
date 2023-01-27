@@ -69,7 +69,7 @@ if [[ -n $MANIFEST_REPO ]]; then
     # Now re-init and re-sync to the desired input manifest
     echo "Syncing to manifest file ${MANIFEST_FILE}"
     echo ================================
-    repo init -m "${MANIFEST_FILE}"
+    repo init -m "${MANIFEST_FILE}" -g all --reference=~/reporef
     repo sync --jobs=24 --quiet
 else
     # Historic toy build
