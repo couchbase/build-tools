@@ -390,6 +390,7 @@ class ManifestBuilder:
                      if not (x.startswith(b' ')
                          or x.startswith(b'C testrunner')
                          or x.startswith(b'C product-metadata')
+                         or x.startswith(b'C product-texts')
                          or x.startswith(b'C mobile-testkit'))]
 
             if not lines:

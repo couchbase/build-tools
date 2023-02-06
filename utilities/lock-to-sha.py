@@ -130,7 +130,7 @@ if __name__ == "__main__":
         nargs='+',
         metavar='project',
         help='List of projects to skip',
-        default='testrunner'
+        default=['testrunner', 'product-texts']
     )
     parser.add_argument(
         '--projects',
