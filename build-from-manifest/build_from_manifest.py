@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 
 """
 Program to generate build information along with a source tarball
@@ -385,13 +385,21 @@ class ManifestBuilder:
                           self.build_manifest_filename],
                          check=True, stdout=PIPE).stdout
             # Strip out non-project lines as well as projects that we
-            # do not wish to trigger new builds
-            lines = [x for x in output.splitlines()
-                     if not (x.startswith(b' ')
-                         or x.startswith(b'C testrunner')
-                         or x.startswith(b'C product-metadata')
-                         or x.startswith(b'C product-texts')
-                         or x.startswith(b'C mobile-testkit'))]
+            # do not wish to trigger new builds. Note: the trailing space
+            # after the project names below is intentional, to prevent
+            # matching other projects that happen to start with the same
+            # letters as a project we wish to ignore.
+            lines = [
+                x for x in output.splitlines()
+                if not (
+                    x.startswith(b' ')
+                    or x.startswith(b'C testrunner ')
+                    or x.startswith(b'C product-metadata ')
+                    or x.startswith(b'C product-texts ')
+                    or x.startswith(b'C golang ')
+                    or x.startswith(b'C mobile-testkit ')
+                )
+            ]
 
             if not lines:
                 if not self.force:
