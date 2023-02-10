@@ -18,4 +18,16 @@ ELSE ()
         COMMAND "${CMAKE_INSTALL_PREFIX}/lib/erlang/Install"
             -minimal "${CMAKE_INSTALL_PREFIX}/lib/erlang"
     )
+    # Install copies various binaties into lib/erlang/bin, so we need to fix
+    # their rpaths here too
+    IF (UNIX AND NOT APPLE)
+        EXECUTE_PROCESS (COMMAND bash -c
+        "for f in $(find ${CMAKE_INSTALL_PREFIX}/lib/erlang/bin -type f);
+        do
+            if file $f | grep -q ELF && readelf -d $f | grep -e 'tinfo' -q; then
+                patchelf --set-rpath '$ORIGIN/'$(realpath --relative-to $(dirname $f) ${CMAKE_INSTALL_PREFIX}/lib) $f;
+            fi;
+        done"
+        )
+    ENDIF ()
 ENDIF ()
