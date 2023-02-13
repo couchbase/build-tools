@@ -326,7 +326,13 @@ class ManifestBuilder:
 
             child: Union[str, Path]
             for child in top_level:
-                shutil.rmtree(child) if child.is_dir() else child.unlink()
+                if child.is_file() or child.is_symlink():
+                    child.unlink()
+                elif child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    print("\n\nError: {str(child)} is not a regular file, directory, or symlink!")
+                    sys.exit(5)
 
             # Silly work-around for git bug - sometimes you just need
             # to run "git status" in a directory to fix "something"
