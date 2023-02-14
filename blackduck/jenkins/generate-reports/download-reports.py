@@ -121,10 +121,13 @@ class ReportsDownloader:
         """
 
         logger.info(f"Requesting creation of Notices file")
+        # CBD-5305: For now, only incorporate Copyright notices for capella.
+        # Probably do this for all products in future.
+        copyright = True if self.product == "couchbase-cloud" else False
         response = self.hub.create_version_notices_report(
             self.version,
             'TEXT',
-            include_copyright_info=False)
+            include_copyright_info=copyright)
         if response.status_code != 201:
             logger.debug(response.content)
             raise Exception(f"Error {response.status_code} creating Notices file")
