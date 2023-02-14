@@ -3,62 +3,6 @@
         "4.4.4": {
             "interval": 1440,
             "keep_git": true
-        },
-        "4.4.3": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.4.2": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.4.1": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.4.0": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.9": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.8": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.7": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.6": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.5": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.4": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.3": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.2": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.1": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.3.0": {
-            "interval": 1440,
-            "keep_git": true
         }
     }
 }
