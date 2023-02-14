@@ -59,26 +59,6 @@
         "4.3.0": {
             "interval": 1440,
             "keep_git": true
-        },
-        "4.2.15": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.2.14": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.2.13": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.2.12": {
-            "interval": 1440,
-            "keep_git": true
-        },
-        "4.2.11": {
-            "interval": 1440,
-            "keep_git": true
         }
     }
 }
