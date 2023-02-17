@@ -1,5 +1,9 @@
 {
     "versions": {
+        "4.4.5": {
+            "interval": 1440,
+            "keep_git": true
+        },
         "4.4.4": {
             "interval": 1440,
             "keep_git": true
