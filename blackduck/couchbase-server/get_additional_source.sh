@@ -66,7 +66,7 @@ components:
 EOF
 
 for gover in $(perl -lne 'm#go-([0-9.]*?)/go# && print $1' build.ninja | sort -u); do
-    echo "      - ${gover}" >> "${YAML}"
+    echo "      - \"${gover}\"" >> "${YAML}"
 done
 
 popd
