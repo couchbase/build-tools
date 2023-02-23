@@ -10,8 +10,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd ${ROOT_DIR}/curl
 
 # Dependencies
-OPENSSL_VER=3.0.7-2
-ZLIB_VER=1.2.11-8
+OPENSSL_VER=1.1.1t-1
+ZLIB_VER=1.2.13-1
 
 DEPSDIR=${ROOT_DIR}/deps
 rm -rf ${DEPSDIR}

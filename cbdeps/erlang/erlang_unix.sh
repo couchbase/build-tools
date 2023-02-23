@@ -6,6 +6,8 @@ PLATFORM=$3
 
 JIT_OPTIONS="--enable-jit"
 
+CBPY_VER=7.5.0-cb1
+
 pushd erlang
 if [ "25" = $(printf "25\n$(cat OTP_VERSION)" | sort -n | head -1) ]; then
     OPENSSL_VER=3.0.7-2
@@ -14,11 +16,9 @@ else
         # v24 configure: error: JIT only works on x86 64-bit
         JIT_OPTIONS="--disable-jit"
     fi
-    OPENSSL_VER=1.1.1p-1
+    OPENSSL_VER=1.1.1t-1
 fi
 popd
-
-CBPY_VER=7.2.0-cb1
 
 cd "${ROOT_DIR}"
 cbdep --platform ${PLATFORM} install -d cbdeps openssl ${OPENSSL_VER}
