@@ -3,7 +3,7 @@
 usage() {
     cat << EOF
 Notarize a Couchbase Server build
-Usage: $0 -r RELEASE -v VERSION -b BLD_NUM
+Usage: $0 -r RELEASE -v VERSION -b BLD_NUM -a ARCH
 EOF
     exit 1
 }
@@ -52,22 +52,23 @@ check_notarization_status() {
     esac
 }
 
-while getopts 'r:v:b:' options; do
+while getopts 'r:v:b:a:' options; do
     case "$options" in
         r) RELEASE=${OPTARG};;
         v) VERSION=${OPTARG};;
         b) BLD_NUM=${OPTARG};;
+        a) ARCH=${OPTARG};;
         \?) usage;;
     esac
 done
 
-if [ -z "${RELEASE}" -o -z "${VERSION}" -o -z "${BLD_NUM}" ]; then
+if [ -z "${RELEASE}" -o -z "${VERSION}" -o -z "${BLD_NUM}" -o -z "${ARCH}" ]; then
     usage
 fi
 
 DMG_URL_DIR=http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}
 
-DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64-unnotarized.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_x86_64-unnotarized.dmg)
+DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_${ARCH}-unnotarized.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_${ARCH}-unnotarized.dmg)
 declare -a UNNOTARIZED
 
 # Check if DMGS are notarized
