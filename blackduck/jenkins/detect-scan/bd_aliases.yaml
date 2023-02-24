@@ -25,6 +25,7 @@
 "587d3e15-ea76-449b-94b1-ef12538584e4":
   fallback-versions:
     "14.0.4": "14.0.0"
+    "14.0.6": "14.0.5"
 
 # Go programming language - we adopted 1.19 too early
 "6d055c2b-f7d7-45ab-a6b3-021617efd61b":
