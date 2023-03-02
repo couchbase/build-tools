@@ -9,8 +9,10 @@ SCAN_CONFIG="${PROD_DIR}/scan-config.json"
 # Arrange for cbdep to be on the PATH for everyone
 CBDEP_DIR="${WORKSPACE}/extra/cbdep"
 mkdir -p "${CBDEP_DIR}"
-curl -L -o "${CBDEP_DIR}/cbdep" http://downloads.build.couchbase.com/cbdep/cbdep.linux
-chmod 755 "${CBDEP_DIR}/cbdep"
+if [ ! -x "${CBDEP_DIR}/cbdep" ]; then
+    curl -L -o "${CBDEP_DIR}/cbdep" http://downloads.build.couchbase.com/cbdep/cbdep.linux
+    chmod 755 "${CBDEP_DIR}/cbdep"
+fi
 export PATH="${CBDEP_DIR}:${PATH}"
 
 # Disable analytics
