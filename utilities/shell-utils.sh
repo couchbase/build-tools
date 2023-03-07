@@ -37,23 +37,44 @@ function chk_cmd {
     done
 }
 
-function gover_from_manifest {
+# Extracts the value of an annotation of name "<DEP>_VERSION" from the
+# current manifest using either the 'repo' tool (if there's a .repo dir
+# in pwd) or else the 'xmllint' tools (if there's a manifest.xml in
+# pwd). If neither tool works, die. If the manifest simply doesn't have
+# such an annotation, returns "".
+function depver_from_manifest {
+
+    DEP=$1
+
+    # Special case since GOVERSION came first
+    if [ "${DEP}" = "GO" ]; then
+        annot=GOVERSION
+    else
+        annot=$(echo "${DEP}" | tr '[a-z]' '[A-Z]')_VERSION
+    fi
 
     # Try to extract the annotation using "repo" if available, otherwise
     # "xmllint" on "manifest.xml". If neither works, die!
     if test -d .repo && command -v repo > /dev/null; then
-        GOVERSION=$(repo forall build -c 'echo $REPO__GOVERSION' 2> /dev/null)
+        DEP_VERSION=$(repo forall build -c 'echo $REPO__'${annot} 2> /dev/null)
     elif test -e manifest.xml && command -v xmllint > /dev/null; then
         # This version expects "manifest.xml" in the current directory, from
         # either a build-from-manifest source tarball or the Black Duck script
         # running "repo manifest -r".
-        GOVERSION=$(xmllint \
-            --xpath 'string(//project[@name="build"]/annotation[@name="GOVERSION"]/@value)' \
+        DEP_VERSION=$(xmllint \
+            --xpath 'string(//project[@name="build"]/annotation[@name="'${annot}'"]/@value)' \
             manifest.xml)
     else
         echo "Couldn't use repo or xmllint - can't continue!"
         exit 3
     fi
+
+    echo ${DEP_VERSION}
+}
+
+function gover_from_manifest {
+
+    GOVERSION=$(depver_from_manifest GO)
 
     # If the manifest doesn't specify *anything*, do nothing.
     if [ ! -z "${GOVERSION}" ]; then
