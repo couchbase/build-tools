@@ -25,7 +25,8 @@ popd
 
 mvn -B versions:set \
     -DnewVersion=${VERSION} \
-    -DgenerateBackupPoms=false
+    -DgenerateBackupPoms=false \
+    -f cbtaco/pom.xml
 
 #Call maven target to generate artifacts
 #DIGICERT_PASSWORD is an environment variable injected into jenkins job.
