@@ -45,6 +45,3 @@ mvn -B install -DskipTests \
 pushd dist
 cp -p ../cbtaco/cbas/cbas-jdbc-taco/target/${PRODUCT}-${VERSION}-${BLD_NUM}.zip .
 popd
-
-# Revert the update to the pom from *-SNAPSHOT to ${VERSION} version
-git checkout .
