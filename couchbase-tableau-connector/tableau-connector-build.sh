@@ -21,6 +21,12 @@ export PATH=$(pwd)/maven-${MAVEN_VERSION}/bin:$(pwd)/openjdk-${JDK_VERSION}/bin:
 export JAVA_HOME=$(pwd)/openjdk-${JDK_VERSION}
 popd
 
+#Call maven target to replace the *-SNAPSHOT version with ${VERSION} in the pom
+
+mvn -B versions:set \
+    -DnewVersion=${VERSION} \
+    -DgenerateBackupPoms=false
+
 #Call maven target to generate artifacts
 #DIGICERT_PASSWORD is an environment variable injected into jenkins job.
 
@@ -39,3 +45,6 @@ mvn -B install -DskipTests \
 pushd dist
 cp -p ../cbtaco/cbas/cbas-jdbc-taco/target/${PRODUCT}-${VERSION}-${BLD_NUM}.zip .
 popd
+
+# Revert the update to the pom from *-SNAPSHOT to ${VERSION} version
+git checkout .
