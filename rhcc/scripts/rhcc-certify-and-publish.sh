@@ -53,6 +53,23 @@ fi
 mkdir -p ${WORKSPACE}/workdir
 cd ${WORKSPACE}/workdir
 
+function upload_image {
+    status "Uploading ${2} to ${3}..."
+    skopeo copy \
+        --override-arch ${1} \
+        --override-os linux \
+        --src-authfile ${HOME}/.docker/config.json \
+        --dest-authfile ${PFLT_DOCKERCONFIG} \
+        docker://${2} docker://${3}
+}
+
+# preflight makes this 'artifacts' directory to store various logs, but
+# apparently not until after it tries to create PFLT_LOGFILE as you'll
+# get an error if the directory doesn't already exist.
+export PFLT_LOGFILE=./artifacts/preflight.log
+rm -rf artifacts
+mkdir artifacts
+
 # Download/build preflight
 PREFLIGHT_EXE="$(pwd)/preflight"
 if [ -x "${PREFLIGHT_EXE}" ]; then
@@ -123,15 +140,32 @@ if ${SUBMIT}; then
     # Upload all images - we have to do this first because preflight -s
     # only works on an image already uploaded to quay.io.
     for tag in ${RELEASE_TAGS}; do
-        image=quay.io/redhat-isv-containers/${project_id}:${tag}
-        status "Uploading ${INTERNAL_IMAGE} to ${image}..."
-        skopeo copy --all \
-            --src-authfile ${HOME}/.docker/config.json \
-            --dest-authfile ${PFLT_DOCKERCONFIG} \
-            docker://${INTERNAL_IMAGE} docker://${image}
-        # Remember the first uploaded image as the "primary tag" to run
-        # preflight on.
-        [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image}
+        image_base=quay.io/redhat-isv-containers/${project_id}:${tag}
+
+        # If the image in the registry has an arm64 version, this will return
+        # "arm64". Otherwise it will return some other arch.
+        armarch=$(skopeo --override-arch arm64 --override-os linux \
+            inspect --format '{{ .Architecture }}' \
+            docker://${INTERNAL_IMAGE})
+        if [ "${armarch}" = "arm64" ]; then
+            arches="amd64 arm64"
+        else
+            arches="amd64"
+        fi
+
+        for arch in ${arches}; do
+            if [ "${arch}" = "amd64" ]; then
+                # Upload amd64 images with generic, non arch specific tags
+                upload_image ${arch} ${INTERNAL_IMAGE} ${image_base}
+                # Pick an amd64 tag to run preflight against
+                [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}
+            else
+                # Pick an arm64 tag to run preflight against
+                [ -z "${EXTERNAL_ARM_IMAGE}" ] && EXTERNAL_ARM_IMAGE=${image_base}-${arch}
+            fi
+            # Upload arch specific tags for all architectures
+            upload_image ${arch} ${INTERNAL_IMAGE} ${image_base}-${arch}
+        done
     done
 
 else
@@ -148,10 +182,10 @@ fi
 # environment variables to have been set appropriately.
 echo
 status ::::::::::::: RUNNING PREFLIGHT :::::::::::::::::::
-export PFLT_LOGFILE=./artifacts/preflight.log
-# preflight makes this 'artifacts' directory to store various logs, but
-# apparently not until after it tries to create PFLT_LOGFILE as you'll
-# get an error if the directory doesn't already exist.
-rm -rf artifacts
-mkdir artifacts
 "${PREFLIGHT_EXE}" check container ${EXTERNAL_IMAGE} ${EXTRA_PREFLIGHT_ARGS}
+
+# If we pushed arm tags, run preflight against that image too
+if [ ! -z "${EXTERNAL_ARM_IMAGE}" ]; then
+    status ::::::::::::: RUNNING ARM PREFLIGHT :::::::::::::::::::
+    "${PREFLIGHT_EXE}" check container ${EXTERNAL_ARM_IMAGE} ${EXTRA_PREFLIGHT_ARGS}
+fi
