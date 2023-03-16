@@ -20,7 +20,17 @@ source couchbase-tableau-connector/bin/activate
 
 popd
 
-mvn -B install -DskipTests -Dpython.path=$(which python3) -f cbtaco/pom.xml
+#Call maven target to replace the *-SNAPSHOT version with ${VERSION} in the pom
+
+mvn -B versions:set \
+    -DnewVersion=${VERSION} \
+    -DgenerateBackupPoms=false \
+    -f cbtaco/pom.xml
+
+mvn -B install \
+    -DskipTests \
+    -Dpython.path=$(which python3) \
+    -f cbtaco/pom.xml
 
 #Get additional dependencie from Couchase JVM Clients
 #Only core-io-deps is used by tabealu jdbc connector, hence the rest is removed.
