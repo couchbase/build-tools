@@ -25,7 +25,12 @@ fi
 # to be the first release of a given version. However we allow overriding
 # it for emergencies, like when the initial upload fails RHCC scan validation.
 OS_BUILD=${OS_BUILD-1}
-${script_dir}/util/publish-k8s-images.sh ${PRODUCT} ${VERSION}-${BLD_NUM} ${public_tag} ${OS_BUILD} ${LATEST}
+if ${LATEST}; then
+    LATEST_ARG="-l"
+fi
+${script_dir}/util/publish-k8s-images.sh \
+    -p ${PRODUCT} -i ${VERSION}-${BLD_NUM} -t ${public_tag} \
+    -o ${OS_BUILD} ${LATEST_ARG}
 
 case "${PRODUCT}" in
     couchbase-admission-controller|couchbase-operator-certification)
@@ -60,13 +65,13 @@ for file in /latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/*${BLD_NUM}*; do
         echo Skipping source code file $file
         continue
     fi
-    if [[ "${PRODUCT}" != "couchbase-operator" && $file =~ ${PRODUCT}-image.* ]]; then
-        echo Skipping internal image file $file
-        continue
-    fi
     filename=$(basename ${file/${VERSION}-${BLD_NUM}/${public_tag}})
     cp -av ${file} ${filename}
     sha256sum ${filename} > ${filename}.sha256
+    if [[ "${PRODUCT}" != "couchbase-operator" && $file =~ ${PRODUCT}-image.* ]]; then
+        echo Skipping upload of internal image file $file
+        continue
+    fi
     aws s3 cp ${filename} \
         s3://${upload_url_base}/${filename} --acl public-read
     aws s3 cp --content-type "text/plain" ${filename}.sha256 \

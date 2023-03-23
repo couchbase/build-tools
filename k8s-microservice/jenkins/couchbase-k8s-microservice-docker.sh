@@ -13,7 +13,8 @@ chk_set BLD_NUM
 
 # First build the images into the local cb-xxxxx organizations
 OS_BUILD=${OS_BUILD-1}
-${script_dir}/util/build-k8s-images.sh ${PRODUCT} ${VERSION} ${BLD_NUM} ${OS_BUILD}
+${script_dir}/util/build-k8s-images.sh \
+    -p ${PRODUCT} -v ${VERSION} -b ${BLD_NUM} -o ${OS_BUILD}
 
 # Figure out if this is the highest current version being built
 highest_version=$(
@@ -29,7 +30,7 @@ else
     tags="${version_build}"
 fi
 
-# Now retag and push to internal and gitlab registries
+# Now retag and push to internal and GHCR registries
 pushd images
 for product in *; do
     short_product=${product/couchbase-/}

@@ -12,7 +12,6 @@ function product_in_rhcc {
 
 function product_platforms {
     local PRODUCT=$1
-    local REGISTRY=$2
 
     if [ "${PRODUCT}" = "couchbase-service-broker" \
       -o "${PRODUCT}" = "couchbase-observability-stack" ]; then

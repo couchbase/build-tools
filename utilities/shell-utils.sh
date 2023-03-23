@@ -1,7 +1,7 @@
 # General utility shell functions, useful for any script/product
 
 # Provide a dummy "usage" command for clients that don't define it
-type -t usage || usage() {
+type -t usage > /dev/null || usage() {
     exit 1
 }
 
@@ -13,6 +13,12 @@ function chk_set {
         echo "\$${var} must be set!"
         usage
     fi
+}
+
+function header() {
+    echo ":::::::::::::::::::::::::::::"
+    echo ":: $@"
+    echo ":::::::::::::::::::::::::::::"
 }
 
 function status() {
@@ -35,6 +41,93 @@ function chk_cmd {
             exit 5
         }
     done
+}
+
+xtrace_stack=()
+
+# Disable bash's 'xtrace', but remember the current setting so
+# it can be restored later with restore_xtrace().
+function stop_xtrace() {
+    if shopt -q -o xtrace; then
+        set +x
+        xtrace_stack+=("enabled")
+    else
+        xtrace_stack+=("disabled")
+    fi
+}
+
+# Restore bash's 'xtrace', if it was enabled before the most recent
+# call to stop_xtrace().
+function restore_xtrace() {
+    peek="${xtrace_stack[-1]}"
+    unset 'xtrace_stack[-1]'
+    if [ "${peek}" = "enabled" ]; then
+        set -x
+    else
+        set +x
+    fi
+}
+
+# Given a fully-qualified Docker image name:tag from a registry,
+# returns 0 (success) if the image is available for arm64, or 1
+# (failure) otherwise.
+function image_has_armarch() {
+    # If the image in the registry has an arm64 version, this will
+    # display "arm64". Otherwise it will display some other arch. "grep
+    # -q" will then set the return value of the function to 0 or 1
+    # depending on whether "arm64" is in the output.
+    skopeo --override-arch arm64 --override-os linux \
+        inspect --format '{{ .Architecture }}' \
+        docker://$1 \
+        | grep -q arm64
+}
+
+# Given a fully-qualified Docker image name:tag from a registry,
+# returns 0 (success) if the image exists, or 1 (failure) otherwise.
+function image_exists() {
+    skopeo --override-os linux inspect docker://$1 &> /dev/null
+}
+
+# Provides a unique key string describing an image in a Docker registry.
+# If two images have the same key string, then they have the same
+# contents. Importantly, if two images have the same key string, then
+# copying one to the other will have no effect except possibly modifying
+# image digests due to updated timestamps, etc.
+function image_key() {
+    # Basically we just append the sha256 of the top-most layer of the
+    # amd64 image and the sha256 of the top-most layer of the arm64
+    # image. If this is not a multi-arch image, that's fine - one
+    # sha256 will be an empty string, but that's still unique.
+    echo "$(image_arm64_key $1)-$(image_amd64_key $1)"
+}
+
+function _image_arch_key() {
+    # Helper function for the below - shouldn't be used directly
+    arch=$1
+    image=$2
+
+    output=()
+    output+=($(skopeo --override-arch ${arch} inspect docker://${image} \
+        | jq -r '.Architecture + " " + .Layers[-1]'))
+    if [ "${output[0]}" != "${arch}" ]; then
+        echo ""
+    else
+        echo "${output[1]/sha256:/}"
+    fi
+}
+
+# Provides a unique key string describing the arm64 component of a
+# multi-arch image. If the image has no arm64 component, returns an
+# empty string.
+function image_arm64_key() {
+    _image_arch_key arm64 $1
+}
+
+# Provides a unique key string describing the amd64 component of a
+# multi-arch image. If the image has no amd64 component, returns an
+# empty string.
+function image_amd64_key() {
+    _image_arch_key amd64 $1
 }
 
 # Extracts the value of an annotation of name "<DEP>_VERSION" from the
