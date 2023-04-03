@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 
 # These platforms correspond to the available Docker worker images.
 PLATFORMS="amzn2 linux"
