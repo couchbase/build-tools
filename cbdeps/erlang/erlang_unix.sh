@@ -47,8 +47,12 @@ case "$PLATFORM" in
         tar xf cbpy*  --wildcards "*tinfo*"
         popd
 
-        # We use LDFLAGS to ensure we find the libtinfo from cbpy
-        LDFLAGS="-L${ROOT_DIR}/cbdeps/cbpy/lib -ltinfo"
+        # We use LDFLAGS to ensure we find the libtinfo from cbpy. We also set
+        # two rpaths, this is because we trigger an install script during the
+        # server install, and this script copies several binaries into a new
+        # location. By providing both rpaths here we avoid the need to modify
+        # the rpaths of the copied binaries post copy.
+        LDFLAGS="-L${ROOT_DIR}/cbdeps/cbpy/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../../..:\$$\ORIGIN/../..'
 
         # During build, erlang's going to create a bootstrap compiler and
         # build some stuff with that, so we need to tell it where to
@@ -86,14 +90,6 @@ if [ "${PLATFORM}" = "macosx" ]; then
     install_name_tool -add_rpath @loader_path/../../.. \
         ${ERTS_DIR}/bin/beam.smp
 elif [ "${PLATFORM}" = "linux" ]; then
-    # We need to set rpaths on various binaries so they can find libs
-    # in /opt/couchbase/lib (or equivalent relative location)
-    for f in $(find ${INSTALL_DIR} -type f); do
-        if file $f | grep -q ELF && readelf -d $f | grep -e "tinfo\|crypto" -q; then
-            patchelf --set-rpath '$ORIGIN/'$(realpath --relative-to $(dirname $f) ${INSTALL_DIR}/lib) $f
-        fi
-    done
-
     # We bundle the final libtinfo symlinks here (although the target won't
     # actually exist until cbpy is present in the build)
     pushd ${INSTALL_DIR}/lib
