@@ -48,7 +48,7 @@ for product in *; do
 
     for org in $orgs; do
         internal_org_image=${internal_repo}/${org}/${short_product}:${version_build}
-        for registry in build-docker.couchbase.com registry.gitlab.com ghcr.io; do
+        for registry in build-docker.couchbase.com ghcr.io; do
             for tag in ${tags}; do
                 remote_org_image=${registry}/${org}/${short_product}:${tag}
                 skopeo copy --authfile /home/couchbase/.docker/config.json --all \
