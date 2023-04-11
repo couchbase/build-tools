@@ -30,16 +30,10 @@ case "$PLATFORM" in
         export MACOSX_DEPLOYMENT_TARGET=10.10
         ulimit -u 1024
 
-        # JIT is broken in v24 on arm and causes segfaults under rosetta in
+        # JIT is broken arm64 and causes segfaults under rosetta in
         # v24 and v25, so we explicitly disable it everywhere problems occur
-        # (see CBD-4513)
+        # (see CBD-4513, CBD-5389)
         JIT_OPTIONS="--disable-jit"
-        if [ "25" = $(printf "25\n$(cat OTP_VERSION)" | sort -n | head -1) ]; then
-            if [ "$(arch)" = "arm64" ]; then
-                # JIT's ok on arm in v25+, so we can enable it there
-                JIT_OPTIONS="--enable-jit"
-            fi
-        fi
         ;;
     *)
         # We'll be using libtinfo.so.6 from cbpy since it's being built
