@@ -75,13 +75,11 @@ else
     # Historic toy build
     "${SCRIPT_DIR}/../utilities/sync_historic_manifest" \
         "${PRODUCT}" "${RELEASE}" "${VERSION}" "${BLD_NUM}" ./src
-    pushd src
 
-    # To avoid any confusion, unset historic build coordinate variables now,
-    # and remove the faked properties - we'll create new ones later
-    unset PRODUCT RELEASE VERSION BLD_NUM
-    rm -f build-properties.json build.properties
+    pushd src
 fi
+
+# INVARIANT: We should be in the ${WORKSPACE}/src directory now
 
 # Create build manifest for future reference. Do this before applying
 # changes because the local cherry-picked SHAs won't make sense in the
@@ -122,6 +120,29 @@ fi
 # Load a few useful params from the properties file.
 eval $(sed -e 's/=\(.*\)/="\1"/' build.properties)
 
+# Fail if the manifest attempts to use the 'module_projects' feature for
+# handling git submodules. We can use repo's copy of the manifest
+# repository. Would have been nice to check this earlier, but we had to
+# wait until now to ensure PRODUCT_PATH is set. Also, this only makes
+# sense if MANIFEST_FILE was set (ie, not a historic build), but the jq
+# path below will return an empty string anyway if MANIFEST_FILE isn't
+# set, so :shrug:
+PRODUCT_CONFIG="src/.repo/manifests/${PRODUCT_PATH}/product-config.json"
+if [ -e "${PRODUCT_CONFIG}" ]; then
+    output=$(jq -r '.manifests."'${MANIFEST_FILE}'".module_projects | .[]' "${PRODUCT_CONFIG}")
+    if [ ! -z "${output}" ]; then
+        set +x
+        echo
+        echo "============================================================="
+        echo "ERROR: the product-config.json for ${MANIFEST_FILE}"
+        echo "specifies 'module_projects'. toy-manifest-build is incompatible"
+        echo "with this feature. Aborting."
+        echo "============================================================="
+        echo
+        exit 5
+    fi
+fi
+
 # Now save some additional stuff that toy build jobs might need
 cat <<EOF >> build.properties
 MANIFEST_REPO=${MANIFEST_REPO}
@@ -147,27 +168,6 @@ popd
 
 # Back into the repo sync for remaining operations
 pushd src
-
-# Update any submodules listed in module-projects, if there's a product-config.json to look at
-PRODUCT_CONFIG="../manifest/${PRODUCT_PATH}/product-config.json"
-if [ -e "${PRODUCT_CONFIG}" ]; then
-    for project in $(jq -r '.manifests."'${MANIFEST_FILE}'".module_projects | .[]' "${PRODUCT_CONFIG}"); do
-        echo "Updating submodules for ${project}"
-        echo ================================
-        project_dir=$(repo forall ${project} -c "pwd")
-        project_orig_sha=$(repo forall ${project} -c 'echo $REPO_LREV')
-        (
-            cd ${project_dir}
-            # Check out the original revision from the manifest, in case
-            # it was overwritten locally by a parent module_project. This
-            # roughly maintains the logic of the production builds from
-            # update_manifest_from_submodules.
-            git checkout ${project_orig_sha}
-            git submodule sync --recursive
-            git submodule update --init --recursive
-        )
-    done
-fi
 
 if [ "${KEEP_GIT}" = "True" ]; then
     exclude_git_arg=""
