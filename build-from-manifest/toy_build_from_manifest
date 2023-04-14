@@ -129,7 +129,7 @@ eval $(sed -e 's/=\(.*\)/="\1"/' build.properties)
 # set, so :shrug:
 PRODUCT_CONFIG="src/.repo/manifests/${PRODUCT_PATH}/product-config.json"
 if [ -e "${PRODUCT_CONFIG}" ]; then
-    output=$(jq -r '.manifests."'${MANIFEST_FILE}'".module_projects | .[]' "${PRODUCT_CONFIG}")
+    output=$(jq -r '.manifests."'${MANIFEST_FILE}'" | select(.module_projects != null) | .[]' "${PRODUCT_CONFIG}")
     if [ ! -z "${output}" ]; then
         set +x
         echo
