@@ -6,7 +6,7 @@ if "%VERSION:~0,2%" == "24" (
     set OPENSSL_VER=1.1.1t-1
 ) else if "%VERSION:~0,2%" == "25" (
     rem OpenSSL 3.x
-    set OPENSSL_VER=3.0.7-2
+    set OPENSSL_VER=3.0.7-3
 )
 
 set INSTALL_DIR=%1

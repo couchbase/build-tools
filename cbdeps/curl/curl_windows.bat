@@ -1,7 +1,7 @@
 set INSTALL_DIR=%1
 set ROOT_DIR=%2
 
-set ZLIB_VER=1.2.13-1
+set ZLIB_VER=1.2.13-2
 
 set DEPSDIR=%WORKSPACE%\deps
 rmdir /s /q %DEPSDIR%

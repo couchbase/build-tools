@@ -7,8 +7,8 @@ cd %ROOT_DIR%\protoc-gen-go
 
 set DEPS=%WORKSPACE%\deps
 
-set CBDEP_TOOL_VER=0.9.12
-set GO_VER=1.13.8
+set CBDEP_TOOL_VER=1.1.6
+set GO_VER=1.20.3
 
 set SITE=https://packages.couchbase.com/cbdep/%CBDEP_TOOL_VER%/cbdep-%CBDEP_TOOL_VER%-windows.exe
 set FILENAME=%WORKSPACE%\cbdep.exe
