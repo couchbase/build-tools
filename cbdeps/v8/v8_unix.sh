@@ -22,6 +22,11 @@ else
     NINJA=${DEPS}/ninja-1.11.0/bin/ninja
 fi
 
+# We want to compile V8 with gcc10, but the binutils included with centos7
+# is incompatible, however the single-linux arm worker has a new binutils
+# in /opt/gcc-12.2.0/bin so we set up the path to land on gcc10, and fall
+# back to the binutils in the gcc12 dir.
+export PATH=/opt/gcc-10.2.0/bin:/opt/gcc-12.2.0/bin:$PATH
 
 # Build gn using the stock compiler on the system. gn will find "clang"
 # automatically on Macs; on Linux, it will use CC/CXX.
