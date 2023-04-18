@@ -7,10 +7,12 @@ ARCH=$8
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
 
+cd ${ROOT_DIR}
+GO_VER=$(gover_from_manifest)
+
 cd ${ROOT_DIR}/protoc-gen-go
 
 DEPS=${WORKSPACE}/deps
-GO_VER=$(gover_from_manifest)
 CBDEP_TOOL_VER=1.1.6
 
 CBDEP_BIN_CACHE=/home/couchbase/.cbdepscache/cbdep/${CBDEP_TOOL_VER}/cbdep-${CBDEP_TOOL_VER}-linux
