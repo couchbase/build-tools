@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+
+import argparse
+import logging
+import pathlib
+import re
+import sys
+
+from github import Github, Repository
+from typing import List, Optional
+
+class AvForCommits:
+    """
+    Looks up information about commits in couchbase-cloud repo
+    """
+
+    gh: Github
+
+    desc_re = re.compile('Jira[\s]+\*.*?(AV-[0-9]+)')
+
+    def __init__(self, access_token: Optional[str]):
+        """
+        Connects to GitHub API
+        """
+
+        logging.info("Logging in to GitHub")
+        self.gh = Github(access_token)
+        logging.debug("...Logged in")
+        self.commits = {}
+
+
+    def _load_commit(self, repo: Repository, commit: str):
+        """
+        Interrogates the GitHub API to retrieve information about a single
+        commit SHA
+        """
+
+        logging.info(f"Interrogating commit {commit}")
+        commit = repo.get_commit(commit)
+        logging.debug("Retrieving related pull-request info")
+        prs = commit.get_pulls()
+        if prs.totalCount != 1:
+            logging.fatal(f"Commit {commit} has {len(prs)} != 1 PRs")
+            sys.exit(2)
+        pr = prs[0]
+        logging.debug(f"Commit {commit} was introduced with PR #{pr.number}")
+        pr_url = f"https://github.com/couchbasecloud/couchbase-cloud/pull/{pr.number}"
+        match = self.desc_re.search(pr.body)
+        if match is None:
+            logging.fatal(f"PR {pr_url} has no associated Jira link!")
+            sys.exit(3)
+        ticket = match[1]
+        logging.debug(f"Commit {commit} is associated with ticket {ticket}")
+        ticket_url = f"https://couchbasecloud.atlassian.net/browse/{ticket}"
+
+        self.commits[commit.sha] = {
+            "commit_url": f"https://github.com/{repo.full_name}/commit/{commit.sha}",
+            "repo": repo.full_name,
+            "pr": pr.number,
+            "pr_url": pr_url,
+            "ticket": ticket,
+            "ticket_url": ticket_url
+        }
+
+
+    def add_commits(self, repo: str, commits: List[str]):
+        """
+        Specify list of commits to interrogate from a specified repo
+        """
+
+        logging.debug(f"Connecting to GitHub repo {repo}")
+        gh_repo = self.gh.get_repo(repo)
+        for commit in commits:
+            self._load_commit(gh_repo, commit)
+
+
+    def print_report(self, markdown: bool):
+        """
+        Displays a final report of all commits
+        """
+
+        if markdown:
+            print ("| Commit | PR   | Ticket |")
+            print ("| ------ | ---- | ------ |")
+
+        for commit, v in self.commits.items():
+            if markdown:
+                print (
+                    "|"
+                    f"[{commit}]({v['commit_url']})"
+                    "|"
+                    f"[#{v['pr']}]({v['pr_url']})"
+                    "|"
+                    f"[{v['ticket']}]({v['ticket_url']})"
+                    "|"
+                )
+            else:
+                print(f"{v['repo']} {commit} {v['pr_url']} {v['ticket_url']}")
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="Retrieve information about AV commits"
+    )
+
+    parser.add_argument(
+        "-c", "--commits", required=True, nargs="+",
+        help="Commit SHAs to investigate"
+    )
+    parser.add_argument(
+        "-r", "--repository", type=str,
+        default="couchbasecloud/couchbase-cloud",
+        help="GitHub repository name to investigate"
+    )
+    parser.add_argument(
+        "-t", "--token-file", type=pathlib.Path,
+        help="File containing GitHub access token"
+    )
+    parser.add_argument(
+        "-m", "--markdown", action="store_true",
+        help="Produce report in Markdown format"
+    )
+    parser.add_argument(
+        "-d", "--debug", action="store_true",
+        help="Enable debugging output"
+    )
+    args = parser.parse_args()
+
+    # Initialize logging
+    logging.basicConfig(
+        stream=sys.stderr,
+        format='%(asctime)s: %(levelname)s: %(message)s',
+        level=logging.DEBUG if args.debug else logging.INFO
+    )
+
+    # Read access token, if provided
+    if args.token_file:
+        with args.token_file.open('r') as f:
+            access_token = f.read().strip()
+    else:
+        access_token = None
+
+    av = AvForCommits(access_token)
+    av.add_commits(args.repository, args.commits)
+    av.print_report(args.markdown)
