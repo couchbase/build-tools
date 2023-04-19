@@ -28,6 +28,10 @@ fi
 # back to the binutils in the gcc12 dir.
 export PATH=/opt/gcc-10.2.0/bin:/opt/gcc-12.2.0/bin:$PATH
 
+# icu apparently expects to be built with clang, this flag isn't present
+# in gcc
+sed -i 's/-mmark-bti-property//g' v8/third_party/icu/BUILD.gn
+
 # Build gn using the stock compiler on the system. gn will find "clang"
 # automatically on Macs; on Linux, it will use CC/CXX.
 pushd gn
