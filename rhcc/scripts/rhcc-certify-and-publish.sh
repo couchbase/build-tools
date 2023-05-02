@@ -160,10 +160,10 @@ if ${SUBMIT}; then
         else
             # arm64 images are only uploaded with -arm64 tags. Remember the
             # first one for running preflight.
-            [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}-${arch}
+            [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}-${ARCH}
         fi
         # Upload arch specific tags for all architectures
-        upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}-${arch}
+        upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}-${ARCH}
     done
 
 else
