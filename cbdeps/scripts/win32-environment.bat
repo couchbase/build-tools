@@ -1,5 +1,9 @@
 set PLATFORM=%1
 
+if "%PLATFORM%" == "windows_msvc2022" (
+  set tools_version=2022
+  goto do_tools_version
+)
 if "%PLATFORM%" == "windows_msvc2019" (
   set tools_version=2019
   goto do_tools_version
@@ -31,6 +35,8 @@ exit 3
 :do_tools_version
 echo %tools_version%| FIND /I "201">Nul && (
   set "tools_dir=C:\Program Files (x86)\Microsoft Visual Studio\%tools_version%\Professional\VC\Auxiliary\Build"
+) || echo %tools_version%| FIND /I "2022">Nul && (
+  set "tools_dir=C:\Program Files\Microsoft Visual Studio\%tools_version%\Professional\VC\Auxiliary\Build"
 ) || (
   set "tools_dir=C:\Program Files (x86)\Microsoft Visual Studio %tools_version%\VC"
 )

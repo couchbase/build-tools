@@ -14,8 +14,8 @@ set PATH=%CD%/out;%PATH%
 
 rem Install specific Windows SDK, if necessary.
 cd %ROOT_DIR%
-if not exist "C:\Program Files (x86)\Windows Kits\10\Include\10.0.20348.0" (
-    curl -L -o winsdk.exe https://go.microsoft.com/fwlink/?linkid=2164145 || goto error
+if not exist "C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0" (
+    curl -L -o winsdk.exe https://go.microsoft.com/fwlink/p/?linkid=2196241 || goto error
     start /wait .\winsdk.exe /l winsdk-install.log /q /features OptionId.WindowsDesktopDebuggers OptionId.DesktopCPPx64
 )
 
@@ -29,9 +29,6 @@ python3 build\util\lastchange.py -o build/util/LASTCHANGE || goto error
 
 rem Fix their bundled ICU's buggy script
 copy /Y %SCRIPTPATH%\windows_patches\asm_to_inline_asm.py third_party\icu\scripts
-
-rem Fix their coding error
-call git apply --ignore-whitespace %SCRIPTPATH%\windows_patches\logging_cctype.patch
 
 rem Tell gn we want to use our own compiler
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
@@ -69,13 +66,13 @@ cd out-release
 copy v8.dll* %INSTALL_DIR%\lib\Release || goto error
 copy v8_lib*.dll* %INSTALL_DIR%\lib\Release || goto error
 copy icu*.dll* %INSTALL_DIR%\lib\Release || goto error
-copy zlib.dll* %INSTALL_DIR%\lib\Release || goto error
+copy third_party_*.dll* %INSTALL_DIR%\lib\Release || goto error
 
 cd ..\out-debug
 copy v8.dll* %INSTALL_DIR%\lib\Debug || goto error
 copy v8_lib*.dll* %INSTALL_DIR%\lib\Debug || goto error
 copy icu*.dll* %INSTALL_DIR%\lib\Debug || goto error
-copy zlib.dll* %INSTALL_DIR%\lib\Debug || goto error
+copy third_party_*.dll* %INSTALL_DIR%\lib\Debug || goto error
 
 cd ..\include
 copy v8*.h %INSTALL_DIR%\include || goto error

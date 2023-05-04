@@ -28,9 +28,11 @@ fi
 # back to the binutils in the gcc12 dir.
 export PATH=/opt/gcc-10.2.0/bin:/opt/gcc-12.2.0/bin:$PATH
 
-# icu apparently expects to be built with clang, this flag isn't present
-# in gcc
-sed -i 's/-mmark-bti-property//g' v8/third_party/icu/BUILD.gn
+# icu apparently expects to be built with clang on arm, this flag isn't
+# present in gcc
+if [ "${PLATFORM}" = "linux" -a "$(uname -m)" = "aarch64" ]; then
+    sed -i 's/-mmark-bti-property//g' v8/third_party/icu/BUILD.gn
+fi
 
 # Build gn using the stock compiler on the system. gn will find "clang"
 # automatically on Macs; on Linux, it will use CC/CXX.
@@ -159,6 +161,7 @@ mkdir -p \
     cp -avi libv8*.* $INSTALL_DIR/lib/Release
     cp -avi libchrome*.* $INSTALL_DIR/lib/Release
     cp -avi libicu*.* $INSTALL_DIR/lib/Release
+    cp -avi libthi*.* $INSTALL_DIR/lib/Release
 )
 (
     cd out/debug
@@ -166,6 +169,7 @@ mkdir -p \
     cp -avi libv8*.* $INSTALL_DIR/lib/Debug
     cp -avi libchrome*.* $INSTALL_DIR/lib/Debug
     cp -avi libicu*.* $INSTALL_DIR/lib/Debug
+    cp -avi libthi*.* $INSTALL_DIR/lib/Debug
 )
 (
     cd include
