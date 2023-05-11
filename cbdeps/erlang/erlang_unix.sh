@@ -47,6 +47,11 @@ case "$PLATFORM" in
         tar xf cbpy*  --wildcards "*tinfo*"
         popd
 
+        # The libtinfo libraries above have a non-existent hardcoded path to the
+        # terminfo content, however we can override this with an environment
+        # variable when running erl
+        sed -i "/BINDIR=.*/a export TERMINFO_DIRS=\${ROOTDIR}/../python/interp/lib/terminfo" erts/etc/unix/erl.src.src
+
         # We use LDFLAGS to ensure we find the libtinfo from cbpy. We also set
         # two rpaths, this is because we trigger an install script during the
         # server install, and this script copies several binaries into a new
