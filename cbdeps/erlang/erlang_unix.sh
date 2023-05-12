@@ -57,7 +57,10 @@ case "$PLATFORM" in
         # server install, and this script copies several binaries into a new
         # location. By providing both rpaths here we avoid the need to modify
         # the rpaths of the copied binaries post copy.
-        LDFLAGS="-L${ROOT_DIR}/cbdeps/cbpy/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../../..:\$$\ORIGIN/../..'
+        LDFLAGS="-L${ROOT_DIR}/cbdeps/cbpy/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../..:\$$\ORIGIN/../../..:\$$\ORIGIN/../../../..:\$$\ORIGIN/../../../../..'
+
+        # We need to provide an rpath for the crypto lib
+        SSL_RPATH=--with-ssl-rpath="\$$\ORIGIN/../../../../.."
 
         # During build, erlang's going to create a bootstrap compiler and
         # build some stuff with that, so we need to tell it where to
@@ -75,6 +78,7 @@ LDFLAGS=$LDFLAGS ./configure --prefix="$INSTALL_DIR" \
       --without-debugger \
       --without-megaco \
       --with-ssl="${ROOT_DIR}/cbdeps/openssl-${OPENSSL_VER}" \
+      $SSL_RPATH \
       $JIT_OPTIONS \
       CFLAGS="-fno-strict-aliasing -O3 -ggdb3"
 
