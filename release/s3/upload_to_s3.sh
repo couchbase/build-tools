@@ -164,29 +164,64 @@ UPLOAD_TMP_DIR=/tmp/${PRODUCT}-${RELEASE}-${BLD_NUM}
 rm -rf ${UPLOAD_TMP_DIR} && mkdir -p ${UPLOAD_TMP_DIR}
 
 cd ${LB_MOUNT}/${PRODUCT}/$RELEASE/$BUILD
+
+# Copy manifest and notices.txt to release directory
 cp ${PRODUCT}-${VERSION}-${BUILD}-manifest.xml ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-manifest.xml
+NOTICES_FILE=blackduck/${PRODUCT}-${VERSION}-${BUILD}-notices.txt
+if [ -e ${NOTICES_FILE} ]; then
+    cp ${NOTICES_FILE} ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-notices.txt
+fi
+
+# For Server 7.2.0 and up, at the moment we produce some installers that we
+# don't want to ship. Filter those out.
+if [ "7.2.0" = $(printf "7.2.0\n${VERSION}" | sort -n | head -1) ]; then
+    SKIP_PLATFORMS=(centos7 oel7 rhel7 ubuntu18.04)
+fi
+for skip in ${SKIP_PLATFORMS[@]}; do
+    EXTRA_FIND_ARGS="${EXTRA_FIND_ARGS} -not -name *${skip}*"
+done
 
 for platform in ${PLATFORMS[@]}
 do
-    for file in `find . -maxdepth 1 \( -name \*${PRODUCT}\*${platform}\* -not -name \*unsigned\* -not -name \*unnotarized\* -not -name \*.md5 -not -name \*.sha256 -not -name \*.properties \)`
+    # Have to disable bash's filename expansion here (with "set -f") -
+    # doesn't seem to be any other way to pass EXTRA_FIND_ARGS to find
+    # without bash expanding the glob wildcards first
+    for file in $( \
+        set -f; \
+        find . -maxdepth 1 \( \
+            -name *${PRODUCT}*${platform}* \
+            -not -name *unsigned* \
+            -not -name *unnotarized* \
+            -not -name *asan* \
+            -not -name *.md5 \
+            -not -name *.sha26 \
+            -not -name *.properties \
+            ${EXTRA_FIND_ARGS} \
+        \) )
     do
-        echo $file
+        # Remove leading "./" from find results
         file=${file/.\//}
-        echo $file
-        build=${file/$VERSION-$BUILD/$FILENAME_VER}
-        if [[ "$COMMUNITY" == "none" && "$build" =~ "community" ]]
+
+        # "artifact" is the filename with the build number stripped out
+        artifact=${file/$VERSION-$BUILD/$FILENAME_VER}
+
+        # Handle various options for CE artifacts
+        if [[ "$COMMUNITY" == "none" && "${artifact}" =~ "community" ]]
         then
-            echo "COMMUNITY=none set, skipping $build"
+            echo "COMMUNITY=none set, skipping ${artifact}"
             continue
         fi
-        if [[ "$COMMUNITY" == "only" && ! "$build" =~ "community" ]]
+        if [[ "$COMMUNITY" == "only" && ! "${artifact}" =~ "community" ]]
         then
-            echo "COMMUNITY=only set, skipping $build"
+            echo "COMMUNITY=only set, skipping ${artifact}"
             continue
         fi
-        cp $file ${UPLOAD_TMP_DIR}/$build
-        echo Creating fresh sha256sum file for $build...
-        sha256sum ${UPLOAD_TMP_DIR}/$build | cut -c1-64 > ${UPLOAD_TMP_DIR}/$build.sha256
+
+        # Copy artifact to release mirror and create checksum file
+        echo Copying ${artifact}
+        cp $file ${UPLOAD_TMP_DIR}/${artifact}
+        echo Creating fresh sha256sum file for ${artifact}
+        sha256sum ${UPLOAD_TMP_DIR}/${artifact} | cut -c1-64 > ${UPLOAD_TMP_DIR}/${artifact}.sha256
     done
 done
 
