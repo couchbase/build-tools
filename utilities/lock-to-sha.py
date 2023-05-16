@@ -137,7 +137,7 @@ if __name__ == "__main__":
         nargs='+',
         metavar='project',
         help='List of projects to skip',
-        default=['testrunner', 'product-texts']
+        default=['testrunner', 'product-texts', 'golang']
     )
     parser.add_argument(
         '--projects',
