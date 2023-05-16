@@ -90,7 +90,10 @@ def get_url_list(product, version):
     model_keys = ["Binaries", "Debug Binaries", "Docker Images", "Binaries SHAs", "Debug Binaries SHAs", "Docker Images SHAs"]
     urls = {
       'Enterprise': {k:[] for k in model_keys},
-      'Community': {k:[] for k in model_keys}
+      'Community': {k:[] for k in model_keys},
+      'Release': {
+          "Notices File": []
+      }
     }
 
     # Pre-compile all regexes, just to be neat
@@ -98,8 +101,9 @@ def get_url_list(product, version):
     dbg_re = re.compile(r'dbg_|debuginfo-|PDB')
     ee_re = re.compile(r'\bee\b|enterprise', flags=re.IGNORECASE)
     ce_re = re.compile(r'community', flags=re.IGNORECASE)
-    docker_re = re.compile(r'docker.tar', flags=re.IGNORECASE)
-    sha_re = re.compile(r'.sha256$|.md5$')
+    docker_re = re.compile(r'docker\.tar', flags=re.IGNORECASE)
+    notices_re = re.compile(r'notices\.txt', flags=re.IGNORECASE)
+    sha_re = re.compile(r'\.sha256$|\.md5$')
 
     # Separate out files into distinct sets
     for rfile in rel_files:
@@ -108,6 +112,12 @@ def get_url_list(product, version):
             continue
 
         file_url = f'https://{s3_rel_bucket}/{s3_rel_prefix}{rfile}'
+
+        # Identify any release-wide files first, before diving into
+        # edition-specific files
+        if notices_re.search(rfile):
+          urls['Release']['Notices File'].append(file_url)
+          continue
 
         # Sort files into EE or CE; skip files that aren't explicitly
         # either of those.
