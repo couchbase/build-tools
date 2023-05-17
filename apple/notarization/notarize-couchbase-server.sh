@@ -52,10 +52,14 @@ check_notarization_status() {
     esac
 }
 
-while getopts 'r:v:b:a:' options; do
+# default to notarize both community and enterprise
+EDITION="community enterprise"
+
+while getopts 'r:v:e:b:a:' options; do
     case "$options" in
         r) RELEASE=${OPTARG};;
         v) VERSION=${OPTARG};;
+        e) EDITION=${OPTARG};;
         b) BLD_NUM=${OPTARG};;
         a) ARCH=${OPTARG};;
         \?) usage;;
@@ -68,8 +72,11 @@ fi
 
 DMG_URL_DIR=http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}
 
-DMGS=(couchbase-server-enterprise_${VERSION}-${BLD_NUM}-macos_${ARCH}-unnotarized.dmg couchbase-server-community_${VERSION}-${BLD_NUM}-macos_${ARCH}-unnotarized.dmg)
+declare -a DMGS
 declare -a UNNOTARIZED
+for edition in ${EDITION}; do
+    DMGS+=(couchbase-server-${edition}_${VERSION}-${BLD_NUM}-macos_${ARCH}-unnotarized.dmg)
+done
 
 # Check if DMGS are notarized
 for file in ${DMGS[*]}; do
