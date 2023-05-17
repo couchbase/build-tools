@@ -6,7 +6,7 @@ set ZLIB_VER=1.2.13-2
 set DEPSDIR=%WORKSPACE%\deps
 rmdir /s /q %DEPSDIR%
 mkdir %DEPSDIR%
-cbdep install -d %DEPSDIR% zlib %ZLIB_VER%
+cbdep -p windows install -d %DEPSDIR% zlib %ZLIB_VER% || goto error
 set ZLIB_PATH=%DEPSDIR%\zlib-%ZLIB_VER%
 
 cd %ROOT_DIR%\curl
