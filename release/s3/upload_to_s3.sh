@@ -97,7 +97,7 @@ if [ ! -e ${LB_MOUNT} ]; then
 fi
 
 
-# Compute target filename component
+# Compute target filename components
 if [ -z "$SUFFIX" ]
 then
     RELEASE_DIRNAME=$VERSION
@@ -107,25 +107,38 @@ else
     FILENAME_VER=$VERSION-$SUFFIX
 fi
 
-# Add product super-directory, if not couchbase-server
+# Note: bizarrely, "mkdir" on zz-lightweight, when creating directories
+# on the NFS-mounted /releases, will create them with either permissions
+# 770 or 755, seemingly at random. We use "mkdir -m 755" throughout here
+# to ensure the desired permissions. Also, "mkdir -p -m 755" only
+# ensures that the final directory component is 755; any intermediate
+# directories it creates get a random permission. Therefore we create
+# any intermediate directories explicitly here. We still use "mkdir -p"
+# just to avoid needing to check whether they exist first.
+
+# Compute root destination directories, creating them as necessary.
+if [[ "$LIVE" = "true" ]]
+then
+    S3_ROOT=s3://packages.couchbase.com/releases
+    RELEASE_ROOT=${RELEASES_MOUNT}
+else
+    S3_ROOT=s3://packages-staging.couchbase.com/releases
+    RELEASE_ROOT=${RELEASES_MOUNT}/staging
+    mkdir -p -m 755 ${RELEASE_ROOT}
+fi
+
+# Add product super-directory, if not couchbase-server. Create if
+# necessary.
 if [[ "${PRODUCT}" != "couchbase-server" ]]
 then
     RELEASE_DIRNAME=${PRODUCT}/${RELEASE_DIRNAME}
-fi
-
-# Compute destination directories
-ROOT=s3://packages-staging.couchbase.com/releases/$RELEASE_DIRNAME
-RELEASE_DIR=${RELEASES_MOUNT}/staging/$RELEASE_DIRNAME
-
-if [[ "$LIVE" = "true" ]]
-then
-    S3CONFIG=~/.ssh/live.s3cfg
-    ROOT=s3://packages.couchbase.com/releases/$RELEASE_DIRNAME
-    RELEASE_DIR=${RELEASES_MOUNT}/$RELEASE_DIRNAME
+    mkdir -p -m 755 ${RELEASE_ROOT}/${PRODUCT}
 fi
 
 # Create destination directory
-mkdir -p $RELEASE_DIR
+RELEASE_DIR=${RELEASE_ROOT}/${RELEASE_DIRNAME}
+mkdir -p -m 755 $RELEASE_DIR
+S3_DIR=${S3_ROOT}/${RELEASE_DIRNAME}
 
 upload()
 {
@@ -136,11 +149,11 @@ upload()
         echo Uploading ${RELEASE_DIRNAME} ...
         echo CE are uploaded PRIVATELY ...
         perm_arg="private"
-        aws s3 sync ${UPLOAD_TMP_DIR} ${ROOT}/ --acl private --exclude "*" --include "*community*"
-        aws s3 sync ${UPLOAD_TMP_DIR} ${ROOT}/ --acl public-read --exclude "*community*"
+        aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl private --exclude "*" --include "*community*"
+        aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl public-read --exclude "*community*"
     else
         echo Uploading ${RELEASE_DIRNAME} ...
-        aws s3 sync ${UPLOAD_TMP_DIR} ${ROOT}/ --acl public-read
+        aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl public-read
     fi
 
     echo Copying ${UPLOAD_TMP_DIR} to ${RELEASE_DIR} ...
