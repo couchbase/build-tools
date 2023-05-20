@@ -48,7 +48,7 @@ fi
 
 # Backwards compatibility for old naming of Server cbdeps
 if [ "${PROFILE}" != "server" ]; then
-    export BLD_NUM="${PROFILE}${BLD_NUM}"
+    export BLD_NUM="${BLD_NUM}_${PROFILE}"
 fi
 
 TARBALL_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.tgz

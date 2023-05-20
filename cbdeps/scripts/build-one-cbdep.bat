@@ -24,7 +24,7 @@ powershell -command "& { (New-Object Net.WebClient).DownloadFile('%SITE%', '%FIL
 set PATH=%ROOT_DIR%\tools;%PATH%
 
 if NOT "%PROFILE%" == "server" (
-  set BLD_NUM=%PROFILE%%BLD_NUM%
+  set BLD_NUM=%BLD_NUM%_%PROFILE%
 )
 
 rem Our Jenkins labels and Jenkins job ARCH parameters are standardized
