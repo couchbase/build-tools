@@ -36,8 +36,3 @@
 "a136afda-2456-41df-a8f4-2d74ef679b21":
   bd-id-aliases:
     - "043e4252-a86b-4281-a1a3-a762fe0470de"
-
-# OpenJDK
-"324fb534-b708-4c94-95d0-25335b546471":
-  fallback-versions:
-    "11.0.19+7": "11.0.19.0.7"
