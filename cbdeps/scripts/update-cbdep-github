@@ -7,6 +7,10 @@
 
 PROJECT=$1
 
+if ${FORCE}; then
+  FORCE="--force"
+fi
+
 # PCRE's upstream is still svn, so the update process is totally different
 case "$PROJECT" in
   pcre)
@@ -39,5 +43,5 @@ elif [ ${PROJECT} = "breakpad" ]; then
 fi
 
 git remote add upstream ${upstream_url}
-git fetch --all --tags
-git push --tags origin 'refs/remotes/upstream/*:refs/heads/*'
+git fetch --all --tags ${FORCE}
+git push --tags origin 'refs/remotes/upstream/*:refs/heads/*' ${FORCE}
