@@ -9,6 +9,8 @@ PROJECT=$1
 
 if ${FORCE}; then
   FORCE="--force"
+else
+  FORCE=""
 fi
 
 # PCRE's upstream is still svn, so the update process is totally different
