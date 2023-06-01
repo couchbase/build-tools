@@ -3,7 +3,7 @@
 
 if "%VERSION:~0,2%" == "24" (
     rem OpenSSL 1.x
-    set OPENSSL_VER=1.1.1t-1
+    set OPENSSL_VER=1.1.1u-1
 ) else if "%VERSION:~0,2%" == "25" (
     rem OpenSSL 3.x
     set OPENSSL_VER=3.0.7-3

@@ -16,7 +16,7 @@ else
         # v24 configure: error: JIT only works on x86 64-bit
         JIT_OPTIONS="--disable-jit"
     fi
-    OPENSSL_VER=1.1.1t-1
+    OPENSSL_VER=1.1.1u-1
 fi
 popd
 
