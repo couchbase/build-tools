@@ -1,0 +1,7 @@
+FROM {{ baseimage }}
+
+ARG RPMFILE=couchbase-{{ target }}-{{ version }}-{{ bld_num }}.noarch.rpm
+COPY ${RPMFILE} /tmp
+RUN set -x \
+    && yum install -y /tmp/${RPMFILE} \
+    && yum search --showduplicates -y couchbase | grep couchbase-server

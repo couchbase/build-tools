@@ -1,0 +1,7 @@
+[couchbase-{{ target }}-{{ distro }}-{{ arch }}]
+name=Couchbase {{ target }} {{ distro }} {{ arch }} yum repository
+baseurl=https://{{ bucket }}/{{ prefix }}/rpms/{{ target }}/{{ distro }}/{{ arch }}/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/GPG-KEY-COUCHBASE-2.0

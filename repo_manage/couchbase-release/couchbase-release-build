@@ -1,0 +1,250 @@
+#!/usr/bin/env -S python3 -u
+
+import argparse
+import logging
+import os
+import pathlib
+import shutil
+import sys
+import yaml
+from typing import Any, Dict, List, Union
+from util import enable_run_trace, pushd, render_template, run
+
+SCRIPT_DIR: pathlib.Path = pathlib.Path(__file__).resolve().parent
+
+class CouchbaseReleaseBuilder:
+
+    def __init__(
+        self, version:str, bldnum: str, conf_file: pathlib.Path
+    ) -> None:
+
+        self.script_dir = SCRIPT_DIR
+        self.version: str = version
+        self.bldnum: str = bldnum
+        conf: Dict
+        with conf_file.open() as c:
+            conf = yaml.safe_load(c)
+        self.targets: Dict[str, Any] = conf["targets"]
+        self.build_dir: pathlib.Path = self.script_dir / "build"
+        shutil.rmtree(self.build_dir, ignore_errors=True)
+        self.build_dir.mkdir(exist_ok = True)
+
+
+    def context_for(self, target: str) -> Dict[str, Union[str, pathlib.Path]]:
+        """
+        Returns a standard Jinja2 context for the specified target
+        """
+        return {
+            "target": target,
+            "bucket": self.targets[target]["s3"]["bucket"],
+            "prefix": self.targets[target]["s3"]["prefix"],
+            "version": self.version,
+            "bld_num": self.bldnum,
+            "src_dir": self.script_dir
+        }
+
+
+    def build_deb(self, target: str) -> None:
+        """
+        Builds couchbase-<target>.deb, including the basic "Linux" listfile
+        and GPG keys
+        """
+
+        deb_filename = \
+            f"couchbase-{target}-{self.version}-{self.bldnum}-noarch.deb"
+        logging.info(f"Creating {deb_filename}")
+
+        # Construct the DEBIAN directory
+        top: pathlib.Path = self.build_dir / "deb"
+        shutil.rmtree(top, ignore_errors=True)
+        top.mkdir()
+        debian: pathlib.Path = top / "DEBIAN"
+        debian.mkdir()
+
+        # Render the templates
+        for debtmpl in (self.script_dir / "deb").glob("*.j2"):
+            render_template(
+                debtmpl,
+                debian / debtmpl.stem,
+                self.context_for(target)
+            )
+        os.chmod(debian / "postinst", 0o755)
+
+        # Add GPG public keys
+        gpg_file: pathlib.Path = top \
+            / "usr" / "share" / "keyrings" / "couchbase-repokey.asc"
+        gpg_file.parent.mkdir(parents = True)
+        shutil.copy(
+            self.script_dir / "GPG-KEY-COUCHBASE-2.0",
+            gpg_file
+        )
+
+        # Build the package
+        logging.debug("Running dpkg-deb")
+        with pushd(self.build_dir):
+            run(f"dpkg-deb --build -Zgzip deb {deb_filename}")
+
+
+    def build_rpm(self, target: str) -> None:
+        """
+        Builds couchbase-<target>.rpm, including the basic "Linux" repofile
+        and GPG keys
+        """
+
+        rpm_filename = \
+            f"couchbase-{target}-{self.version}-{self.bldnum}.noarch.rpm"
+        logging.info(f"Creating {rpm_filename}")
+
+        # Construct the rpmbuild directory
+        top: pathlib.Path = self.build_dir / "rpmbuild"
+        shutil.rmtree(top, ignore_errors=True)
+        top.mkdir()
+
+        # Render the .spec file from template
+        render_template(
+            self.script_dir / "rpm" / "couchbase-release.spec.in",
+            top / "couchbase-release.spec",
+            self.context_for(target)
+        )
+
+        # Build the package
+        logging.debug("Running rpmbuild")
+        run([
+            "rpmbuild", "-bb",
+            # _topdir is where rpmbuild puts things
+            "-D", f"_topdir {top}",
+            f"{top}/couchbase-release.spec"
+        ])
+        rpm_file = top / "RPMS" / "noarch" / rpm_filename
+        rpm_file.rename(self.build_dir / rpm_filename)
+
+
+    def build_target(self, target:str) -> None:
+        """
+        Builds couchbase-<target>.rpm and couchbase-<target>.deb
+        """
+
+        self.build_deb(target)
+        self.build_rpm(target)
+
+
+    def build(self, targets: List[str]) -> None:
+        """
+        Executes build steps for specified targets (default: all)
+        """
+
+        if len(targets) == 0:
+            # Default to all known targets; use list comprehension to
+            # keep mypy happy
+            targets = [x for x in self.targets.keys()]
+
+        for target in targets:
+            self.build_target(target)
+
+
+    def run_test(
+        self, target: str, baseimage: str, format: str, arch: str
+    ) -> None:
+        """
+        Builds a local Docker image to test the created
+        couchbase-release packages
+        """
+
+        logging.info(f"Running test build for {target} - {baseimage}")
+        context = self.context_for(target)
+        context["baseimage"] = baseimage
+        render_template(
+            self.script_dir / "test" / f"Dockerfile.{format}.j2",
+            self.build_dir / "Dockerfile",
+            context
+        )
+        with pushd(self.build_dir):
+            run(
+                f"docker buildx build --platform {arch} --pull --no-cache ."
+            )
+            run(
+                "docker buildx prune -f"
+            )
+
+
+    def test_target(self, target: str) -> None:
+        """
+        Runs tests for created installers across defined set of OSes
+        """
+
+        for arch in ["amd64", "arm64"]:
+            for baseimage in [
+                "almalinux:8",
+                "almalinux:9",
+                "amazonlinux:2",
+                "amazonlinux:2023"
+            ]:
+                self.run_test(target, baseimage, "rpm", arch)
+            for baseimage in [
+                "debian:10",
+                "debian:11",
+                "ubuntu:20.04",
+                "ubuntu:22.04"
+            ]:
+                self.run_test(target, baseimage, "deb", arch)
+
+
+    def test(self, targets: List[str]) -> None:
+        """
+        Runs tests for specified targets (default: all)
+        """
+
+        if len(targets) == 0:
+            # Default to all known targets; use list comprehension to
+            # make mypy happy
+            targets = [x for x in self.targets.keys()]
+
+        for target in targets:
+            self.test_target(target)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Build script for couchbase-release packages"
+    )
+    parser.add_argument(
+        "--version", "-v", type=str, required=True,
+        help="Version of package"
+    )
+    parser.add_argument(
+        "--bldnum", "-b", type=str, required=True,
+        help="Build number of package"
+    )
+    parser.add_argument(
+        "--targets", "-t", type=str, nargs="+", default=[],
+        help="Which target(s) to produce (default: all)"
+    )
+    parser.add_argument(
+        "--conf-file", "-c", type=pathlib.Path,
+        default=SCRIPT_DIR.parent / "conf" / "repo_manage.yaml",
+        help="Path to repo_manage.yaml"
+    )
+    parser.add_argument(
+        "--skip-tests", action="store_true", help="Skip running tests"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Emit debug logging"
+    )
+
+    args = parser.parse_args()
+
+    # Initialize logging
+    logging.basicConfig(
+        stream=sys.stderr,
+        format='%(asctime)s: %(levelname)s: %(message)s',
+        level=logging.DEBUG if args.debug else logging.INFO
+    )
+    enable_run_trace(args.debug)
+
+    builder = CouchbaseReleaseBuilder(
+        args.version, args.bldnum, args.conf_file
+    )
+
+    builder.build(args.targets)
+    if not args.skip_tests:
+        builder.test(args.targets)

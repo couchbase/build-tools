@@ -1,0 +1,9 @@
+FROM {{ baseimage }}
+
+ARG DEBFILE=couchbase-{{ target }}-{{ version }}-{{ bld_num }}-noarch.deb
+COPY ${DEBFILE} /tmp
+RUN set -x \
+    && apt-get update \
+    && apt-get install -y /tmp/${DEBFILE} \
+    && apt-get update \
+    && apt-cache search couchbase | grep couchbase-server

@@ -1,0 +1,9 @@
+Package: couchbase-{{ target }}
+Version: {{ version }}-{{ bld_num }}
+Section: custom
+Priority: optional
+Architecture: all
+Essential: no
+Maintainer: Couchbase
+Description: This package contains Couchbase repository GPG keys as well as configuration for Apt repositories
+Pre-Depends: base-files, curl, ca-certificates

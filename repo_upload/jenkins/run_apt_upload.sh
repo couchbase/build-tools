@@ -1,8 +1,5 @@
 #!/bin/bash -e
 
-# Ensure we have the latest image
-docker pull couchbasebuild/ubuntu-1604-apt-upload:latest
-
 # This script expects a /home/couchbase/repo_upload to be available
 # on the Docker host, and mounted into the Jenkins agent container at
 # /home/couchbase/repo_upload
@@ -23,10 +20,10 @@ else
     PRODUCT_FILE="beta.json"
 fi
 
-docker run --rm -u couchbase \
+docker run --pull always --rm -u couchbase \
     -w /home/couchbase/repo_upload \
     -v /home/couchbase/jenkinsdocker-ssh:/ssh \
     -v /home/couchbase/repo_upload:/home/couchbase/repo_upload \
     -v /home/couchbase/repo_upload/${CONF_FILE}:/etc/repo_upload.ini \
-    couchbasebuild/ubuntu-1604-apt-upload \
+    couchbasebuild/ubuntu-1604-apt-upload --debug \
         -e ${EDITION} -D ${CONFDIR} -f ${PRODUCT_FILE}

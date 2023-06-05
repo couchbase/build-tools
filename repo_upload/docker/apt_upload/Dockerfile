@@ -12,7 +12,7 @@ ENV EDITION enterprise
 RUN apt-get update && \
     apt-get install -y wget && \
     echo "deb http://repo.aptly.info/ squeeze main" >> /etc/apt/sources.list && \
-    wget -qO - https://www.aptly.info/pubkey.txt | apt-key add - && \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A0546A43624A8331 && \
     apt-get update && \
     apt-get install -u aptly
 

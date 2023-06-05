@@ -1,0 +1,62 @@
+# Config for repo_manage
+
+aptly:
+  # Directory where aptly keeps its own repository
+  root_dir: /buildteam/linux_repos/aptly
+  gpg_key: 9BBE2052E9CB0900
+
+createrepo:
+  # createrepo operates on yum repositories in-place and has no repository
+  # of its own, so there's no root_dir here; the yum repos will be formed
+  # in the "rpms" subdirectory of the local/base_dir directory for each
+  # target, defined below.
+  gpg_key: 9BBE2052E9CB0900
+
+
+# For the internal local repositories, base_dir should generally be
+# /buildteam/linux_repos/${target}, but we allow specifying something
+# different here just in case. This base dir will be extended with
+# either "debian" or "rpms" to form the final root of the package
+# archive.
+
+# For S3, specify the region and bucket to populate, along with a prefix
+# path. This prefix will also  be extended with either "debian" or
+# "rpms" to form the base URL of the corresponding package archive. eg.,
+# release apt repo is https://packages.couchbase.com/repos/debian/
+
+targets:
+  release:
+    local:
+      base_dir: /buildteam/linux_repos/release
+    s3:
+      region: us-east-1
+      bucket: packages.couchbase.com
+      profile: default
+      prefix: repos
+
+  staging:
+    local:
+      base_dir: /buildteam/linux_repos/staging
+    s3:
+      region: us-east-1
+      bucket: packages-staging.couchbase.com
+      profile: default
+      prefix: repos
+
+  beta:
+    local:
+      base_dir: /buildteam/linux_repos/beta
+    s3:
+      region: us-east-1
+      bucket: beta-packages.couchbase.com
+      profile: default
+      prefix: repos
+
+  beta-staging:
+    local:
+      base_dir: /buildteam/linux_repos/beta-staging
+    s3:
+      region: us-east-1
+      bucket: beta-packages-staging.couchbase.com
+      profile: default
+      prefix: repos

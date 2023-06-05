@@ -1,0 +1,28 @@
+{
+  "rootDir": "{{ root_dir }}",
+  "downloadConcurrency": 4,
+  "downloadSpeedLimit": 0,
+  "architectures": [],
+  "dependencyFollowSuggests": false,
+  "dependencyFollowRecommends": false,
+  "dependencyFollowAllVariants": false,
+  "dependencyFollowSource": false,
+  "dependencyVerboseResolve": false,
+  "gpgDisableSign": false,
+  "gpgDisableVerify": false,
+  "gpgProvider": "gpg",
+  "downloadSourcePackages": false,
+  "skipLegacyPool": true,
+  "skipContentsPublishing": true,
+  "FileSystemPublishEndpoints": {
+{%- for name, data in targets.items()                      %}
+    "{{ name }}": {
+      "rootDir": "{{ data.local.base_dir }}/debian",
+      "linkMethod": "copy",
+      "verify": "size"
+    }{% if not loop.last %},{% endif %}
+{%- endfor                                                 %}
+  },
+  "S3PublishEndpoints": {
+  }
+}

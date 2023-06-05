@@ -1,0 +1,186 @@
+#!/usr/bin/env -S python -u
+
+import argparse
+import logging
+import pathlib
+import sys
+import yaml
+from aptly import Aptly
+from createrepo import Createrepo
+from typing import List, Optional
+from util import enable_run_trace, sync_to_s3bucket
+
+SCRIPT_DIR: pathlib.Path = pathlib.Path(__file__).resolve().parent
+
+class ReposTool:
+    """
+    Manages yum/apt repositories locally and on S3
+    """
+
+    def __init__(
+        self, target:str, distro: str, conf_file: pathlib.Path
+    ) -> None:
+
+        self.target: str = target
+        self.distro: str = distro
+
+        with conf_file.open() as c:
+            self.conf = yaml.safe_load(c)
+        self.targets = self.conf["targets"]
+
+        self.aptly = Aptly(self.conf["aptly"], self.targets)
+        self.createrepo = Createrepo(self.conf["createrepo"], self.targets)
+
+
+    def add_package(
+        self, target: str, distro: str, pkg: str
+    ) -> None:
+        """
+        Registers a request to add a package file the appropriate repository.
+        Does basic error-checking. Will silently ignore any non-package files.
+        Actual import will be done when commit() is called.
+        """
+
+        pkgfile: pathlib.Path = pathlib.Path(pkg)
+        if not pkgfile.exists():
+            logging.fatal("Package file {pkg} does not exist!")
+            sys.exit(4)
+
+        # Register request with appropriate sub-manager
+        repo: Optional[str]
+        repotype: str
+        if pkgfile.suffix == ".rpm":
+            repo = self.createrepo.add_package(target, distro, pkgfile)
+            repotype = "createrepo"
+        elif pkgfile.suffix == ".deb":
+            repo = self.aptly.add_package(target, distro, pkgfile)
+            repotype = "aptly"
+        else:
+            logging.debug(f"Silently ignoring non-package file {pkgfile}")
+            return
+
+        # A return value of None means the sub-manager decided not to
+        # accept the package, and would have already logged why. So here
+        # we just log that things are all OK.
+        if repo is not None:
+            logging.debug(
+                f"Request to add package file {pkgfile} to {repotype} repository {repo}"
+            )
+
+
+    def commit(self) -> None:
+        """
+        Commits all changes to local repositories, making them available
+        on local disk
+        """
+
+        self.aptly.commit()
+        self.createrepo.commit()
+
+
+    def publish(self, only_recent = True) -> None:
+        """
+        Publishes all changes to S3 repositories, making them publicly available
+        """
+
+        logging.info(f"Syncing target {self.target} to s3:")
+        target_meta = self.targets[self.target]["s3"]
+        sync_to_s3bucket(
+            target_meta["region"],
+            target_meta["bucket"],
+            target_meta["profile"],
+            f'{target_meta["prefix"]}',
+            pathlib.Path(self.targets[self.target]["local"]["base_dir"]),
+            only_recent=only_recent
+        )
+
+
+    def add_packages(self, pkgs: List[str]) -> None:
+        """
+        Add the specified package files to the selected target/distribution.
+        """
+
+        logging.info("Pre-processing list of packages to import")
+        for pkg in pkgs:
+            self.add_package(self.target, self.distro, pkg)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Update and publish yum/apt repositories. Our "
+        "repositories are defined by 'distro' (Linux distribution) and "
+        "'target' (general release, staging, beta, etc.).",
+        add_help=False
+    )
+
+    actions = parser.add_argument_group(
+        title="Actions",
+        description="At least one of the following must be specified "
+        "to define what actions will be taken. Any combination of actions "
+        "may be provided, unless otherwise noted."
+    )
+    actions.add_argument(
+        "--add-package", type=str, dest="pkgs", metavar="PKG", nargs="+", default=[],
+        help="Path to .deb or .rpm file to add to repository"
+    )
+    actions.add_argument(
+        "--publish", action="store_true",
+        help="Publish modified repositories to S3 (works with --add-package)"
+    )
+    actions.add_argument(
+        "--publish-all", action="store_true",
+        help="Publish all known repositories to S3 (full sync)"
+    )
+
+    repoargs = parser.add_argument_group(
+        title="Repository definition",
+        description="Coordinates for the repository to manage"
+    )
+    repoargs.add_argument(
+        "--target", "-t", type=str, default="staging",
+        help="Target of repository: release, staging, beta... (default: 'staging')"
+    )
+    repoargs.add_argument(
+        "--distro", "-d", type=str, default="auto",
+        help="Linux distribution the repository is for (default: 'auto')"
+    )
+
+    extraopts = parser.add_argument_group(
+        title="Additional options"
+    )
+    extraopts.add_argument(
+        "--conf-file", "-c", type=pathlib.Path,
+        default=SCRIPT_DIR.parent / "conf" / "repo_manage.yaml",
+        help="Path to repo_manage.yaml"
+    )
+    extraopts.add_argument(
+        "--debug", action="store_true", help="Emit debug logging"
+    )
+    extraopts.add_argument(
+        "-h", "--help", action="help",
+        help="Print this usage message and exit"
+    )
+
+    args = parser.parse_args()
+
+    # Initialize logging
+    logging.basicConfig(
+        stream=sys.stderr,
+        format='%(asctime)s: %(levelname)s: %(message)s',
+        level=logging.DEBUG if args.debug else logging.INFO
+    )
+    enable_run_trace(args.debug)
+
+    tool = ReposTool(
+        args.target, args.distro, args.conf_file
+    )
+
+    if args.pkgs:
+        tool.add_packages(args.pkgs)
+        tool.commit()
+        if args.publish:
+            tool.publish()
+    if args.publish_all:
+        tool.publish(only_recent=False)
+
+    logging.info("Done!")

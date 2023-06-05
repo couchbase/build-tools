@@ -1,8 +1,0 @@
-deb [ arch=amd64 ] http://packages%STAGING%.couchbase.com/releases/couchbase-server/enterprise/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-deb [ arch=amd64 ] http://packages%STAGING%.couchbase.com/releases/couchbase-server/community/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-deb http://packages%STAGING%.couchbase.com/releases/couchbase-lite-repo/enterprise/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-deb http://packages%STAGING%.couchbase.com/releases/couchbase-lite-repo/community/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-# deb [ arch=amd64 ] http://beta-packages%STAGING%.couchbase.com/releases/couchbase-server/enterprise/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-# deb [ arch=amd64 ] http://beta-packages%STAGING%.couchbase.com/releases/couchbase-server/community/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-# deb http://beta-packages%STAGING%.couchbase.com/releases/couchbase-lite-repo/enterprise/deb/ %DCODE_SERVER% %DCODE_SERVER%/main
-# deb http://beta-packages%STAGING%.couchbase.com/releases/couchbase-lite-repo/community/deb/ %DCODE_SERVER% %DCODE_SERVER%/main

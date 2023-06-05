@@ -1,0 +1,82 @@
+Name:           couchbase-{{ target }}
+Version:        {{ version }}
+Release:        {{ bld_num }}
+Summary:        Entrypoint RPM for accessing Couchbase Yum repository
+Requires:       ca-certificates, curl
+Group:          System Environment/Base
+License:        Apache
+URL:            https://www.couchbase.com/
+BuildArch:      noarch
+
+%description
+This package contains Couchbase repository GPG keys as well as
+configuration for Yum repositories
+
+%global debug_package %{nil}
+
+%prep
+
+%build
+
+%install
+rm -rf %{buildroot}
+install -Dpm 644 {{ src_dir }}/GPG-KEY-COUCHBASE-2.0 \
+    %{buildroot}/etc/pki/rpm-gpg/GPG-KEY-COUCHBASE-2.0
+
+%clean
+rm -rf %{buildroot}
+
+%post
+
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+fi
+
+MAJVER=$(echo "$VERSION" | sed -e 's/\..*//')
+
+if [ "${ID}" = "amzn" ]; then
+    DISTRO="${ID}${MAJVER}"
+elif echo "${ID_LIKE}" | grep rhel >& /dev/null; then
+    DISTRO="rhel${MAJVER}"
+else
+    DISTRO="unknown"
+fi
+ARCH=$(uname -m)
+
+# Download the latest .repo files for the "linux" repository and any
+# distro-specific repository. If none exists, this will silently exit
+# without raising any error and without writing anything to the output
+# file, which is what we want.
+cd /etc/yum.repos.d
+curl --fail --silent -o couchbase-{{ target }}-linux.repo \
+    https://{{ bucket }}/{{ prefix }}/couchbase-{{ target }}-linux-${ARCH}.repo || true
+curl --fail --silent -o couchbase-{{ target }}-distro.repo \
+    https://{{ bucket }}/{{ prefix }}/couchbase-{{ target }}-${DISTRO}-${ARCH}.repo || true
+
+# Alert user if *nothing* was downloaded.
+if [ ! -f couchbase-{{ target }}-linux.repo -a ! -f couchbase-{{ target }}-distro.repo ]; then
+    echo
+    echo
+    echo "WARNING: No Couchbase repositories found for ${DISTRO} ${ARCH}!"
+    echo "You will not be able to install any Couchbase packages via 'yum' or 'dnf'."
+    echo
+fi
+
+%postun
+
+%files
+%defattr(-,root,root,-)
+/etc/pki/rpm-gpg/GPG-KEY-COUCHBASE-2.0
+
+%changelog
+* Fri Jun 02 2023 Chris Hillery <ceej@couchbase.com>
+- Download .repo files from target archives
+
+* Fri Jun 19 2020 Blair Watt <blair.watt@couchbase.com>
+- Add support for Amazon Linux 2
+
+* Fri Feb 14 2020 Blair Watt <blair.watt@couchbase.com>
+- Add support for CentOS 8
+
+* Thu May 07 2015 Hari Kodungallur <hari.kodungallur@couchbase.com>
+- Initial release
