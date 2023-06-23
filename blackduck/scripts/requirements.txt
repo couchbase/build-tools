@@ -1,2 +1,2 @@
-blackduck==1.0.7
+blackduck==1.1.0
 PyYAML==6.0
