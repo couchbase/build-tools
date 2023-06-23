@@ -49,7 +49,7 @@ rm -rf cbbuild
 rm -rf goproj/src/github.com/couchbase/query/data/sampledb
 rm -rf goproj/src/github.com/couchbase/docloader/examples
 rm -rf goproj/src/github.com/couchbase/indexing/secondary/docs
-rm -f tlm/cmake/Modules/rebar
+find . -name rebar -print0 | xargs -0 rm -rf
 
 # General-purpose removal of test data, examples, docs, etc.
 find . -name analytics -prune -o -type d -name test\* -print0 | xargs -0 rm -rf
