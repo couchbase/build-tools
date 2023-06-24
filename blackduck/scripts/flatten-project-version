@@ -79,8 +79,13 @@ class BlackDuckFlatten:
             params={'q':[f'{key}:{name}']},
             items=False,
         )
-        assert result["totalCount"] == 1
-        return result["items"][0]
+        # The Black Duck API only does a substring match, so we need to
+        # dig through the results to find the one we want
+        for result in result["items"]:
+            if result[key] == name:
+                return result
+        logging.fatal(f"Did not find {resource} {key}:{name}!")
+        sys.exit(2)
 
 
     def read_scan_components(self):
