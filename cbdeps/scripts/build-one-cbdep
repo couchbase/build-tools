@@ -46,6 +46,14 @@ if [ "${PLATFORM}" == "macos" ]; then
     export PLATFORM=macosx
 fi
 
+if [ "${PLATFORM}" == "macosx" ]; then
+    if [ "$(uname -m)" == "x86_64" ]; then
+        export MACOSX_DEPLOYMENT_TARGET=10.15
+    else
+        export MACOSX_DEPLOYMENT_TARGET=12.0
+    fi
+fi
+
 # Backwards compatibility for old naming of Server cbdeps
 if [ "${PROFILE}" != "server" ]; then
     export BLD_NUM="${BLD_NUM}_${PROFILE}"
