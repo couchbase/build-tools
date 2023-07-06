@@ -41,3 +41,13 @@
 "961db792-aeb0-450b-ba00-4f9b0afa6dda":
   bd-id-aliases:
     - "a5066b09-b6fa-4065-b11b-f45326aa9332"
+
+# OpenJDK
+"324fb534-b708-4c94-95d0-25335b546471":
+  fallback-versions:
+    "jdk-17.0.7-ga": "jdk-17.0.7+7"
+
+# GRPC
+"4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c":
+  bd-id-aliases:
+    - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
