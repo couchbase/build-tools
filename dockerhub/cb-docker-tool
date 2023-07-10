@@ -619,7 +619,7 @@ if __name__ == "__main__":
     )
     actions.add_argument(
         "--docker-save", type=str, metavar="TARFILE",
-        help="Save the resulting image to a tarfile (includes .sha256 file); %P "
+        help="Save the resulting image to a tarfile (includes .sha256 file); %%P "
         "in the path will be replaced with the platform (amd64/arm64), "
         "allowing for multiple platforms to be saved at once"
     )
