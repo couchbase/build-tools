@@ -24,11 +24,13 @@ class DockerTool:
     platform: str
     imagenames: List[str]
     buildargs: List[str]
+    templateoverrides: List[str]
     gitrepo: Optional[str]
     gitdir: Optional[pathlib.Path]
     contextdir: Optional[pathlib.Path]
     do_docker_build: bool
     do_docker_push: bool
+    do_docker_load: bool
     do_docker_save: bool
     do_update_github: bool
     force_update_github: bool
@@ -48,11 +50,13 @@ class DockerTool:
         self.platform = self._setup_platform(platform)
         self.imagenames = []
         self.buildargs = []
+        self.templateoverrides = []
         self.gitrepo = githubrepo
         self.gitdir = None
         self.contextdir = None
         self.do_docker_build = False
         self.do_docker_push = False
+        self.do_docker_load = False
         self.do_docker_save = False
         self.do_update_github = False
         self.force_update_github = False
@@ -103,6 +107,11 @@ class DockerTool:
     def will_docker_push(self) -> None:
         self.do_docker_build = True
         self.do_docker_push = True
+
+
+    def will_docker_load(self) -> None:
+        self.do_docker_build = True
+        self.do_docker_load = True
 
 
     def will_docker_save(self, tarfile: str) -> None:
@@ -207,14 +216,14 @@ class DockerTool:
             return
         version, bldnum = self.version.split('-')
         if self.product == "sync-gateway":
-            self.add_buildargs([
+            self.add_templateoverrides([
                 "SGW_PACKAGE=http://latestbuilds.service.couchbase.com/builds/"
                 f"latestbuilds/{self.product.replace('-','_')}/{version}/"
                 f"{bldnum}/couchbase-{self.product}-{self.edition}_{version}"
                 f"-{bldnum}_@@ARCH@@.deb"
             ])
         else:
-            self.add_buildargs([
+            self.add_templateoverrides([
                 "CB_SKIP_CHECKSUM=true",
                 "CB_RELEASE_URL=http://latestbuilds.service.couchbase.com/builds/"
                 f"latestbuilds/{self.product}/zz-versions/{version}/{bldnum}"
@@ -227,6 +236,14 @@ class DockerTool:
         """
 
         self.buildargs.extend(buildargs)
+
+
+    def add_templateoverrides(self, templateargs: List[str]) -> None:
+        """
+        Specify overrides to Dockerfile template arguments
+        """
+
+        self.templateoverrides.extend(templateargs)
 
 
     def check_ready(self) -> Optional[str]:
@@ -246,6 +263,7 @@ class DockerTool:
 
         if not any([
             self.do_docker_push,
+            self.do_docker_load,
             self.do_docker_save,
             self.do_update_github,
             self.contextdir is not None
@@ -254,12 +272,16 @@ class DockerTool:
 
         if len(self.imagenames) == 0 and any([
             self.do_docker_save,
+            self.do_docker_load,
             self.do_docker_push
         ]):
             return "No image names specified for Docker push/save action!"
 
         if self.do_update_github and self.contextdir is not None:
             return "--update-github may not be combined with --write-context"
+
+        if self.do_docker_load and ',' in self.platform:
+            return "--docker-load can only work with a single platform"
 
         if self.do_docker_save and ',' in self.platform and '%P' not in self.docker_save_file:
             return (
@@ -460,6 +482,8 @@ class DockerTool:
             "--edition", self.edition,
             "-o", self.contextdir
         ]
+        for override in self.templateoverrides:
+            gencmd.extend(["-t", override])
         logging.info(
             f"Running Docker context generation into {self.contextdir}"
         )
@@ -507,7 +531,8 @@ class DockerTool:
             else:
                 logging.info("...Will push images to registries")
                 buildcmd.append("--push")
-
+        if self.do_docker_load:
+            buildcmd.extend(["--load"])
         self.run(buildcmd)
         logging.info(f"'docker buildx build' complete!")
 
@@ -616,6 +641,10 @@ if __name__ == "__main__":
     actions.add_argument(
         "--docker-push", action="store_true",
         help="Push all resulting images to their registries"
+    )
+    actions.add_argument(
+        "--docker-load", action="store_true",
+        help="Load resulting image into local docker (must be single-arch)"
     )
     actions.add_argument(
         "--docker-save", type=str, metavar="TARFILE",
@@ -743,6 +772,8 @@ if __name__ == "__main__":
     # Prepare actions
     if args.docker_push:
         tool.will_docker_push()
+    if args.docker_load:
+        tool.will_docker_load()
     if args.docker_save is not None:
         tool.will_docker_save(args.docker_save)
     if args.update_github:
