@@ -216,11 +216,16 @@ class DockerTool:
             return
         version, bldnum = self.version.split('-')
         if self.product == "sync-gateway":
-            self.add_templateoverrides([
-                "SGW_PACKAGE=http://latestbuilds.service.couchbase.com/builds/"
-                f"latestbuilds/{self.product.replace('-','_')}/{version}/"
-                f"{bldnum}/couchbase-{self.product}-{self.edition}_{version}"
+            sgw_filename = (
+                f"couchbase-{self.product}-{self.edition}_{version}"
                 f"-{bldnum}_@@ARCH@@.deb"
+            )
+            self.add_templateoverrides([
+                "SYNC_GATEWAY_PACKAGE_URL="
+                "http://latestbuilds.service.couchbase.com/builds/"
+                f"latestbuilds/{self.product.replace('-','_')}/{version}/"
+                f"{bldnum}/{sgw_filename}",
+                f"SYNC_GATEWAY_PACKAGE_FILENAME={sgw_filename}"
             ])
         else:
             self.add_templateoverrides([
