@@ -100,6 +100,13 @@ for dir in gen/nftp/client evaluator/impl/gen/parser evaluator/impl/v8wrapper/pr
     touch goproj/src/github.com/couchbase/eventing-ee/${dir}/foo.go
 done
 
+# TEMPORARY: If plasma is pointing to the bad SHA, rewind
+pushd goproj/src/github.com/couchbase/plasma
+if [ $(git rev-parse HEAD) = "627239d4056939f1bcfe92faf9fbf81c9a96537b" ]; then
+    git checkout 34d4558a9c2aa34403b0e355cb30120fc919f7e0
+fi
+popd
+
 # Ensure all go.mod files are fully tidied
 cd "${WORKSPACE}/src"
 init_checksum=$(repo diff -u | sha256sum)
