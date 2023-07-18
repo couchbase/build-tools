@@ -22,6 +22,9 @@ class UpdateComponents:
     match the manifests.
     """
 
+    # Match a version number that starts with a "v" followed by a digit.
+    v_re = re.compile(r"^v[0-9]")
+
     # There are two important data structures in this class: comp_map and manifest.
     # comp_map represents the current state in Black Duck (when the program is
     # first run), while manifest represents the desired state as specified by the
@@ -268,19 +271,16 @@ class UpdateComponents:
         canonicalize that version name. Normally this is just the
         version name unchanged, but Erlang and Golang have inconsistent
         version naming in the Knowledgebase which leads to false
-        matches/misses.
+        matches/misses. We also strip a leading "v" because a number
+        of components in the Knowledgebase are inconsitent about this.
         """
 
         if component_name.startswith("erlang"):
             return version[4:] if version.startswith("OTP-") else version
         elif component_name.startswith("go programming language"):
             return version[2:] if version.startswith("go") else version
-        elif component_name in ("folly", "spdlog"):
-            # Quite a few components an have inconsistent "v" at the
-            # beginning. It might be worth making it a general
-            # canonicalization to strip that, but for now just listing a
-            # couple components we know have caused trouble.
-            return version[1:] if version.startswith("v") else version
+        elif self.v_re.search(version):
+            return version[1:]
         else:
             return version
 
@@ -361,6 +361,8 @@ class UpdateComponents:
         # Ensure one of those found versions is an exact match.
         ver_ok = False
         for ver_entry in versions:
+            # Compare the canonicalized version name, in particular to handle
+            # arbitrary "v" / non-"v" version names.
             version_name = self.canonicalize_version(
                 component_name, ver_entry['versionName']
             )
