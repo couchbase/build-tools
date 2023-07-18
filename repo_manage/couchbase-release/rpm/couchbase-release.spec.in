@@ -32,7 +32,7 @@ if [ -f /etc/os-release ]; then
   . /etc/os-release
 fi
 
-MAJVER=$(echo "$VERSION" | sed -e 's/\..*//')
+MAJVER=$(echo "$VERSION_ID" | sed -e 's/\..*//')
 
 if [ "${ID}" = "amzn" ]; then
     DISTRO="${ID}${MAJVER}"

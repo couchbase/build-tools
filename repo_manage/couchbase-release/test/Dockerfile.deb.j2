@@ -6,4 +6,11 @@ RUN set -x \
     && apt-get update \
     && apt-get install -y /tmp/${DEBFILE} \
     && apt-get update \
-    && apt-cache search couchbase | grep couchbase-server
+    && apt list -a couchbase-server | grep couchbase-server | tee /tmp/output.txt
+
+{% if target == "release" %}
+RUN set -x \
+    && fgrep {{ testver1 }} /tmp/output.txt \
+    && fgrep {{ testver2 }} /tmp/output.txt \
+    && fgrep 7.2.0 /tmp/output.txt
+{% endif %}
