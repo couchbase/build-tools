@@ -6,8 +6,8 @@ BLD_NUM=$3
 
 # Download named build (use Ubuntu 20 - will need to update in far future
 # when we no longer support Ubuntu 20)
-curl -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o couchbase-server.deb ||
-  curl -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-debian10_amd64.deb -o couchbase-server.deb
+curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o couchbase-server.deb ||
+  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-debian10_amd64.deb -o couchbase-server.deb
 
 # Extract jar contents
 ar x couchbase-server.deb
