@@ -4,9 +4,9 @@ RELEASE=$1
 VERSION=$2
 BLD_NUM=$3
 
-# Download named build (use Ubuntu 18 - will need to update in far future
-# when we no longer support Ubuntu 18)
-curl -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-ubuntu18.04_amd64.deb -o couchbase-server.deb
+# Download named build (use Ubuntu 20 - will need to update in far future
+# when we no longer support Ubuntu 20)
+curl -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o couchbase-server.deb
 
 # Extract jar contents
 ar x couchbase-server.deb
