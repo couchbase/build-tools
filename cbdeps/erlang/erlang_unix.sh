@@ -10,7 +10,7 @@ CBPY_VER=7.5.0-cb3
 
 pushd erlang
 if [ "25" = $(printf "25\n$(cat OTP_VERSION)" | sort -n | head -1) ]; then
-    OPENSSL_VER=3.1.1-1
+    OPENSSL_VER=3.1.2-1
 else
     if [ "${PLATFORM}" = "linux" -a "$(uname -m)" = "aarch64" ]; then
         # v24 configure: error: JIT only works on x86 64-bit
