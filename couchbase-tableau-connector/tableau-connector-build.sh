@@ -6,7 +6,7 @@ echo "Download dependent tools: maven and jdk"
 #Download maven (3.3.9+ should work)
 
 CBDEP_VESION=1.1.2
-JDK_VERSION=11.0.9+11
+JDK_VERSION=11.0.20+8
 MAVEN_VERSION=3.5.2-cb6
 
 mkdir deps
