@@ -51,3 +51,8 @@
 "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c":
   bd-id-aliases:
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
+
+# python-certifi / certifi
+"f1890115-04dd-4eaf-8ff0-5e2643582990":
+  fallback-versions:
+    "2023.5.7": "2023.05.07"
