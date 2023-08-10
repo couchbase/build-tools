@@ -25,6 +25,9 @@ class UpdateComponents:
     # Match a version number that starts with a "v" followed by a digit.
     v_re = re.compile(r"^v[0-9]")
 
+    # Match a version number that looks like a date
+    date_re = re.compile(r"^([0-9]{4})\.([0-9]{1,2})\.([0-9]{1,2})$")
+
     # There are two important data structures in this class: comp_map and manifest.
     # comp_map represents the current state in Black Duck (when the program is
     # first run), while manifest represents the desired state as specified by the
@@ -269,20 +272,34 @@ class UpdateComponents:
         """
         Given a version name for a specified component name,
         canonicalize that version name. Normally this is just the
-        version name unchanged, but Erlang and Golang have inconsistent
+        version name unchanged, but a few components have inconsistent
         version naming in the Knowledgebase which leads to false
-        matches/misses. We also strip a leading "v" because a number
-        of components in the Knowledgebase are inconsitent about this.
+        matches/misses. We also strip a leading "v" because a number of
+        components in the Knowledgebase are inconsistent about this.
         """
 
+        if self.v_re.search(version):
+            # Strip any leading "v" before any other possible heuristics
+            version = version[1:]
+
         if component_name.startswith("erlang"):
+            # Strip any leading "OTP-"
             return version[4:] if version.startswith("OTP-") else version
-        elif component_name.startswith("go programming language"):
+        if component_name.startswith("go programming language"):
+            # Strip any leading "go"
             return version[2:] if version.startswith("go") else version
-        elif self.v_re.search(version):
-            return version[1:]
-        else:
-            return version
+        if "certifi" in component_name:
+            match = self.date_re.match(version)
+            if match:
+                # Choose to have zero-padded month/day values, eg.
+                # "2023.05.07" vs. "2023.5.7". Certifi seems to use
+                # zero-padding; Conda tends to report those versions
+                # without zero-padding; and Black Duck randomly has
+                # one or the other.
+                return f"{match[1]:>04}.{match[2]:>02}.{match[3]:>02}"
+
+        return version
+
 
     def fallback_version_if_necessary(self, comp_name, comp_id, manifest_ver):
         """
