@@ -19,7 +19,7 @@ if [ ! -z "${GOVERSION}" ]; then
 fi
 
 for dep in protoc; do
-    ver=$(depver_from_manifest ${dep})
+    ver=$(annot_from_manifest ${dep}_VERSION)
     if [ ! -z "${ver}" ]; then
         cbdep install -d ${TOOLDIR} ${dep} ${ver}
         export PATH=${TOOLDIR}/${dep}-${ver}/bin:${PATH}

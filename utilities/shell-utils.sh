@@ -130,24 +130,17 @@ function image_amd64_key() {
     _image_arch_key amd64 $1
 }
 
-# Extracts the value of an annotation of name "<DEP>_VERSION" from the
-# current manifest using either the 'repo' tool (if there's a .repo dir
-# in pwd) or else the 'xmllint' tools (if there's a manifest.xml in
-# pwd). If neither tool works, die. If the manifest simply doesn't have
-# such an annotation, returns "".
-function depver_from_manifest {
+# Extracts the value of an annotation (converted to ALL_CAPS) from the
+# "build" project in the current manifest, using either the 'repo' tool
+# (if there's a .repo dir in pwd) or else the 'xmllint' tools (if
+# there's a manifest.xml in pwd). If neither tool works, die. If the
+# manifest simply doesn't have such an annotation, returns "".
+function annot_from_manifest {
 
-    DEP=$1
-
-    # Special case since GOVERSION came first
-    if [ "${DEP}" = "GO" ]; then
-        annot=GOVERSION
-    else
-        annot=$(echo "${DEP}" | tr '[a-z]' '[A-Z]')_VERSION
-    fi
+    annot=$(echo "$1" | tr '[a-z]' '[A-Z]')
 
     # Try to extract the annotation using "repo" if available, otherwise
-    # "xmllint" on "manifest.xml". If neither works, die!
+    # "xmllint" on "manifest.xml". If neither tool works, die!
     if test -d .repo && command -v repo > /dev/null; then
         DEP_VERSION=$(repo forall build -c 'echo $REPO__'${annot} 2> /dev/null)
     elif test -e manifest.xml && command -v xmllint > /dev/null; then
@@ -165,9 +158,20 @@ function depver_from_manifest {
     echo ${DEP_VERSION}
 }
 
+# Extracts the value of the GOVERSION or GO_VERSION annotation from the
+# current manifest, and maps it to a full Golang version utilizing
+# centralized Go version management (github.com/couchbaselabs/golang).
 function gover_from_manifest {
 
-    GOVERSION=$(depver_from_manifest GO)
+    # This is unfortunately spelled two different ways in different
+    # products' manifests (CBD-5117), and fixing that would be
+    # potentially disruptive, so just look for either. As far as I know
+    # no product uses *both* spellings, but if they do, "GOVERSION" will
+    # win.
+    GOVERSION=$(annot_from_manifest GOVERSION)
+    if [ -z "${GOVERSION}" ]; then
+        GOVERSION=$(annot_from_manifest GO_VERSION)
+    fi
 
     # If the manifest doesn't specify *anything*, do nothing.
     if [ ! -z "${GOVERSION}" ]; then
