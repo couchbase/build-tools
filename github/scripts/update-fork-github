@@ -1,0 +1,99 @@
+#!/bin/bash -e
+
+# This is a moderately hacky script to update a github.com
+# repository from the upstream it was originally forked from. It is
+# intended primarily for the Jenkins job
+# http://server.jenkins.couchbase.com/job/update-couchbasedep
+
+usage() {
+  echo "Usage: $(basename $0) -r REPO [-g]"
+  echo "  -r - Repository, in the form ORG/REPO. eg., couchbasedeps/erlang"
+  echo "  -g - Push the updates to corresponding Gerrit repository, rather"
+  echo "       than directly to GitHub"
+  echo "  -f - Force-pull and -push changes; don't use if you don't have to"
+  exit 1
+}
+
+IS_GERRIT=false
+FORCE=false
+while getopts ":r:gf" opt; do
+    case ${opt} in
+        r)
+            REPO=${OPTARG}
+            ;;
+        g)
+            IS_GERRIT=true
+            ;;
+        f)
+            FORCE=true
+            ;;
+        \?)
+            usage
+            ;;
+        :)
+            echo "-${OPTARG} requires an argument"
+            usage
+            ;;
+    esac
+done
+
+if [ -z "${REPO}" ]; then
+    usage
+fi
+
+PROJECT=$(basename ${REPO})
+if ${FORCE}; then
+    FORCE="--force"
+else
+    FORCE=""
+fi
+
+# Determine upstream URL to use
+case "$PROJECT" in
+    pcre)
+        # PCRE's upstream is still svn, so the update process is totally different
+        pushd `dirname $0` > /dev/null
+        SCRIPTPATH=`pwd -P`
+        popd > /dev/null
+        ${SCRIPTPATH}/update-cbdep-svn2github ${PROJECT}
+        exit
+        ;;
+    erlang)
+        upstream_url=https://github.com/erlang/otp
+        ;;
+    breakpad)
+        upstream_url=https://github.com/google/breakpad
+        ;;
+    *)
+        upstream_url=$( python <<EOF
+import requests
+resp = requests.get("https://api.github.com/repos/${REPO}")
+print (resp.json()['parent']['clone_url'])
+EOF
+        )
+        ;;
+esac
+
+# Fetch all updates from upstream
+echo
+echo @@@ Cloning: ssh://git@github.com/${REPO}
+git clone ssh://git@github.com/${REPO}
+
+echo
+echo @@@ Fetching everything from upstream: ${upstream_url}
+cd ${PROJECT}
+git remote add upstream ${upstream_url}
+git fetch --all --tags ${FORCE}
+
+# Push to appropriate downstream
+if "${IS_GERRIT}"; then
+    downstream=ssh://review.couchbase.org:29418/${PROJECT}
+else
+    downstream=origin
+fi
+
+echo
+echo @@@ Pushing any changes to ${downstream}
+git push --tags ${downstream} 'refs/remotes/upstream/*:refs/heads/*' ${FORCE}
+echo
+echo @@@ DONE
