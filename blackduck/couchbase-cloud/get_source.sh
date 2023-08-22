@@ -9,6 +9,10 @@ echo "replace github.com/couchbasecloud/couchbase-cloud => ../couchbase-cloud" >
 echo "replace github.com/couchbase/regulator => ../../extra/regulator" >> data-api/go.mod
 echo "replace github.com/couchbase/regulator => ../../extra/regulator" >> direct-nebula/go.mod
 
+pushd couchbase-cloud
+git checkout production
+popd
+
 for repo in couchbase-cloud direct-nebula data-api; do
     pushd ${repo}
     go mod download
