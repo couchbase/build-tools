@@ -1,8 +1,8 @@
 #!/bin/bash -ex
 
 PRODUCT_PATH=${PRODUCT/::/\/}
-PROD_NAME=$(basename $PRODUCT_PATH)
-PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PROD_NAME}"
+PRODUCT_BASENAME=$(basename $PRODUCT_PATH)
+PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PRODUCT_PATH}"
 DETECT_SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
 SCAN_CONFIG="${PROD_DIR}/scan-config.json"
 
@@ -104,7 +104,7 @@ fi
 find . -name .repo -print0 | xargs -0 rm -rf
 
 # Find any Black Duck manifests
-manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT}-black-duck-manifest.yaml) )
+manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT_BASENAME}-black-duck-manifest.yaml) )
 if [ "${#manifest[@]}" != "0" ]; then
   echo "Black Duck manifest(s) found; prepping python environment"
   venv="${WORKSPACE}/.venv"

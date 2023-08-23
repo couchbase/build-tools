@@ -1,5 +1,6 @@
 #!/bin/bash -ex
 
+PRODUCT_PATH=${PRODUCT/::/\/}
 git clone ssh://git@github.com/couchbase/license-reviews
 
 if [ ! -d .venv ]; then
@@ -21,7 +22,7 @@ retval=$?
 set -e
 
 cd ${WORKSPACE}/license-reviews
-git add ${PRODUCT} license-data
+git add ${PRODUCT_PATH} license-data
 git config --global push.default simple
 git diff --quiet && git diff --staged --quiet || git commit \
     -m "Update report for ${PRODUCT} ${VERSION}" \

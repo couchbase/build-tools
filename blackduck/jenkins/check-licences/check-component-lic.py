@@ -25,6 +25,7 @@ logger.addHandler(ch)
 class ComponentLicenseChecker:
     def __init__(self, product, version, cred_file, report_dir):
         self.product = product
+        self.product_path = self.product.replace('::', '/')
         self.version = version
 
         # Connect to Black Duck
@@ -45,7 +46,7 @@ class ComponentLicenseChecker:
         self.lic_data_dir.mkdir(exist_ok=True)
 
         # Dir where the per-product-version report is kept
-        prodver_report_dir = self.report_dir / self.product / self.version
+        prodver_report_dir = self.report_dir / self.product_path / self.version
         prodver_report_dir.mkdir(parents=True, exist_ok=True)
 
         # The per-product-version report markdown file itself
@@ -187,7 +188,7 @@ class ComponentLicenseChecker:
 
         # Download current CSV report
         logger.debug(f"Downloading CSV report for {self.product} {self.version}")
-        csv_url = f"https://raw.githubusercontent.com/couchbase/product-metadata/master/{self.product}/blackduck/{self.version}/components.csv"
+        csv_url = f"https://raw.githubusercontent.com/couchbase/product-metadata/master/{self.product_path}/blackduck/{self.version}/components.csv"
         all_ok_lics = True
         logger.debug(f"Checking licenses for {self.product} {self.version}")
         with requests.get(csv_url, stream=True) as r:

@@ -1,10 +1,11 @@
 #!/bin/bash -ex
 
-PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PRODUCT}"
+PRODUCT_PATH=${PRODUCT/::/\/}
+PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PRODUCT_PATH}"
 SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/generate-reports"
 
 # Required to push back to git
-GIT_DIR="${WORKSPACE}/product-metadata/${PRODUCT}/blackduck/${VERSION}"
+GIT_DIR="${WORKSPACE}/product-metadata/${PRODUCT_PATH}/blackduck/${VERSION}"
 git clone ssh://git@github.com/couchbase/product-metadata.git product-metadata
 mkdir -p ${GIT_DIR}
 
