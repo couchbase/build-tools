@@ -1,7 +1,10 @@
 #!/bin/bash -ex
 
+# Builds and pushes pre-GA Docker images for a variety of products.
+#
 # This script is passed the three standard build coordinates (omitting
-# RELEASE), plus a fourth argument, OPENSHIFT_BUILD. The third
+# RELEASE - it is assumed that this will only be run for products where
+# RELEASE==VERSION), plus a fourth argument, OPENSHIFT_BUILD. The third
 # coordinate, BLD_NUM, is optional; if it is an empty string, this is
 # presumed to be a re-build of an existing GA version. The script will
 # download the -image.tgz artifact for the build (either from
@@ -12,10 +15,30 @@
 #
 # Images will be built and pushed to our internal registry with fake
 # orgs cb-vanilla and cb-rhcc, i.e:
+#
 #     build-docker.couchbase.com/cb-vanilla/${short_product}:${tag}
-#     build-docker.couchbase.com/cb-rhcc/${short_product}:${tag} where
-# short_product is PRODUCT with the leading "couchbase-" removed, and
-# tag is either VERSION-BLD_NUM or just VERSION if BLD_NUM is empty.
+#     build-docker.couchbase.com/cb-rhcc/${short_product}:${tag}
+#
+# where short_product is PRODUCT with the leading "couchbase-" removed,
+# and tag is either VERSION-BLD_NUM or just VERSION if BLD_NUM is empty.
+# Some products aren't intended to be available via RHCC and so they
+# will not be pushed to cb-rhcc.
+#
+# Images will also be pushed to external private registries, depending
+# on the product. For most products, the images will have identical
+# names as the build-docker ones except on ghcr.io, ie:
+#
+#     ghcr.io/cb-vanilla/${short_product}:${tag}
+#     ghcr.io/cb-rhcc/${short_product}:${tag}
+#
+# Some products instead have their pre-GA images on an AWS ECR registry.
+# ECR URLs don't have an "organization" component, just the registry
+# name and repository name, so those images will look something like
+#
+#     284614897128.dkr.ecr.us-east-2.amazonaws.com/${short_product}:${tag}
+#
+# None of those products have RHCC equivalents, so only the above image
+# will be pushed.
 #
 # NOTE: If BLD_NUM is empty, then VANILLA_ARCHES and RHCC_ARCHES must be
 # specified so this script can rebuild the right images in preparation
@@ -29,11 +52,12 @@ usage() {
     echo "Usage: $(basename $0) -p PRODUCT -v VERSION -o OPENSHIFT_BUILD [ -b BLD_NUM | -d VANILLA_ARCHES -r RHCC_ARCHES ] [ -P ]"
     echo "Options:"
     echo "  -P - Immediately Publish each product's images after building (will publish with just :VERSION tags)"
+    echo "  -l - Also create :latest tags in each repository"
     exit 1
 }
 
 PUBLISH=false
-while getopts ":p:v:b:o:d:r:P" opt; do
+while getopts ":p:v:b:o:d:r:lP" opt; do
     case ${opt} in
         p)
             PRODUCT=${OPTARG}
@@ -53,6 +77,9 @@ while getopts ":p:v:b:o:d:r:P" opt; do
         r)
             RHCC_ARCHES=${OPTARG}
             ;;
+        l)
+            LATEST=true
+            ;;
         P)
             PUBLISH=true
             ;;
@@ -67,12 +94,13 @@ while getopts ":p:v:b:o:d:r:P" opt; do
 done
 
 build-image() {
-    org=$1
-    short_product=$2
-    tag=$3
-    arches=$4
+    local org=$1
+    local short_product=$2
+    local tag=$3
+    local external_registry=$4
+    local arches=$5
 
-    internal_repo=build-docker.couchbase.com
+    internal_registry=build-docker.couchbase.com
 
     if [ "${org}" = "cb-vanilla" ]; then
         dockerfile=Dockerfile
@@ -85,6 +113,41 @@ build-image() {
         return
     fi
 
+    # Is the external_registry ECR?
+    if [ ${external_registry} =~ *.amazonaws.com ]; then
+        # ECR doesn't have a concept of "org", so we drop that. Raise
+        # error if we're asked to push an RHCC image to ECR as that
+        # would result in using the same image name for both the
+        # "cb-vanilla" and "cb-rhcc" images.
+        if [ "${org}" = "cb-rhcc" ]; then
+            echo "Cannot push RHCC images to ECR!"
+            exit 5
+        fi
+        external_org=${external_registry}
+
+        # Also need to do the ECR login dance. Note we are hard-coding
+        # the region us-east-2 here.
+        export DOCKER_CONFIG="${WORKSPACE}/.docker"
+        aws ecr get-login-password --region us-east-2 |\
+            docker login --username AWS --password-stdin ${external_registry}
+    else
+        external_org=${external_registry}/${org}
+    fi
+
+    # Are we doing :latest?
+    if ${LATEST}; then
+        tags="$tag latest"
+    else
+        tags="$tag"
+    fi
+
+    # Compute the full set of -t args
+    TAG_ARG=""
+    for t in ${tags}; do
+        TAG_ARG+=" --tag ${internal_registry}/${org}/${short_product}:${t}"
+        TAG_ARG+=" --tag ${external_org}/${short_product}:${t}"
+    done
+
     header "Building ${arches} ${org} image for ${short_product}:${tag}..."
 
     # NOTE: We store the build cache in under a tag named ${VERSION}, rather
@@ -95,9 +158,9 @@ build-image() {
     docker buildx build \
         --platform "${arches}" \
         --ssh default --push --pull -f ${dockerfile} \
-        --cache-from ${internal_repo}/${org}-buildcache/${short_product}:${VERSION} \
-        --cache-to ${internal_repo}/${org}-buildcache/${short_product}:${VERSION} \
-        -t ${internal_repo}/${org}/${short_product}:${tag} \
+        --cache-from ${internal_registry}/${org}-buildcache/${short_product}:${VERSION} \
+        --cache-to ${internal_registry}/${org}-buildcache/${short_product}:${VERSION} \
+        ${TAG_ARG} \
         --build-arg PROD_VERSION=${VERSION} \
         --build-arg PROD_BUILD=${BLD_NUM} \
         --build-arg GO_VERSION=${GOVERSION} \
@@ -113,6 +176,9 @@ script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 source ${script_dir}/../../../utilities/shell-utils.sh
 source ${script_dir}/funclib.sh
 
+# Validate arguments, including identifying whether this is a normal
+# pre-GA build (ie, BLD_NUM is set) or a re-publish of a post-GA build
+# (BLD_NUM is not set).
 chk_set PRODUCT
 chk_set VERSION
 chk_set OPENSHIFT_BUILD
@@ -130,6 +196,7 @@ else
     RHCC_ARCHES=$(product_platforms ${PRODUCT})
 fi
 
+# Download build manifest and image.tgz artifact
 manifest_filename=${PRODUCT}-${tag}-manifest.xml
 filename=${PRODUCT}-image_${tag}.tgz
 url=${base_url}/${filename}
@@ -160,15 +227,18 @@ if [ -e ~/.ssh/ns-buildbot.rsa ]; then
     ssh-add ~/.ssh/ns-buildbot.rsa &> /dev/null
 fi
 
+external_registry=$(product_external_registry ${PRODUCT})
 for local_product in *; do
     pushd ${local_product} &> /dev/null
     short_product=${local_product/couchbase-/}
 
-    build-image cb-vanilla ${short_product} ${tag} ${VANILLA_ARCHES}
+    build-image cb-vanilla ${short_product} ${tag} \
+        ${external_registry} ${VANILLA_ARCHES}
 
     # Some projects don't do RHCC
     if product_in_rhcc "${PRODUCT}"; then
-        build-image cb-rhcc ${short_product} ${tag} ${RHCC_ARCHES}
+        build-image cb-rhcc ${short_product} ${tag} \
+            ${external_registry} ${RHCC_ARCHES}
     fi
 
     popd &> /dev/null

@@ -23,6 +23,18 @@ function product_platforms {
     fi
 }
 
+# Returns the external private pre-GA registry for a specific product.
+function product_external_registry {
+    local PRODUCT=$1
+
+    # For now, just hardcode the one exception
+    if [ "${PRODUCT}" = "couchbase-goldfish-nebula" ]; then
+        echo "284614897128.dkr.ecr.us-east-2.amazonaws.com"
+    else
+        echo "ghcr.io"
+    fi
+}
+
 
 # NOTE: this function assumes that VERSION == RELEASE; in particular it
 # uses VERSION for the path on latestbuilds, which should be RELEASE.
