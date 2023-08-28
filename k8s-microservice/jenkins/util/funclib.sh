@@ -3,7 +3,9 @@
 function product_in_rhcc {
     local PRODUCT=$1
 
-    if [ "${PRODUCT}" = "couchbase-service-broker" -o "${PRODUCT}" = "couchbase-observability-stack" ]; then
+    if [ "${PRODUCT}" = "couchbase-service-broker" -o \
+         "${PRODUCT}" = "couchbase-observability-stack" -o \
+         "${PRODUCT}" = "couchbase-goldfish-nebula" ]; then
         return 1
     fi
 
