@@ -12,9 +12,9 @@ check_notarization_status() {
     request=$1
 
     XML_OUTPUT=$(
-        xcrun altool --notarization-info ${request} \
-        -u build-team@couchbase.com -p ${AC_PASSWORD} \
-        --output-format xml \
+        xcrun notarytool info ${request} \
+        --keychain-profile "COUCHBASE_AC_PASSWORD" \
+        --output-format plist
         2>&1
     )
     if [ $? != 0 ]; then
@@ -24,21 +24,21 @@ check_notarization_status() {
 
     STATUS=$(
         echo "$XML_OUTPUT" | \
-        xmllint --xpath '//dict[key/text() = "notarization-info"]/dict/key[text() = "Status"]/following-sibling::string[1]/text()' -
+        xmllint --xpath '//dict/key[text() = "status"]/following-sibling::string[1]/text()' -
     )
     case ${STATUS} in
-        success)
+        Accepted)
             echo "Request ${request} succeeded!"
             return 0
             ;;
-        "in progress")
+        "In Progress")
             echo "Request ${request} still in progress..."
             return 1
             ;;
-        invalid)
+        Invalid|Rejected)
             echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
             echo "Request ${request} failed notarization!"
-            echo "$XML_OUTPUT" | grep LogFileURL
+            echo "$XML_OUTPUT"
             echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
             return 2
             ;;
@@ -103,32 +103,22 @@ declare -a REQUESTS
 for file in ${UNNOTARIZED[*]}; do
     echo "Starting notarization for ${file} (takes a few moments)"
     XML_OUTPUT=$(
-        xcrun altool --notarize-app -t osx \
-        -f ${file} \
-        --primary-bundle-id com.couchbase.couchbase-server \
-        -u build-team@couchbase.com -p ${AC_PASSWORD} \
-        --output-format xml
+        xcrun notarytool submit ${file} \
+        --keychain-profile "COUCHBASE_AC_PASSWORD" \
+        --output-format plist
     )
     if [ $? != 0 ]; then
         ERROR_MSG=$(
             echo "$XML_OUTPUT" | \
-            xmllint --xpath '//dict/key[text() = "NSLocalizedDescription"]/following-sibling::string[1]/text()' -
+            xmllint --xpath '//dict/key[text() = "message"]/following-sibling::string[1]/text()' -
         )
-        if [[ $ERROR_MSG = "ERROR ITMS-90732"* ]]; then
-            echo "This file was previously notarized - that's OK"
-            # Delete the unnotarized file - no need to upload it back to
-            # latestbuilds
-            rm ${file}
-            # In this case, we'll fall through without adding anything
-            # to REQUESTS, so we won't try to staple either
-        else
-            echo "Error running notarize command!"
-            exit 1
-        fi
+        echo "Error running notarize command!"
+        echo "$ERROR_MSG"
+        exit 1
     else
         REQUEST_ID=$(
            echo "$XML_OUTPUT" | \
-           xmllint --xpath '//dict[key/text() = "RequestUUID"]/string/text()' -
+           xmllint --xpath '//dict[key/text() = "id"]/string[1]/text()' -
         )
         echo "Notarization started - request ID is ${REQUEST_ID}"
         REQUESTS+=( ${REQUEST_ID} )
