@@ -169,7 +169,7 @@ popd
 # Back into the repo sync for remaining operations
 pushd src
 
-if [ "${KEEP_GIT}" = "True" ]; then
+if ${KEEP_GIT}; then
     exclude_git_arg=""
     set +x
     # As with build_from_manifest.py, we dereference symlinks in .git

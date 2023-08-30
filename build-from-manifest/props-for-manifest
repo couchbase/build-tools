@@ -29,6 +29,6 @@ if __name__ == '__main__':
         f'BUILD_JOB={details.get("build_job")}\n'
         f'PLATFORMS={" ".join(details.get("platforms", []))}\n'
         f'GO_VERSION={details.get("go_version", "")}\n'
-        f'KEEP_GIT={details.get("keep_git", "false")}\n'
+        f'KEEP_GIT={str(details.get("keep_git", False)).lower()}\n'
         f'TOY_BUILD=true\n'
     )
