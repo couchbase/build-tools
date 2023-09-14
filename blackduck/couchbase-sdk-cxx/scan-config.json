@@ -1,5 +1,35 @@
 {
     "versions": {
+        "1.0.0-dp.8": {
+            "interval": 1440
+        },
+        "1.0.0-dp.7": {
+            "interval": 1440
+        },
+        "1.0.0-dp.6": {
+            "interval": 1440
+        },
+        "1.0.0-dp.5": {
+            "interval": 1440
+        },
+        "1.0.0-dp.4": {
+            "interval": 1440
+        },
+        "1.0.0-dp.3": {
+            "interval": 1440
+        },
+        "1.0.0-dp.2": {
+            "interval": 1440
+        },
+        "1.0.0-dp.1": {
+            "interval": 1440
+        },
+        "1.0.0-beta.3": {
+            "interval": 1440
+        },
+        "1.0.0-beta.2": {
+            "interval": 1440
+        },
         "1.0.0": {
             "interval": 1440
         }

@@ -5,6 +5,9 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
+# current repo, do not remove:
+# github.com/couchbase/couchbase-php-client
+
 case "$VERSION" in
     3.1*|3.2*)
         REPO=ssh://git@github.com/couchbase/php-couchbase.git

@@ -5,6 +5,9 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
+# current repo, do not remove:
+# github.com/couchbase/couchbase-jvm-clients
+
 if [[ "$VERSION" =~ "2.*" ]]
 then
     TAG=$VERSION
