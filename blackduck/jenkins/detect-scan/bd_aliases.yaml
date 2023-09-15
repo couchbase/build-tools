@@ -51,3 +51,8 @@
 "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c":
   bd-id-aliases:
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
+
+# libnsl
+"903a5281-80d6-454c-b18c-ac526e69ae2c":
+  bd-id-aliases:
+    - "593ed15d-7aaf-4ef3-91bf-691c6dc31ccc"
