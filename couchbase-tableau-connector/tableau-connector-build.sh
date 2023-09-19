@@ -41,6 +41,22 @@ mvn -B install -DskipTests \
     -Djarsigner.storepass=${DIGICERT_PASSWORD} \
     -f cbtaco/pom.xml
 
+# Verify that the cert is still valid
+VALID_DATE=$(
+    keytool -list -keystore ~/.digicert.jks -storepass ${DIGICERT_PASSWORD} -v |
+    grep '^Valid' | head -1 | sed 's/.*until: //'
+)
+VALID_TS=$(date -d "${VALID_DATE}" +%s)
+NOW_TS=$(date +%s)
+if [ $NOW_TS -gt $VALID_TS ]; then
+    echo
+    echo
+    echo "ERROR! Signing certificate expired on ${VALID_DATE}!"
+    echo
+    echo
+    exit 5
+fi
+
 #Copy over artifacts to dist dir so that they can be published
 
 pushd dist
