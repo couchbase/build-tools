@@ -5,6 +5,8 @@ Update the given JIRA approval ticket with a list of the binaries
 for the given product and release.  The list is generated from
 accessing the S3 bucket packages.couchbase.com (via boto) and excluding
 undesired entries.
+
+Additionally, include any product-specific URLs for the Downloads page.
 """
 
 import argparse
@@ -93,7 +95,9 @@ def get_url_list(product, version):
       'Community': {k:[] for k in model_keys},
       'Release': {
           "Notices File": []
-      }
+      },
+      'Downloads Page': {
+      },
     }
 
     # Pre-compile all regexes, just to be neat
@@ -140,6 +144,57 @@ def get_url_list(product, version):
         urllist[key].append(file_url)
 
     return urls
+
+
+def get_product_download_urls(product, version):
+  """
+  Returns a dict mapping types of download URLs to lists of URLs. This is
+  product-specific, and intended to tell the web team what URL to put on the
+  Downloads page when the actual artifact URL isn't desired.
+  """
+
+  # Several product URLs use only major.minor versioning, so pre-compute that
+  majmin = "unknown"
+  version_bits = version.split('.')
+  if len(version_bits) > 1:
+     majmin = '.'.join(version_bits[0:2])
+
+  match product:
+    case "couchbase-lite-net":
+      return {
+        "Couchbase Lite .NET Enterprise": [
+          f"https://www.nuget.org/packages/Couchbase.Lite.Enterprise/{version}"
+        ],
+        "Couchbase Lite .NET Community": [
+          f"https://www.nuget.org/packages/Couchbase.Lite/{version}"
+        ]
+      }
+    case "couchbase-lite-android":
+      return {
+        "Couchbase Lite Android Java": [
+          f"https://docs.couchbase.com/couchbase-lite/{majmin}/android/gs-install.html#java-step-by-step-install"
+        ],
+        "Couchbase Lite Android Kotlin": [
+          f"https://docs.couchbase.com/couchbase-lite/{majmin}/android/gs-install.html#kotlin-step-by-step-install"
+        ]
+      }
+    case "couchbase-lite-java":
+      return {
+        "Couchbase Lite Java": [
+          f"https://docs.couchbase.com/couchbase-lite/{majmin}/java/gs-install.html"
+        ]
+      }
+    case "couchbase-lite-c":
+      return {
+        "Couchbase Lite C for Linux": [
+          f"https://docs.couchbase.com/couchbase-lite/{majmin}/c/gs-downloads.html"
+        ],
+        "Couchbase Lite C for macOS": [
+          f"https://docs.couchbase.com/couchbase-lite/{majmin}/c/gs-downloads.html"
+        ]
+      }
+    case _:
+      return {}
 
 
 def md_list(strarray):
@@ -199,7 +254,13 @@ if __name__ == '__main__':
     if args.profile:
       boto3.setup_default_session(profile_name=args.profile)
 
+    # Get the set of S3 URLs
     urls = get_url_list(args.product, args.version)
+
+    # Extend with any product-specific URLs
+    urls['Downloads Page'].update(get_product_download_urls(args.product, args.version))
+
+    # Convert to a useful Jira comment
     content = form_comment(urls, args.product, args.version, args.bldnum)
     print(content)
     if args.issue is not None:
