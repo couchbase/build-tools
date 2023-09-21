@@ -15,3 +15,4 @@ else
     echo "No tag $VERSION, assuming master"
     git checkout master
 fi
+git submodule update --init --recursive
