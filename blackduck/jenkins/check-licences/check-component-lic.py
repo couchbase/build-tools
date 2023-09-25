@@ -130,6 +130,12 @@ class ComponentLicenseChecker:
             logger.debug (f"Skipping {human_name} because it's reviewed")
             return True
 
+        # If the name starts with 'couchbase', we assume it's one of ours so
+        # we don't need to check the license
+        if human_name.startswith("couchbase"):
+            logger.debug (f"Skipping {human_name} because it's our own code")
+            return True
+
         # Pull out all known license IDs and see if *any* are approved
         lics = comp['License ids'].split(',')
         if any(item in self.ok_lics for item in lics):
