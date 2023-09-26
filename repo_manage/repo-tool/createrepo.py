@@ -11,9 +11,14 @@ import shutil
 import sys
 
 from collections import defaultdict
-from util import render_template, run, run_output
-from typing import ClassVar, Dict, Optional, Set
+from util import Action, render_template, run, run_output
+from typing import ClassVar, Dict, NamedTuple, Optional, Set
 
+
+class RpmAction(NamedTuple):
+    pkgfile: pathlib.Path
+    action: Action
+    repofile: pathlib.Path
 
 
 class Createrepo:
@@ -58,10 +63,10 @@ class Createrepo:
             defaultdict(set)
 
 
-    def commit_package(self, repo: YumRepo, pkgfile: pathlib.Path) -> None:
+    def commit_package(self, repo: YumRepo, rpmact: RpmAction) -> None:
         """
-        Imports a package file into a specified yum repository, creating said
-        repository if necessary. Signs the RPM on the way in.
+        Imports/Removes a package file in a specified yum repository, creating
+        said repository if necessary. Signs the RPM on the way in.
         """
 
         # First ensure repository directory exists
@@ -70,20 +75,26 @@ class Createrepo:
             logging.info(f"Initializing yum repo {repo_dir}")
             repo_dir.mkdir(exist_ok=True, parents=True)
 
-        # Copy the .rpm into target directory - use regular copy so the
-        # rpm modtime is "now"
-        logging.info(f"Importing {pkgfile} into yum repo {repo_dir}")
-        shutil.copy(pkgfile, repo_dir)
-        rpmfile = repo_dir / pkgfile.name
+        match rpmact.action:
+            case Action.ADD:
+                # Copy the .rpm into target directory - use regular copy so the
+                # rpm modtime is "now"
+                pkgfile = rpmact.pkgfile
+                logging.info(f"Importing {pkgfile} into yum repo {repo_dir}")
+                repofile = rpmact.repofile
+                shutil.copyfile(pkgfile, repofile)
 
-        # GPG sign it
-        logging.debug(f"GPG signing {rpmfile}")
-        run([
-            'rpm', '--addsign', str(rpmfile),
-            '-D', '__gpg /usr/bin/gpg',
-            '-D', '_signature gpg',
-            '-D', f'_gpg_name {self.gpg_key}'
-        ])
+                # GPG sign it
+                logging.debug(f"GPG signing {repofile}")
+                run([
+                    'rpm', '--addsign', str(repofile),
+                    '-D', '__gpg /usr/bin/gpg',
+                    '-D', '_signature gpg',
+                    '-D', f'_gpg_name {self.gpg_key}'
+                ])
+            case Action.REMOVE:
+                # Just delete the file from the repo
+                rpmact.repofile.unlink()
 
 
     def update_repo(self, repo: YumRepo) -> None:
@@ -165,13 +176,18 @@ class Createrepo:
 
     debugre: ClassVar[re.Pattern] = re.compile("debuginfo|asan")
 
-    def add_package(
-        self, target: str, distro: str, pkgfile: pathlib.Path
+    def add_action(
+        self, target: str, distro: str, pkgfile: pathlib.Path, action: Action
     ) -> Optional[str]:
         """
         Represents a request to add a .rpm to a specified repository. Returns
         the full name of the repository.
         """
+
+        # Don't add debug files
+        if self.debugre.search(pkgfile.name) is not None:
+            logging.debug(f"Skipping debuginfo/asan package {pkgfile}")
+            return None
 
         # Handle "auto" Linux distribution introspection
         if distro == "auto":
@@ -181,25 +197,32 @@ class Createrepo:
                 return None
             distro = use_distro
 
-        # createrepo doesn't handle arch specially, so we have to manage
-        # that ourselves
-        arch = run_output(f'rpm --qf %{{arch}} -qp {str(pkgfile)}')
+        # Check repository to see if this rpm already exists (can't actually
+        # check if it's "the same file" or not because the one in repo_dir will
+        # be signed)
+        arch = run_output(f'rpm --qf %{{arch}} -qp {str(pkgfile)}').strip()
         repo = Createrepo.YumRepo(target, distro, arch)
         repo_dir = repo.repo_dir()
+        repofile = repo_dir / pkgfile.name
+        exists = repofile.exists()
 
-        # Ignore if rpm already exists (can't actually check if it's "the same
-        # file" or not because the one in repo_dir will be signed)
-        rpmfile = repo_dir / pkgfile.name
-        if rpmfile.exists():
-            logging.warn(f"Skipping already-existing rpm {rpmfile}")
+        # Obtain package information from .rpm file, and save as an Action
+        rpmact = RpmAction(
+            pkgfile,
+            action,
+            repofile
+        )
+
+        # Don't record an action that won't do anything
+        if action == Action.ADD and exists:
+            logging.debug(f"Skipping add of already-existing rpm {pkgfile}")
             return None
-
-        if self.debugre.search(pkgfile.name) is not None:
-            logging.debug(f"Skipping debuginfo/asan package {pkgfile}")
+        if action == Action.REMOVE and not exists:
+            logging.debug(f"Skipping remove of non-existent rpm {pkgfile}")
             return None
 
         # Remember this request for commit time
-        self.dirty_repos[repo].add(pkgfile)
+        self.dirty_repos[repo].add(rpmact)
         return str(repo)
 
 
@@ -208,9 +231,9 @@ class Createrepo:
         Processes all queued add_package requests
         """
 
-        for (repo, pkgfiles) in self.dirty_repos.items():
-            for pkgfile in pkgfiles:
-                self.commit_package(repo, pkgfile)
+        for (repo, rpmactions) in self.dirty_repos.items():
+            for rpmact in rpmactions:
+                self.commit_package(repo, rpmact)
             self.update_repo(repo)
 
             # We may end up calling this redundantly if we have RPMs for

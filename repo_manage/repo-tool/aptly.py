@@ -15,14 +15,32 @@ import subprocess
 import sys
 from collections import defaultdict
 from typing import ClassVar, Dict, NamedTuple, Optional, Set
-from util import render_template, run, run_output
+from util import Action, render_template, run, run_output
 
 
 class AptlyRepo(NamedTuple):
     target: str
     distro: str
+
     def __repr__(self) -> str:
         return f"{self.target}:{self.distro}"
+
+
+class DebAction(NamedTuple):
+    product: str
+    version: str
+    arch: str
+    pkgfile: pathlib.Path
+    distro: str
+    action: Action
+
+    def __repr__(self) -> str:
+        return f"{self.action} {self.product} version {self.version} ({self.arch}) to {self.distro}"
+
+    def pkgref(self) -> str:
+        # Returns the Aptly direct package reference
+        return f"{self.product}_{self.version}_{self.arch}"
+
 
 class Aptly:
 
@@ -57,13 +75,13 @@ class Aptly:
         return run_output(f"aptly -config {self.config_file} {cmd}")
 
 
-    def run_aptly(self, cmd: str) -> subprocess.CompletedProcess:
+    def run_aptly(self, cmd: str, **kwargs) -> subprocess.CompletedProcess:
         """
         Convenience function to run an 'aptly' command with the specified
         config file
         """
 
-        return run(f"aptly -config {self.config_file} {cmd}")
+        return run(f"aptly -config {self.config_file} {cmd}", **kwargs)
 
 
     def create_repo(self, repo: AptlyRepo) -> None:
@@ -78,7 +96,7 @@ class Aptly:
         self.repos.update(self.ask_aptly("repo list -raw").split())
 
 
-    def commit_package(self, repo: AptlyRepo, pkgfile: pathlib.Path) -> None:
+    def commit_package(self, repo: AptlyRepo, debact: DebAction) -> None:
         """
         Imports a package file into a specified Aptly repository,
         creating said repository if necessary
@@ -87,8 +105,15 @@ class Aptly:
         if not str(repo) in self.repos:
             self.create_repo(repo)
 
-        logging.info(f"Importing {pkgfile} into apt repo {repo}")
-        self.run_aptly(f"repo add {repo} {pkgfile}")
+        match debact.action:
+            case Action.ADD:
+                pkgfile = debact.pkgfile
+                logging.info(f"Importing {pkgfile} into aptly repo {repo}")
+                self.run_aptly(f"repo add {repo} {pkgfile}")
+            case Action.REMOVE:
+                pkgref = debact.pkgref()
+                logging.info(f"Removing {pkgref} from aptly repo {repo}")
+                self.run_aptly(f"repo remove {repo} {pkgref}")
 
 
     def update_repo(self, repo: AptlyRepo) -> None:
@@ -200,25 +225,51 @@ class Aptly:
 
     debugre: ClassVar[re.Pattern] = re.compile("dbg_")
 
-    def add_package(
-        self, target: str, distro: str, pkgfile: pathlib.Path
+    def add_action(
+        self, target: str, distro: str, pkgfile: pathlib.Path, action: Action
     ) -> Optional[str]:
         """
         Represents a request to add a .deb to a specified repository. Returns
         the full name of the repository.
         """
 
-        # Handle "auto" Linux distribution introspection
-        if distro == "auto":
-            distro = self.detect_distro(pkgfile)
-
+        # Don't add debug files
         if self.debugre.search(pkgfile.name) is not None:
             logging.debug(f"Skipping debuginfo package {pkgfile}")
             return None
 
-        # Remember this request for commit time
+        # Handle "auto" Linux distribution introspection
+        if distro == "auto":
+            distro = self.detect_distro(pkgfile)
+
+        # Obtain package information from .deb file, and save as an Action
+        debact = DebAction(
+            run_output(f"dpkg-deb -f {pkgfile} Package").strip(),
+            run_output(f"dpkg-deb -f {pkgfile} Version").strip(),
+            run_output(f"dpkg-deb -f {pkgfile} Architecture").strip(),
+            pkgfile,
+            distro,
+            action
+        )
+
+        # Ask aptly if it knows this package
         repo = AptlyRepo(target, distro)
-        self.dirty_repos[repo].add(pkgfile)
+        result = self.run_aptly(
+            f"repo search {repo} {debact.pkgref()}",
+            check=False
+        )
+        exists = result.returncode == 0
+
+        # Don't record an action that won't do anything
+        if action == Action.ADD and exists:
+            logging.debug(f"Skipping add of already-existing deb {pkgfile}")
+            return None
+        if action == Action.REMOVE and not exists:
+            logging.debug(f"Skipping remove of non-existent deb {pkgfile}")
+            return None
+
+        # Remember this request for commit time
+        self.dirty_repos[repo].add(debact)
         return str(repo)
 
 
@@ -227,8 +278,8 @@ class Aptly:
         Processes all queued add_package requests
         """
 
-        for (repo, pkgfiles) in self.dirty_repos.items():
-            for pkgfile in pkgfiles:
-                self.commit_package(repo, pkgfile)
+        for (repo, debactions) in self.dirty_repos.items():
+            for debact in debactions:
+                self.commit_package(repo, debact)
             self.update_repo(repo)
             self.write_listfile(repo)

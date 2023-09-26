@@ -6,6 +6,7 @@ import logging
 import os
 import pathlib
 import subprocess
+from enum import Enum
 from jinja2 import Template
 from typing import Dict, List, Union
 
@@ -36,7 +37,11 @@ def run(cmd: Union[List[str], str], **kwargs) -> subprocess.CompletedProcess:
         kwargs["stdout"] = subprocess.DEVNULL
         kwargs["stderr"] = subprocess.DEVNULL
 
-    return subprocess.run(cmd, **kwargs, check=True)
+    # If caller specified 'check', don't override; otherwise set check=True
+    if not "check" in kwargs:
+        kwargs["check"] = True
+
+    return subprocess.run(cmd, **kwargs)
 
 
 def run_output(cmd: Union[List[str], str], **kwargs) -> str:
@@ -127,3 +132,7 @@ def sync_to_s3bucket(
         )
     finally:
         conf_file.unlink()
+
+class Action(Enum):
+    ADD = 1
+    REMOVE = 2
