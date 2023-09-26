@@ -86,6 +86,7 @@ class CouchbaseReleaseBuilder:
             "target": target,
             "bucket": self.targets[target]["s3"]["bucket"],
             "prefix": self.targets[target]["s3"]["prefix"],
+            "transport": self.targets[target]["s3"]["transport"],
             "version": self.version,
             "bld_num": self.bldnum,
             "src_dir": self.script_dir

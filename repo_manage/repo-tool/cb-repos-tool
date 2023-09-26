@@ -26,10 +26,10 @@ class ReposTool:
 
         with conf_file.open() as c:
             self.conf = yaml.safe_load(c)
-        self.targets = self.conf["targets"]
+        self.targets_conf = self.conf["targets"]
 
-        self.aptly = Aptly(self.conf["aptly"], self.targets)
-        self.createrepo = Createrepo(self.conf["createrepo"], self.targets)
+        self.aptly = Aptly(self.conf["aptly"], self.targets_conf)
+        self.createrepo = Createrepo(self.conf["createrepo"], self.targets_conf)
 
 
     def add_action(
@@ -85,15 +85,25 @@ class ReposTool:
         """
 
         logging.info(f"Syncing target {self.target} to s3:")
-        target_meta = self.targets[self.target]["s3"]
+        target_meta = self.targets_conf[self.target]["s3"]
         sync_to_s3bucket(
             target_meta["region"],
             target_meta["bucket"],
             target_meta["profile"],
             f'{target_meta["prefix"]}',
-            pathlib.Path(self.targets[self.target]["local"]["base_dir"]),
+            pathlib.Path(self.targets_conf[self.target]["local"]["base_dir"]),
             only_recent=only_recent
         )
+
+
+    def recreate_listfiles(self) -> None:
+        """
+        Re-creates all .repo / .list files for known repositories
+        """
+
+        logging.info(f"Re-creating .repo / .list files")
+        self.aptly.recreate_listfiles(self.target)
+        self.createrepo.recreate_repofiles(self.target)
 
 
     def add_actions(self, pkgs: List[str], action: Action) -> None:
@@ -135,8 +145,12 @@ if __name__ == "__main__":
         help="Path to .deb or .rpm file to remove to repository"
     )
     actions.add_argument(
+        "--recreate-listfiles", action="store_true",
+        help="Recreate all .list / .repo files for all repositories"
+    )
+    actions.add_argument(
         "--publish", action="store_true",
-        help="Publish modified repositories to S3 (works with --add-package)"
+        help="Publish modified repositories to S3"
     )
     actions.add_argument(
         "--publish-all", action="store_true",
@@ -189,6 +203,8 @@ if __name__ == "__main__":
     tool.add_actions(args.add_pkgs, Action.ADD)
     tool.add_actions(args.remove_pkgs, Action.REMOVE)
     tool.commit()
+    if args.recreate_listfiles:
+        tool.recreate_listfiles()
     if args.publish:
         tool.publish()
     if args.publish_all:

@@ -44,14 +44,14 @@ class DebAction(NamedTuple):
 
 class Aptly:
 
-    def __init__(self, aptly_conf: Dict, targets: Dict) -> None:
+    def __init__(self, aptly_conf: Dict, targets_conf: Dict) -> None:
         self.script_dir = pathlib.Path(__file__).resolve().parent
         self.config_file = self.script_dir / "aptly.conf"
         self.gpg_key = aptly_conf["gpg_key"]
-        self.targets = targets
+        self.targets_conf = targets_conf
 
         context = aptly_conf.copy()
-        context["targets"] = targets
+        context["targets"] = targets_conf
         render_template(
             self.script_dir / "aptly.conf.j2",
             self.config_file,
@@ -98,7 +98,7 @@ class Aptly:
 
     def commit_package(self, repo: AptlyRepo, debact: DebAction) -> None:
         """
-        Imports a package file into a specified Aptly repository,
+        Imports/Removes a package file in a specified Aptly repository,
         creating said repository if necessary
         """
 
@@ -153,13 +153,14 @@ class Aptly:
         context = {
             "target": repo.target,
             "distro": repo.distro,
-            "bucket": self.targets[repo.target]["s3"]["bucket"],
-            "prefix": self.targets[repo.target]["s3"]["prefix"],
+            "bucket": self.targets_conf[repo.target]["s3"]["bucket"],
+            "prefix": self.targets_conf[repo.target]["s3"]["prefix"],
+            "transport": self.targets_conf[repo.target]["s3"]["transport"],
         }
         render_template(
             self.script_dir / "tmpl" / "debarchive.list.j2",
             pathlib.Path(
-                self.targets[repo.target]["local"]["base_dir"]
+                self.targets_conf[repo.target]["local"]["base_dir"]
             ) / f"couchbase-{repo.target}-{repo.distro}.list",
             context
         )
@@ -283,3 +284,15 @@ class Aptly:
                 self.commit_package(repo, debact)
             self.update_repo(repo)
             self.write_listfile(repo)
+
+
+    def recreate_listfiles(self, target: str) -> None:
+        """
+        Re-creates the .list file for each known repository in target
+        """
+
+        for repo in self.repos:
+            (repo_target, repo_distro) = repo.split(':')
+            if repo_target != target:
+                continue
+            self.write_listfile(AptlyRepo(repo_target, repo_distro))

@@ -1,6 +1,6 @@
 [couchbase-{{ target }}-{{ distro }}-{{ arch }}]
 name=Couchbase {{ target }} {{ distro }} {{ arch }} yum repository
-baseurl=https://{{ bucket }}/{{ prefix }}/rpms/{{ target }}/{{ distro }}/{{ arch }}/
+baseurl={{ transport }}://{{ bucket }}/{{ prefix }}/rpms/{{ target }}/{{ distro }}/{{ arch }}/
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1

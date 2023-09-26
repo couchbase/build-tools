@@ -33,6 +33,7 @@ targets:
       bucket: packages.couchbase.com
       profile: default
       prefix: repos
+      transport: https
 
   staging:
     local:
@@ -42,6 +43,7 @@ targets:
       bucket: packages-staging.couchbase.com
       profile: default
       prefix: repos
+      transport: http
 
   beta:
     local:
@@ -51,6 +53,7 @@ targets:
       bucket: beta-packages.couchbase.com
       profile: default
       prefix: repos
+      transport: http
 
   beta-staging:
     local:
@@ -60,3 +63,4 @@ targets:
       bucket: beta-packages-staging.couchbase.com
       profile: default
       prefix: repos
+      transport: http

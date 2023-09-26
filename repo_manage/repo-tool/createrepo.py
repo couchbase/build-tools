@@ -26,7 +26,7 @@ class Createrepo:
     # This is a ClassVar so that it can be shared by YumRepo. It's a little
     # weird because it's initialized in the Createrepo constructor, but
     # Createrepo is effectively a singleton so it works OK.
-    targets: ClassVar[Dict]
+    targets_conf: ClassVar[Dict]
 
     class YumRepo:
         """
@@ -43,7 +43,7 @@ class Createrepo:
             self.distro = distro
             self.arch = arch
             self.target_basedir = pathlib.Path(
-                Createrepo.targets[target]["local"]["base_dir"]
+                Createrepo.targets_conf[target]["local"]["base_dir"]
             )
             self.dir = self.target_basedir / "rpms" \
                 / self.target / self.distro / self.arch
@@ -55,10 +55,10 @@ class Createrepo:
             return self.dir
 
 
-    def __init__(self, createrepo_conf: Dict, targets: Dict) -> None:
+    def __init__(self, createrepo_conf: Dict, targets_conf: Dict) -> None:
         self.script_dir = pathlib.Path(__file__).resolve().parent
         self.gpg_key = createrepo_conf["gpg_key"]
-        Createrepo.targets = targets
+        Createrepo.targets_conf = targets_conf
         self.dirty_repos: Dict[Createrepo.YumRepo, Set[pathlib.Path]] = \
             defaultdict(set)
 
@@ -125,8 +125,9 @@ class Createrepo:
             "target": repo.target,
             "distro": repo.distro,
             "arch": repo.arch,
-            "bucket": self.targets[repo.target]["s3"]["bucket"],
-            "prefix": self.targets[repo.target]["s3"]["prefix"],
+            "bucket": self.targets_conf[repo.target]["s3"]["bucket"],
+            "prefix": self.targets_conf[repo.target]["s3"]["prefix"],
+            "transport": self.targets_conf[repo.target]["s3"]["transport"],
         }
         render_template(
             self.script_dir / "tmpl" / "yumarchive.repo.j2",
@@ -241,3 +242,19 @@ class Createrepo:
             # easier just call this every time - it's cheap enough to
             # generate the .repo file
             self.write_repofile(repo)
+
+
+    def recreate_repofiles(self, target: str) -> None:
+        """
+        Re-creates the .repo file for each known repository in target
+        """
+
+        base_dir = pathlib.Path(self.targets_conf[target]["local"]["base_dir"])
+        target_basedir = base_dir / "rpms" / target
+        for distro_dir in target_basedir.iterdir():
+            for arch_dir in distro_dir.iterdir():
+                self.write_repofile(
+                    Createrepo.YumRepo(
+                        target, distro_dir.name, arch_dir.name
+                    )
+                )

@@ -11,9 +11,9 @@ fi
 # file, which is what we want.
 cd /etc/apt/sources.list.d
 curl --fail --silent -o couchbase-{{ target }}-linux.list \
-    https://{{ bucket }}/{{ prefix }}/couchbase-{{ target }}-linux.list || true
+    {{ transport }}://{{ bucket }}/{{ prefix }}/couchbase-{{ target }}-linux.list || true
 curl --fail --silent -o couchbase-{{ target }}-distro.list \
-    https://{{ bucket }}/{{ prefix }}/couchbase-{{ target }}-${VERSION_CODENAME}.list || true
+    {{ transport }}://{{ bucket }}/{{ prefix }}/couchbase-{{ target }}-${VERSION_CODENAME}.list || true
 
 # Alert user if *nothing* was downloaded.
 if [ ! -f couchbase-{{ target }}-linux.list -a ! -f couchbase-{{ target }}-distro.list ]; then
