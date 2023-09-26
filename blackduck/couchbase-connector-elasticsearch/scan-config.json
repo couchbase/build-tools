@@ -3,10 +3,6 @@
         "4.4.7": {
             "interval": 1440,
             "keep_git": true
-        },
-        "4.4.6": {
-            "interval": 1440,
-            "keep_git": true
         }
     }
 }
