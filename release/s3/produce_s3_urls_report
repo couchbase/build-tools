@@ -76,6 +76,10 @@ def get_url_list(product, version, editions, staging):
   # Product-specific exclude lists (hopefully few)
   if product == 'couchbase-lite-java':
     exclude_regexes.extend([r'macos.zip$', r'windows.zip$', r'macos.zip.sha256$', r'windows.zip.sha256$'])
+  if product != 'couchbase-operator':
+    # We upload this file for all k8s products, but only want to report the
+    # URL for couchbase-operator
+    exclude_regexes.extend([f"^{product}-image_"])
 
   if staging:
     s3_bucket = 'packages-staging.couchbase.com'
