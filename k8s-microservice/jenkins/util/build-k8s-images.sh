@@ -114,7 +114,7 @@ build-image() {
     fi
 
     # Is the external_registry ECR?
-    if [ ${external_registry} =~ *.amazonaws.com ]; then
+    if [[ ${external_registry} =~ .*\.amazonaws\.com ]]; then
         # ECR doesn't have a concept of "org", so we drop that. Raise
         # error if we're asked to push an RHCC image to ECR as that
         # would result in using the same image name for both the
@@ -127,7 +127,6 @@ build-image() {
 
         # Also need to do the ECR login dance. Note we are hard-coding
         # the region us-east-2 here.
-        export DOCKER_CONFIG="${WORKSPACE}/.docker"
         aws ecr get-login-password --region us-east-2 |\
             docker login --username AWS --password-stdin ${external_registry}
     else
