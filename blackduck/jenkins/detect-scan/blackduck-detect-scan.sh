@@ -30,6 +30,14 @@ mkdir -p "${SRC_DIR}"
 rm -rf "${SRC_DIR}"/[A-z]*
 cd "${SRC_DIR}"
 
+# Prep a virtualenv - we need this below if any black duck manifests are found
+# and also for installing packages via pip where required e.g. sdk-ruby
+venv="${WORKSPACE}/.venv"
+if [ ! -d "${venv}" ]; then
+  python3 -m venv "${venv}"
+fi
+source "${venv}/bin/activate"
+
 # If the product doesn't have a bespoke get_source.sh, then look up the
 # build manifest and sync that
 if [ -x "${PROD_DIR}/get_source.sh" ]; then
@@ -107,11 +115,6 @@ find . -name .repo -print0 | xargs -0 rm -rf
 manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT_BASENAME}-black-duck-manifest.yaml) )
 if [ "${#manifest[@]}" != "0" ]; then
   echo "Black Duck manifest(s) found; prepping python environment"
-  venv="${WORKSPACE}/.venv"
-  if [ ! -d "${venv}" ]; then
-    python3 -m venv "${venv}"
-  fi
-  source "${venv}/bin/activate"
 
   pip3 install -r "${DETECT_SCRIPT_DIR}/manual-manifest-requirements.txt"
 

@@ -23,11 +23,22 @@ git submodule update --init --recursive
 # version; but just in case, only update this back to v2.9.4 if it's
 # still "v2.9.4++" according to git describe.
 if [ -d ext/third_party/http_parser ]; then
-    cd ext/third_party/http_parser
+    pushd ext/third_party/http_parser
     if [[ "$(git describe --tags)" =~ ^v2.9.4.* ]]; then
         echo "Reset http_parser to v2.9.4 for scan"
         git checkout v2.9.4
     fi
+    popd
 fi
+
+function unset_bundle_path() {
+    bundle config unset --local path
+}
+
+pip3 install -r ext/couchbase/third_party/snappy/third_party/benchmark/requirements.txt
+
+bundle config set --local path './gems'
+bundle install
+trap unset_bundle_path EXIT
 
 popd

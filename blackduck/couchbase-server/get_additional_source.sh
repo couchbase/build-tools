@@ -107,6 +107,11 @@ if [ $(git rev-parse HEAD) = "627239d4056939f1bcfe92faf9fbf81c9a96537b" ]; then
 fi
 popd
 
+# package-lock.json from an old version of npm, need to regenerate
+pushd cbgt/rest/static/lib/angular-bootstrap
+npm install --legacy-peer-deps
+popd
+
 # Ensure all go.mod files are fully tidied
 cd "${WORKSPACE}/src"
 init_checksum=$(repo diff -u | sha256sum)
