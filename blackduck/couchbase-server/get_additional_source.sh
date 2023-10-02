@@ -6,6 +6,8 @@ BLD_NUM=$3
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+NODEJS_VERSION=16.20.2
+
 download_analytics_jars() {
   mkdir -p thirdparty-jars
 
@@ -108,9 +110,12 @@ fi
 popd
 
 # package-lock.json from an old version of npm, need to regenerate
+cbdep install -d .deps nodejs ${NODEJS_VERSION}
+export PATH=$(pwd)/.deps/nodejs-${NODEJS_VERSION}/bin:$PATH
 pushd cbgt/rest/static/lib/angular-bootstrap
 npm install --legacy-peer-deps
 popd
+rm -rf .deps/nodejs-${NODEJS_VERSION}
 
 # Ensure all go.mod files are fully tidied
 cd "${WORKSPACE}/src"
