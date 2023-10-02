@@ -38,6 +38,9 @@ if [ ! -d "${venv}" ]; then
 fi
 source "${venv}/bin/activate"
 
+# Include the requirements for any of our own scripts we might run
+pip3 install -r "${DETECT_SCRIPT_DIR}/requirements.txt"
+
 # If the product doesn't have a bespoke get_source.sh, then look up the
 # build manifest and sync that
 if [ -x "${PROD_DIR}/get_source.sh" ]; then
@@ -114,10 +117,6 @@ find . -name .repo -print0 | xargs -0 rm -rf
 # Find any Black Duck manifests
 manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT_BASENAME}-black-duck-manifest.yaml) )
 if [ "${#manifest[@]}" != "0" ]; then
-  echo "Black Duck manifest(s) found; prepping python environment"
-
-  pip3 install -r "${DETECT_SCRIPT_DIR}/manual-manifest-requirements.txt"
-
   echo "Pruning any source directories referenced by Black Duck manifests"
   "${DETECT_SCRIPT_DIR}/prune-from-manual-manifest" -d -m ${manifest[@]}
 fi
