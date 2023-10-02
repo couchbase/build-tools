@@ -35,7 +35,9 @@ function unset_bundle_path() {
     bundle config unset --local path
 }
 
-pip3 install -r ext/couchbase/third_party/snappy/third_party/benchmark/requirements.txt
+if [ -f "ext/couchbase/third_party/snappy/third_party/benchmark/requirements.txt" ]; then
+    pip3 install -r ext/couchbase/third_party/snappy/third_party/benchmark/requirements.txt
+fi
 
 bundle config set --local path './gems'
 bundle install
