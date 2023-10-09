@@ -5,7 +5,8 @@ function product_in_rhcc {
 
     if [ "${PRODUCT}" = "couchbase-service-broker" -o \
          "${PRODUCT}" = "couchbase-observability-stack" -o \
-         "${PRODUCT}" = "couchbase-goldfish-nebula" ]; then
+         "${PRODUCT}" = "couchbase-goldfish-nebula" -o \
+         "${PRODUCT}" = "couchbase-elasticsearch-connector" ]; then
         return 1
     fi
 
