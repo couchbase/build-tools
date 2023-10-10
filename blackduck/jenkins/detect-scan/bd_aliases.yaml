@@ -28,10 +28,12 @@
     "14.0.4": "14.0.0"
     "14.0.6": "14.0.5"
 
-# Go programming language - we adopted 1.19 too early
+# Go programming language
 "6d055c2b-f7d7-45ab-a6b3-021617efd61b":
   fallback-versions:
-    "1.19": "go1.19rc2"
+    "1.21.2": "1.21.0"
+    "1.21.3": "1.21.0"
+    "1.20.10": "1.20.9"
 
 # Python cffi
 "a136afda-2456-41df-a8f4-2d74ef679b21":
