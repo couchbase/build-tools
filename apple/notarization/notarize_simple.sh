@@ -10,6 +10,7 @@ notarize_pkg() {
     echo "-------Notarizing for ${PKG}-------"
     XML_OUTPUT=$(xcrun notarytool submit "${PKG}" \
         --keychain-profile "COUCHBASE_AC_PASSWORD" \
+        --keychain "~/Library/Keychains/login.keychain-db" \
         --output-format plist
     )
     if [ $? != 0 ]; then
@@ -32,6 +33,7 @@ notarize_pkg() {
         XML_OUTPUT=$(
             xcrun notarytool info "${REQUEST_ID}" \
                 --keychain-profile "COUCHBASE_AC_PASSWORD" \
+                --keychain "~/Library/Keychains/login.keychain-db" \
                 --output-format plist 2>&1
         )
         if [ $? != 0 ]; then

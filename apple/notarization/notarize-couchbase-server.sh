@@ -14,6 +14,7 @@ check_notarization_status() {
     XML_OUTPUT=$(
         xcrun notarytool info ${request} \
         --keychain-profile "COUCHBASE_AC_PASSWORD" \
+        --keychain "~/Library/Keychains/login.keychain-db" \
         --output-format plist
         2>&1
     )
@@ -105,6 +106,7 @@ for file in ${UNNOTARIZED[*]}; do
     XML_OUTPUT=$(
         xcrun notarytool submit ${file} \
         --keychain-profile "COUCHBASE_AC_PASSWORD" \
+        --keychain "~/Library/Keychains/login.keychain-db" \
         --output-format plist
     )
     if [ $? != 0 ]; then
