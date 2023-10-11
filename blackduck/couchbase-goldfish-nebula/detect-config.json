@@ -1,0 +1,6 @@
+{
+    "detect_opts": {
+        "logging.level.com.synopsys.integration": "DEBUG",
+        "detect.detector.search.depth": 9
+    }
+}
