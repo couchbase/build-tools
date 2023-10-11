@@ -3,6 +3,6 @@
         "detect.detector.search.depth": 9,
         "logging.level.com.synopsys.integration": "DEBUG",
         "detect.tools.excluded": "SIGNATURE_SCAN",
-        "detect.npm.include.dev.dependencies": "false"
+        "detect.npm.dependency.types.excluded": "DEV"
     }
 }
