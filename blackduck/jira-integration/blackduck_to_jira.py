@@ -157,8 +157,8 @@ def close_jira_issue(jira, notification, issue):
             notification['date'])  # transition to DONE
 
 
-def update_ticket_fields(notification, ticket_cves_list,
-                         ticket_cves, detail_sum, detail_files):
+def construct_ticket_fields(notification, ticket_cves_list,
+                            ticket_cves, detail_sum, detail_files):
     ticket_detail_cves = ''
     ticket_fields = {}
     ticket_fields['date'] = notification['date']
@@ -221,54 +221,49 @@ def update_jira_issue(jira, notification, issue):
                 ticket_cves.append({'severity': n['severity'],
                                     'name': n['name'],
                                     'link': n['link']})
-        if ticket_needs_update:
-            ticket_fields = update_ticket_fields(
-                notification, ticket_cves_list, ticket_cves, detail_sum, detail_files)
     if notification['notification_type'] == 'deletedVulnerabilityIds':
-        # if issue is already in Done state, no need to process
-        if issue.fields.status.name not in [
-                'Done', 'Not Applicable', 'Mitigated', 'Component Not Applicable']:
-            for n in notification['cves']:
-                if n['name'] in ticket_cves_list:
-                    ticket_needs_update = True
-                    ticket_cves_list.remove(n['name'])
-                    for t_cve in ticket_cves.copy():
-                        if n['name'] == t_cve['name']:
-                            ticket_cves.remove(t_cve)
-
-            if not ticket_cves_list:
-                jira.transition_issue(
-                    issue,
-                    config.JIRA['done'],
-                    notification['date'])  # transition to DONE
-                return
-            else:
-                ticket_fields = update_ticket_fields(
-                    notification, ticket_cves_list, ticket_cves, detail_sum, detail_files)
+        for n in notification['cves']:
+            if n['name'] in ticket_cves_list:
+                ticket_needs_update = True
+                ticket_cves_list.remove(n['name'])
+                ticket_cves = [c for c in ticket_cves.copy() if not (
+                    c['name'] == n['name'])]
 
     if notification['notification_type'] == 'updatedVulnerabilityIds':
         ticket_needs_update = True
         for n in notification['cves']:
-            if not any(t.get('name') == n['name'] for t in ticket_cves):
-                ticket_cves.append({'severity': n['severity'],
-                                    'name': n['name'],
-                                    'link': n['link']})
-        ticket_fields = update_ticket_fields(
-            notification,
-            ticket_cves_list,
-            ticket_cves,
-            detail_sum,
-            detail_files)
+            ticket_cves = [c for c in ticket_cves.copy() if not (
+                c['name'] == n['name'])]
+            ticket_cves.append({'severity': n['severity'],
+                                'name': n['name'],
+                                'link': n['link']})
 
     if ticket_needs_update:
+        ticket_fields = construct_ticket_fields(
+            notification, ticket_cves_list, ticket_cves, detail_sum, detail_files)
         jira.update_issue(issue, ticket_fields)
+        # CVE list is empty, close the ticket
+        if not ticket_fields['cves_list']:
+            jira.transition_issue(
+                issue,
+                config.JIRA['done'],
+                notification['date'])
+            return
+
+        # Reopen the ticket since CVEs have changed.
+        # Close the ticket if severity is LOW.
         if issue.fields.status.name in ['Done', 'Not Applicable', 'Mitigated']:
-            if notification['severity'] != 'LOW':
+            if ticket_fields['severity'] != 'LOW':
                 jira.transition_issue(
                     issue,
                     config.JIRA['to_do'],
                     notification['date'])  # transition to TO DO
-
+        else:
+            if ticket_fields['severity'] == 'LOW':
+                jira.transition_issue(
+                    issue,
+                    config.JIRA['Not Applicable'],
+                    notification['date'])
 
 parser = argparse.ArgumentParser('Retreive vulnerability notifications')
 parser.add_argument('-p', '--project_name', required=True,
@@ -344,6 +339,10 @@ for notification in notifications:
         if notification['content']['deletedVulnerabilityIds']:
             update_notifications += get_notification_info(
                 notification, 'deletedVulnerabilityIds')
+        if notification['content']['updatedVulnerabilityIds']:
+            update_notifications += get_notification_info(
+                notification, 'updatedVulnerabilityIds')
+    elif notification['content']['vulnerabilityNotificationCause'] == 'SEVERITY_CHANGED':
         if notification['content']['updatedVulnerabilityIds']:
             update_notifications += get_notification_info(
                 notification, 'updatedVulnerabilityIds')
