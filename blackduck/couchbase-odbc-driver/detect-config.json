@@ -1,6 +1,8 @@
 {
     "detect_opts": {
         "logging.level.com.synopsys.integration": "DEBUG",
-        "detect.detector.search.depth": 9
+        "detect.detector.search.depth": 9,
+        "detect.excluded.detector.types": "GRADLE,NUGET",
+        "detect.tools.excluded": "SIGNATURE_SCAN"
     }
 }
