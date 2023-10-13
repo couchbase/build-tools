@@ -5,6 +5,7 @@
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.detector.search.continue": true,
         "detect.maven.included.scopes": "compile,runtime",
-        "detect.maven.build.command": "--batch-mode"
+        "detect.maven.build.command": "--batch-mode",
+        "detect.maven.path": "${WORKSPACE}/extra/mvn/bin/mvn"
     }
 }
