@@ -1,4 +1,4 @@
-requests==2.20.0
+requests==2.31.0
 python-dateutil>=2.8.0
 blackduck
 mdutils==1.4.0
