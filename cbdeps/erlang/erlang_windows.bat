@@ -1,13 +1,6 @@
 @echo on
 
-
-if "%VERSION:~0,2%" == "24" (
-    rem OpenSSL 1.x
-    set OPENSSL_VER=1.1.1u-1
-) else if "%VERSION:~0,2%" == "25" (
-    rem OpenSSL 3.x
-    set OPENSSL_VER=3.1.2-1
-)
+set OPENSSL_VER=3.1.3-1
 
 set INSTALL_DIR=%1
 set ROOT_DIR=%2
