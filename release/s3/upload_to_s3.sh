@@ -61,8 +61,8 @@ fi
 
 if [ ${#PLATFORMS[@]} -eq 0 ]; then
     if [ "${PRODUCT}" = "couchbase-server" ]; then
-        # For Server 7.2.2 and later, only release generic linux, macos, windows
-        if [ "7.2.2" = $(printf "7.2.2\n${VERSION}" | sort -n | head -1) ]; then
+        # For Server 7.2.4 and later, only release generic linux, macos, windows
+        if [ "7.2.4" = $(printf "7.2.4\n${VERSION}" | sort -n | head -1) ]; then
             PLATFORMS=(linux macos windows)
         else
             PLATFORMS=(ubuntu amzn2 centos debian rhel macos oel suse windows linux)
