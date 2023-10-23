@@ -23,7 +23,7 @@ rm -rf *-fit-performer
 # And now we actually need to build stuff for it to be found
 # by the detector
 mvn --batch-mode dependency:resolve || {
-    for project in protostellar core-io-deps test-utils . ; do
+    for project in protostellar core-io-deps test-utils tracing-opentelemetry-deps . ; do
         if [ -e "$project" ]; then
             mvn --batch-mode -f "$project/pom.xml" -Dmaven.test.skip=true clean install
         fi
