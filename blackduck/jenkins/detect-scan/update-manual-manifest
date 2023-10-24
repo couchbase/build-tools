@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import pathlib
+import pprint
 import re
 import requests
 import sys
@@ -46,6 +47,12 @@ class UpdateComponents:
     #        always be in a canonical form, as defined by canonicalize_version.
     #    "bd-name": the lowercased name for the component. This is only used for
     #        human-readable logging output.
+    #    "license-approved": True or False, meaning whether the component's
+    #        license is approved for distribution. For bom_comp_map, this is
+    #        based on the "reviewState" field in the BOM. For manifest, this is
+    #        based on the "license-approved" key in the manifest, and may be
+    #        None if this key is not specified; in this case, the current value
+    #        from the BOM is left unchanged.
     #
     #  - for bom_comp_map, "bd-name" will always be the componentName directly
     #    from Black Duck (lowercased)
@@ -74,7 +81,9 @@ class UpdateComponents:
 
         # Initialize bom_comp_map and manifest schema
         self.manifest = collections.defaultdict(lambda: { "versions": set() })
-        self.bom_comp_map = collections.defaultdict(lambda: { "versions": set() })
+        self.bom_comp_map = collections.defaultdict(
+            lambda: { "versions": set(), "license-approved": False }
+        )
 
         # Other globally-used structures, populated or initialized in
         # _load_manual_components() or _load_bd_aliases()
@@ -149,24 +158,27 @@ class UpdateComponents:
         )
 
 
-    def _get_version_components(self, projectversion, limit=1000, filters={}):
+    def _get_manual_components(self):
         """
-        Copied from hub-rest-api-python/blackduck/Projects.py so we can add
-        filters
+        Returns the current "Manually Added" components for the current project-
+        version.
+
+        Adapted from hub-rest-api-python/blackduck/Projects.py so we can add
+        filters.
         """
 
-        url = self.hub.get_link(projectversion, "components")
+        url = self.hub.get_link(self.project_version, "components")
         headers = self.hub.get_headers()
         headers['Accept'] = 'application/vnd.blackducksoftware.bill-of-materials-6+json'
-        filter_opts = [ f"{k}:{v}" for k,v in filters.items() ]
+        filter_opts = "bomMatchType:manually_added"
         response = requests.get(
             url,
             headers = headers,
-            params = { "limit": limit, "filter": filter_opts },
+            params = { "limit": 1000, "filter": filter_opts },
             verify = not self.hub.config['insecure']
         )
         jsondata = response.json()
-        return jsondata
+        return jsondata.get("items", [])
 
 
     def _load_manual_bom_components(self):
@@ -178,10 +190,7 @@ class UpdateComponents:
 
         # Initialize self.bom_components with report from Black Duck
         logging.info(f"Retrieving current manual BOM for {self.name}")
-        self.bom_components = self._get_version_components(
-            self.project_version,
-            filters = {"bomMatchType": "manually_added"}
-        ).get('items', [])
+        self.bom_components = self._get_manual_components()
         logging.debug(f"Found {len(self.bom_components)} manual components")
 
         # Canonicalize component list into bom_comp_map, and populate
@@ -194,9 +203,22 @@ class UpdateComponents:
             comp_version_name = self.canonicalize_version(
                 comp_name, comp_id, comp.get('componentVersionName', "")
             )
+            reviewed = comp['reviewStatus'] == "REVIEWED"
 
             self.bom_comp_map[comp_id]["bd-name"] = comp_name
             self.bom_comp_map[comp_id]["versions"].add(comp_version_name)
+
+            # We use |= here so that if *any* version of the component is
+            # "reviewed", the whole component will be shown as "reviewed". This
+            # is a bit of a cheat since technically different versions of a
+            # component could have different licenses, but handling that would
+            # make this program far more complex. This "license-approved"
+            # feature is only for those relatively few components which have
+            # suspect licenses but we ship anyway; it feels unlikely that we'll
+            # have a product that depends on two different versions of such a
+            # component, AND that those versions will have licenses that differ
+            # in a way we care about.
+            self.bom_comp_map[comp_id]["license-approved"] |= reviewed
 
             # Also canonicalize self.bom_components version names - might be
             # referenced by remove_component() later.
@@ -206,7 +228,7 @@ class UpdateComponents:
             # component ID.
             self.bom_comp_ids[comp_name] = comp_id
 
-        logging.debug(f"Final bom_comp_map: {self.bom_comp_map}")
+        logging.debug(f"Final bom_comp_map: {pprint.pformat(self.bom_comp_map)}")
 
 
     def _find_component_version(self, comp_name, comp_id, version):
@@ -257,9 +279,10 @@ class UpdateComponents:
             if isinstance(value, list) and len(value) == 0:
                 continue
 
-            # Values are dicts with possible keys 'versions', 'bd-id', and
-            # 'bd-name'.
+            # Values are dicts with possible keys 'versions', 'bd-id',
+            # 'bd-name', and 'license-approved'.
             versions = value.get('versions', [])
+            license_approved = value.get('license-approved')
             comp_name = value.get('bd-name', comp_name).lower()
             comp_id = value.get('bd-id', None)
             # Translate our manifest component ID to BD alias if necessary
@@ -286,6 +309,7 @@ class UpdateComponents:
             )
             self.manifest[comp_id]["bd-name"] = comp_name
             self.manifest[comp_id]["versions"].update(versions)
+            self.manifest[comp_id]["license-approved"] = license_approved
 
 
     def _add_alt_canonical_version(self, comp_id, canon_ver, alt_ver):
@@ -544,6 +568,43 @@ class UpdateComponents:
         sys.exit(1)
 
 
+    def change_component_version_license_approved(self, target, approved):
+        """
+        Sets the 'reviewStatus' of all versions of the component in the project-
+        version to "REVIEWED" / "NOT_REVIEWED" based on the value of "approved".
+        """
+
+        # "target" starts with the component_id.
+        (comp_id, _) = target.split('.', maxsplit=1)
+        comp_url = self.comp_base + comp_id
+
+        # Have to re-read the current BOM to get all the entries for this
+        # component. This is expensive; however it should only be executed when
+        # there is an actual change to be made, due to DictDiffer.
+        curr_items = self._get_manual_components()
+        for item in curr_items:
+            # Skip any components other than the comp_id we're looking for
+            if item["component"] != comp_url:
+                continue
+            item["reviewStatus"] = "REVIEWED" if approved else "NOT_REVIEWED"
+            logging.info(
+                f"Setting {item['componentName']} "
+                f"version {item['componentVersionName']} "
+                f"to reviewStatus {item['reviewStatus']}"
+            )
+            if self.dryrun:
+                logging.info("DRYRUN: not updating Black Duck")
+            else:
+                custom_headers = {
+                    'Content-Type': 'application/vnd.blackducksoftware.bill-of-materials-6+json',
+                    'Accept': 'application/vnd.blackducksoftware.bill-of-materials-6+json'
+                }
+                response = self.hub.execute_put(
+                    item['_meta']['href'], item, custom_headers=custom_headers
+                )
+                response.raise_for_status()
+
+
     def apply_manifests(self):
         """
         Compute the actions to make self.bom_comp_map look like added manifests,
@@ -595,10 +656,28 @@ class UpdateComponents:
                         func_map[action](comp_name, comp_id, version)
                         actions_taken += 1
 
-            elif action == "change" and target.endswith(".bd-name"):
-                # Don't care if the bd-name from the manifest doesn't match
-                # Black Duck at this point
-                logging.debug(f"Ignoring unnecessary change to bd-name")
+            elif action == "change":
+                if target.endswith(".bd-name"):
+                    # Don't care if the bd-name from the manifest doesn't match
+                    # Black Duck at this point
+                    logging.debug(f"Ignoring unnecessary change to bd-name")
+                elif target.endswith(".license-approved"):
+                    # "value" is a tuple of (old-value, new-value). We only
+                    # care about new-value. If it's None, do nothing; otherwise
+                    # change the BOM.
+                    if value[1] is None:
+                        # If "license-approved" is None, do nothing - this means
+                        # that only black-duck-manifest.yaml files with explicit
+                        # "license-approved" fields will change anything in
+                        # Black Duck.
+                        logging.debug(f"Ignoring 'None' change to license-approved")
+                    else:
+                        self.change_component_version_license_approved(
+                            target, value[1]
+                        )
+                        actions_taken +=1
+                else:
+                    logging.fatal(f"Unknown change field {target}!")
 
             else:
                 logging.fatal(f"Unknown dictdiffer action {action}!")
@@ -651,5 +730,5 @@ if __name__ == "__main__":
     )
     for manifest in args.manifest:
         updater.add_manifest(manifest)
-    logging.debug(f"Final input manifest: {updater.manifest}")
+    logging.debug(f"Final input manifest: {pprint.pformat(updater.manifest)}")
     updater.apply_manifests()

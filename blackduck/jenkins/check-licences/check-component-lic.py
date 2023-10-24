@@ -132,7 +132,7 @@ class ComponentLicenseChecker:
 
         # If the name starts with 'couchbase', we assume it's one of ours so
         # we don't need to check the license
-        if human_name.startswith("couchbase"):
+        if human_name.lower().startswith("couchbase"):
             logger.debug (f"Skipping {human_name} because it's our own code")
             return True
 
@@ -160,7 +160,7 @@ class ComponentLicenseChecker:
             return True
 
         # License NOT OK - warn and write report entry
-        logger.warn (f"WARNING: {human_name} has suspect license {comp['License names']}")
+        logger.warning (f"WARNING: {human_name} has suspect license {comp['License names']}")
         lic_links = []
         for lic_id in lics:
             lic_links.append(
