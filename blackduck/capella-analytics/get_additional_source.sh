@@ -73,12 +73,7 @@ done
 
 popd
 
-if [ "6.6.5" = $(printf "6.6.5\n${VERSION}" | sort -n | head -1) ]; then
-  # 6.6.5 or higher
-  create_analytics_poms
-else
-  download_analytics_jars
-fi
+create_analytics_poms
 
 # If we find any go.mod files with zero "require" statements, they're probably one
 # of the stub go.mod files we introduced to make other Go projects happy. Black Duck
