@@ -22,6 +22,7 @@ logger.addHandler(ch)
 class FailedDownload(Exception):
     pass
 
+
 class ReportsDownloader:
     def __init__(self, product, version, bld_num, cred_file, output_dir):
         """
@@ -45,6 +46,7 @@ class ReportsDownloader:
         self.version = self.hub.get_version_by_name(self.product, version)
         if not self.version:
             raise Exception(f"Unknown version {version} for product {product}")
+
 
     def download_report(self, report_name, location):
         """
@@ -70,6 +72,7 @@ class ReportsDownloader:
             return
 
         raise Exception(f"Failed to retrieve {report_name} {report_id} after many retries!")
+
 
     def unpack_report(self, report_name):
         """
@@ -99,6 +102,7 @@ class ReportsDownloader:
 
         self.tmp_zip.unlink()
 
+
     def start_reports(self):
         """
         Requests creation of all CSV reports for product-version
@@ -114,6 +118,7 @@ class ReportsDownloader:
             logger.debug(response.content)
             raise Exception(f"Error {response.status_code} creating CSV reports")
         self.reports_location = response.headers['Location']
+
 
     def start_notices(self):
         """
@@ -133,6 +138,7 @@ class ReportsDownloader:
             raise Exception(f"Error {response.status_code} creating Notices file")
         self.notices_location = response.headers['Location']
         logger.debug(f"Notices location is {self.notices_location}")
+
 
     def download_scans(self):
         """
@@ -162,6 +168,7 @@ class ReportsDownloader:
 
         logger.info(f"Downloaded {len(output)} scans")
 
+
     def download(self):
         """
         Invokes each of the download steps in turn, and waits for completion
@@ -174,23 +181,35 @@ class ReportsDownloader:
         self.download_report("CSV reports", self.reports_location)
         self.download_report("Notices file", self.notices_location)
 
-    def remove_columns_from_csv(self):
-        #loading the file
+
+    def filter_columns_in_csv(self):
+        """
+        Prunes CSV file to only desired columns and orders them for better
+        readability; also verifies each such column exists
+        """
+
+        # loading the file
         file_path=next(self.output_dir.glob("*-components.csv"))
         data_file = pd.read_csv(file_path)
         data = pd.DataFrame(data_file)
 
-        # Use this list if you want to remove by columns names
-        columns_list = ['Operational Risk', 'Component policy status', 'Reviewed by', \
-                        'Reviewed at', 'Snippet Review status', 'License Risk', \
-                        'Fulfillment Required', 'Critical Vulnerability Count', \
-                        'High Vulnerability Count', 'Medium Vulnerability Count', \
-                        'Low Vulnerability Count', 'Comments']
+        # We only want to keep these columns.
+        columns_list = [
+            'Component name', 'Component version name', 'Match type',
+            'License names', 'License families', 'Review Status',
+            'Component id', 'Version id', 'License ids'
+        ]
 
-        data = data.drop(columns=columns_list)
+        data = data.filter(items=columns_list)
+        if len(data.columns) != len(columns_list):
+            logger.error(f"Missing columns after filtering!")
+            logger.error(f"Requested columns: {columns_list}")
+            logger.error(f"Columns found: {data.columns.to_list()}")
+            sys.exit(1)
 
         # saving the data back to a csv
         data.to_csv(os.path.join(self.output_dir, 'components.csv'), sep=',', encoding='utf-8')
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -217,4 +236,4 @@ if __name__ == "__main__":
         args.output_dir
     )
     downloader.download()
-    downloader.remove_columns_from_csv()
+    downloader.filter_columns_in_csv()
