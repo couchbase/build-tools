@@ -114,12 +114,10 @@ if [ "${KEEP_GIT}" != true ]; then
 fi
 find . -name .repo -print0 | xargs -0 rm -rf
 
-# Find any Black Duck manifests
-manifest=( $(find "${WORKSPACE}" -maxdepth 9 -name ${PRODUCT_BASENAME}-black-duck-manifest.yaml) )
-if [ "${#manifest[@]}" != "0" ]; then
-  echo "Pruning any source directories referenced by Black Duck manifests"
-  "${DETECT_SCRIPT_DIR}/prune-from-manual-manifest" -d -m ${manifest[@]}
-fi
+# Prune source that we will "manually" enter into Black Duck
+echo "Pruning any source directories referenced by Black Duck manifests"
+"${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
+  -p ${PRODUCT} -v ${VERSION} --operation prune --src-root "${WORKSPACE}"
 
 # Product-specific script for pruning unwanted sources
 if [ -x "${PROD_DIR}/prune_source.sh" ]; then
@@ -154,16 +152,12 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
   exit
 fi
 
-# If there's a product-specific manual Black Duck manifest, load that as well
-if [ "${#manifest[@]}" != "0" ]; then
-  echo "Loading product-specific Black Duck manifests: ${manifest[@]}"
-  "${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
-      -c ~/.ssh/blackduck-creds.json \
-      -m ${manifest[@]} \
+# If there's product-specific manual Black Duck manifests, load that as well
+echo "Loading product-specific Black Duck manifests"
+"${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
+      --credentials ~/.ssh/blackduck-creds.json \
+      --operation update --src-root "${WORKSPACE}" \
       -p ${PRODUCT} -v ${VERSION}
-else
-  echo "No product-specific Black Duck manifests; skipping"
-fi
 
 # setup parent/sub project dependency if sub-project.json exists
 if [ -f "${PROD_DIR}/sub-project.json" ]; then

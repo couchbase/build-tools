@@ -10,17 +10,229 @@ import pathlib
 import pprint
 import re
 import requests
+import shutil
 import sys
 import yaml
 
+from abc import ABC, abstractmethod
 from blackduck.HubRestApi import HubInstance
+from enum import Enum
 from urllib.parse import urlparse, quote
 
-class UpdateComponents:
+
+class ManifestWalker(ABC):
     """
-    Loads the current set of manually-added components. Given a set of BD manifests,
-    applies changes to Black Duck to make the set of manually-added components
-    match the manifests.
+    Walks a directory tree for black-duck-manifest files, calling abstract
+    member functions for each
+    """
+
+    def __init__(self, project, version, dryrun):
+        self.dryrun = dryrun
+        self.name = project
+        self.version = version
+
+
+    def set_source_root(self, src_root):
+        """
+        Specifies the source root to search for manifests under.
+        """
+
+        self.src_root = src_root
+
+
+    def start_manifest(self, manifest_file, yaml_manifest):
+        """
+        Called when each manifest is first loaded.
+        """
+        pass
+
+
+    def end_manifest(self, manifest_file, yaml_manifest):
+        """
+        Called at the end of processing for a manifest.
+        """
+        pass
+
+
+    def done_loading_manifests(self):
+        """
+        Called at the end of all manifest loading.
+        """
+        pass
+
+
+    @abstractmethod
+    def add_component(self, comp_name, comp_data):
+        """
+        Called for each component in any manifest. comp_data is the YAML
+        representation of the component.
+        """
+        pass
+
+
+    @abstractmethod
+    def perform(self):
+        """
+        Perform the operation.
+        """
+        pass
+
+
+    def add_manifests(self, for_project = None):
+        """
+        Searches the source root directory recurisvely for manifests named
+        ${for_project}-black-duck-manifest.yaml, and loads them in.
+        "for_project" will default to the project name of the ManifestWalker
+        instance if not specified.
+        """
+
+        for_project = self.name if for_project is None else for_project
+        logging.info(f"Searching for manifests for project {for_project}")
+
+        manifest_filename = f"{for_project}-black-duck-manifest.yaml"
+        manifest_count = 0
+        for root, _, files in os.walk(self.src_root):
+            if manifest_filename in files:
+                manifest_count += 1
+                self.add_manifest(os.path.join(root, manifest_filename))
+
+        if manifest_count == 0:
+            logging.warning(f"Loaded zero manifests for {for_project}!")
+        else:
+            logging.info(f"Loaded {manifest_count} manifests for {for_project}")
+
+        self.done_loading_manifests()
+
+
+    def add_manifest(self, manifest_file):
+        """
+        Given the YAML file manifest, process any top-level keys.
+        """
+
+        manifest_file = pathlib.Path(manifest_file)
+        logging.info(f"Loading input manifest {manifest_file}")
+        with manifest_file.open() as m:
+            manifest = yaml.safe_load(m)
+        self.start_manifest(manifest_file, manifest)
+
+        # Iterate through each top-level object in the manifest
+        for key, value in manifest.items():
+
+            match key:
+                case "include-projects":
+                    # include-projects object: recursively call back to
+                    # add_manifests()
+                    for other_project in value:
+                        self.add_manifests(other_project)
+
+                case "meta":
+                    # No action to take here, just allow the field to exist.
+                    pass
+
+                case "components":
+                    # Add each component to ongoing manifest
+                    for (comp_name, comp_data) in value.items():
+                        # If the value is an empty list, skip it (probably just
+                        # there to keep the drift-detector happy).
+                        if isinstance(comp_data, list) and len(comp_data) == 0:
+                            return
+
+                        self.add_component(comp_name, comp_data)
+
+                case _:
+                    logging.error(
+                        f"Unrecognized manifest key '{key}' "
+                        f"in manifest file {manifest_file.name}!"
+                    )
+                    sys.exit(5)
+
+        self.end_manifest(manifest_file, manifest)
+
+
+class PruneSourceDirs(ManifestWalker):
+    """
+    Given a set of BD manifests, prunes any source directories referenced by
+    those manifests.
+    """
+
+    def __init__(self, project, version, dryrun):
+
+        super().__init__(project, version, dryrun)
+
+        # Stack of manifest root directories
+        self.mani_rootdir = None
+        self.mani_rootdir_stack = []
+
+        # Set of directories to prune, keyed by component name
+        self.src_dirs = {}
+
+
+    def start_manifest(self, manifest_file, yaml_manifest):
+        """
+        Store a YAML manifest on the stack, and compute the corresponding
+        source root directory
+        """
+
+        # Push the current mani_rootdir (if any) onto stack
+        self.mani_rootdir_stack.append(self.mani_rootdir)
+
+        # Compute new root directory
+        try:
+            root_dir_str = yaml_manifest['meta']['src-root-dir']
+        except KeyError:
+            root_dir_str = '.'
+        self.mani_rootdir = manifest_file.parent / root_dir_str
+
+
+    def end_manifest(self, manifest_file, yaml_manifest):
+        """
+        Pop the mani_rootdir stack
+        """
+
+        self.mani_rootdir = self.mani_rootdir_stack.pop()
+
+
+    def add_component(self, comp_name, comp_data):
+        """
+        Given a component name and YAML data, prepare to prune any related
+        source directories as requested by 'src-path' values
+        """
+
+        src_path = comp_data.get("src-path", None)
+        if src_path is None:
+            return
+        self.src_dirs[comp_name] = \
+            (self.mani_rootdir / src_path).resolve()
+
+
+    def perform(self):
+        """
+        Actually delete all the stored source directories
+        """
+
+        logging.info(f"Pruning {len(self.src_dirs)} source directories")
+
+        # Sort the paths by number of directories, so we delete depth-first
+        for component, src_path in sorted(
+            self.src_dirs.items(),
+            key=lambda x: 0 - len(x[1].parents)
+        ):
+            path = pathlib.Path(src_path)
+            if not path.exists():
+                logging.fatal(f"Source path {src_path} does not exist!")
+                sys.exit(3)
+            logging.info(f"Pruning {src_path} for component {component}")
+            if self.dryrun:
+                logging.info(f"(skipping {src_path} due to dryrun)")
+            else:
+                shutil.rmtree(path)
+
+
+class UpdateComponents(ManifestWalker):
+    """
+    Loads the current set of manually-added components. Given a set of BD
+    manifests, applies changes to Black Duck to make the set of manually-added
+    components match the manifests.
     """
 
     # Match a version number that maybe starts with a "v", followed by only
@@ -60,20 +272,30 @@ class UpdateComponents:
     #    (lowercased) or, if that doesn't exist, the key of the component
     #    itself.
 
-    def __init__(self, creds, project, version, dryrun):
-        self.dryrun = dryrun
+    def __init__(self, credentials_file, project, version, dryrun):
+
+        super().__init__(project, version, dryrun)
+
         logging.info(f"Preparing to update components for {project} {version}")
+
+        # Connect to Black Duck
+        if credentials_file is None:
+            logging.error("Must provide --credentials for operation=update!")
+            sys.exit(3)
+        if not os.path.exists(credentials_file):
+            logging.error(f"Credentials file {credentials_file} does not exist!")
+            sys.exit(3)
+        with open(credentials_file, "r") as c:
+            creds = json.load(c)
         self.hub = HubInstance(
             creds['url'],
             creds['username'],
             creds['password'],
             insecure=True
         )
-
         self.comp_base = self.hub.get_apibase() + "/components/"
 
         # Save Black Duck's data about the project-version
-        self.name = f"{project} {version}"
         logging.debug(f"Looking up project {project}")
         self.project = self.hub.get_project_by_name(project)
         logging.debug(f"Looking up project version {version}")
@@ -189,7 +411,9 @@ class UpdateComponents:
         """
 
         # Initialize self.bom_components with report from Black Duck
-        logging.info(f"Retrieving current manual BOM for {self.name}")
+        logging.info(
+            f"Retrieving current manual BOM for {self.name} {self.version}"
+        )
         self.bom_components = self._get_manual_components()
         logging.debug(f"Found {len(self.bom_components)} manual components")
 
@@ -256,60 +480,44 @@ class UpdateComponents:
         return None
 
 
-    def add_manifest(self, manifest_file):
+    def add_component(self, comp_name, comp_data):
         """
-        Given the YAML file manifest, store the important information internally
-        in canonicalized form
+        Given a component name and YAML data, store the important information
+        internally in canonicalized form. See top-level comment for discussion
+        of schema of manifest.
         """
 
-        logging.info(f"Loading input manifest {manifest_file.name}")
-        manifest = yaml.safe_load(manifest_file)
+        # Values are dicts with possible keys 'versions', 'bd-id',
+        # 'bd-name', and 'license-approved'.
+        versions = comp_data.get('versions', [])
+        license_approved = comp_data.get('license-approved')
+        comp_name = comp_data.get('bd-name', comp_name).lower()
+        comp_id = comp_data.get('bd-id', None)
+        # Translate our manifest component ID to BD alias if necessary
+        comp_id = self.bd_comp_id_aliases.get(comp_id, comp_id)
 
-        try:
-            components = manifest['components']
-        except KeyError:
-            logging.fatal("Manifest does not have top-level 'components' key!")
-            sys.exit(2)
-
-        # Canonicalize manifest data into manifest. See top-level comment for
-        # discussion of schema of manifest.
-        for (comp_name, value) in components.items():
-            # If the value is an empty list, skip it (probably just there to
-            # keep the drift-detector happy).
-            if isinstance(value, list) and len(value) == 0:
-                continue
-
-            # Values are dicts with possible keys 'versions', 'bd-id',
-            # 'bd-name', and 'license-approved'.
-            versions = value.get('versions', [])
-            license_approved = value.get('license-approved')
-            comp_name = value.get('bd-name', comp_name).lower()
-            comp_id = value.get('bd-id', None)
-            # Translate our manifest component ID to BD alias if necessary
-            comp_id = self.bd_comp_id_aliases.get(comp_id, comp_id)
-
-            # Canonicalize version names and ensure they're strings (YAML might
-            # read them as floats). Pass save_alts=True here, since these are
-            # the manifest versions for which we might need to find slightly
-            # different spellings in the Knowledgebase later. Also, handle
-            # fallback versions now, so that DictDiffer doesn't attempt to
-            # handle them later.
-            versions = [
-                self.fallback_version_if_necessary(
-                    comp_name, comp_id, self.canonicalize_version(
-                        comp_name, comp_id, str(v), save_alts=True
-                    )
+        # Canonicalize version names and ensure they're strings (YAML might
+        # read them as floats). Pass save_alts=True here, since these are
+        # the manifest versions for which we might need to find slightly
+        # different spellings in the Knowledgebase later. Also, handle
+        # fallback versions now, so that DictDiffer doesn't attempt to
+        # handle them later.
+        versions = [
+            self.fallback_version_if_necessary(
+                comp_name, comp_id, self.canonicalize_version(
+                    comp_name, comp_id, str(v), save_alts=True
                 )
-                for v in versions
-            ]
-
-            logging.debug(
-                f"Adding component {comp_name} ({comp_id}) with "
-                f"versions {versions} to manifest"
             )
-            self.manifest[comp_id]["bd-name"] = comp_name
-            self.manifest[comp_id]["versions"].update(versions)
-            self.manifest[comp_id]["license-approved"] = license_approved
+            for v in versions
+        ]
+
+        logging.debug(
+            f"Adding component {comp_name} ({comp_id}) with "
+            f"versions {versions} to manifest"
+        )
+        self.manifest[comp_id]["bd-name"] = comp_name
+        self.manifest[comp_id]["versions"].update(versions)
+        self.manifest[comp_id]["license-approved"] = license_approved
 
 
     def _add_alt_canonical_version(self, comp_id, canon_ver, alt_ver):
@@ -605,7 +813,13 @@ class UpdateComponents:
                 response.raise_for_status()
 
 
-    def apply_manifests(self):
+    def done_loading_manifests(self):
+        logging.debug(
+            f"Final input manifest: {pprint.pformat(self.manifest)}"
+        )
+
+
+    def perform(self):
         """
         Compute the actions to make self.bom_comp_map look like added manifests,
         then execute each action
@@ -695,16 +909,17 @@ if __name__ == "__main__":
     )
     parser.add_argument('-d', '--debug', action='store_true',
         help="Produce debugging output")
-    parser.add_argument('-c', '--credentials', required=True,
-        type=argparse.FileType('r'),
+    parser.add_argument('-c', '--credentials', type=str,
         help="Black Duck Hub credentials JSON file")
     parser.add_argument('-p', '--project', required=True,
         help="project from Black Duck server")
     parser.add_argument('-v', '--version', required=True,
         help="Version of <project>")
-    parser.add_argument('-m', '--manifest', required=True, nargs='+',
-        type=argparse.FileType('r'),
-        help="JSON manifest of manual components")
+    parser.add_argument('-s', '--src-root', required=True, type=str,
+        help="Root directory of source code (for finding manifests)")
+    parser.add_argument('-o', '--operation', required=True,
+        choices=['prune', 'update'],
+        help="Whether to prune source dirs or update Black Duck")
     parser.add_argument('-n', '--dryrun', action='store_true',
         help="Dry run - don't update Black Duck, just report actions")
     args = parser.parse_args()
@@ -722,13 +937,21 @@ if __name__ == "__main__":
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    updater = UpdateComponents(
-        json.load(args.credentials),
-        args.project,
-        args.version,
-        args.dryrun
-    )
-    for manifest in args.manifest:
-        updater.add_manifest(manifest)
-    logging.debug(f"Final input manifest: {pprint.pformat(updater.manifest)}")
-    updater.apply_manifests()
+    src_root = args.src_root
+    if not os.path.isdir(src_root):
+        logging.error(f"{src_root} is not a directory!")
+        sys.exit(2)
+
+    if args.operation == "prune":
+        actor = PruneSourceDirs(args.project, args.version, args.dryrun)
+    elif args.operation == "update":
+        actor = UpdateComponents(
+            args.credentials,
+            args.project,
+            args.version,
+            args.dryrun
+        )
+
+    actor.set_source_root(src_root)
+    actor.add_manifests()
+    actor.perform()
