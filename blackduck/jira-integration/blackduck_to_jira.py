@@ -150,7 +150,7 @@ def close_jira_issue(jira, notification, issue):
             '%s BD_LAST_UPDATE is newer than %s, skipped',
             issue.key,
             notification['date'])
-    elif issue.fields.status.name not in ['Done', 'Not Applicable', 'Mitigated', 'Component Not Applicable']:
+    elif issue.fields.status.name not in ['Done', 'Not Applicable', 'Mitigated', 'Component Not Applicable', 'Fixed In Later Version']:
         jira.transition_issue(
             issue,
             config.JIRA['done'],
@@ -166,7 +166,8 @@ def construct_ticket_fields(notification, ticket_cves_list,
     ticket_cves.sort(
         key=lambda d: config.BLACKDUCK['severity_list'].index(
             d['severity']))
-    ticket_fields['severity'] = ticket_cves[0]['severity']
+    if ticket_cves:
+        ticket_fields['severity'] = ticket_cves[0]['severity']
     for t_cve in ticket_cves:
         ticket_detail_cves += f"{t_cve['severity']}:[ [{t_cve['name']}|{t_cve['link']}] ]\n"
 
@@ -237,7 +238,6 @@ def update_jira_issue(jira, notification, issue):
             ticket_cves.append({'severity': n['severity'],
                                 'name': n['name'],
                                 'link': n['link']})
-
     if ticket_needs_update:
         ticket_fields = construct_ticket_fields(
             notification, ticket_cves_list, ticket_cves, detail_sum, detail_files)
@@ -264,6 +264,7 @@ def update_jira_issue(jira, notification, issue):
                     issue,
                     config.JIRA['Not Applicable'],
                     notification['date'])
+
 
 parser = argparse.ArgumentParser('Retreive vulnerability notifications')
 parser.add_argument('-p', '--project_name', required=True,
@@ -394,8 +395,9 @@ for entry in scan_notification_jira_entries:
     else:
         logging.info(f'Found matching issue: {issue.key}.')
         if entry['notification_type'] == 'newVulnerabilityIds':
-            if not ((issue.fields.status.name == 'Component Not Applicable') or (
-                    entry['severity'] == 'LOW')):
+            if not ((issue.fields.status.name == 'Component Not Applicable') or
+                    (issue.fields.status.name == 'Not Applicable') or
+                    (issue.fields.status.name == 'Fixed In Later Version')):
                 update_jira_issue(jira, entry, issue)
         if issue and entry['notification_type'] == 'deletedVulnerabilityIds':
             close_jira_issue(jira, entry, issue)
@@ -413,4 +415,7 @@ for entry in update_notification_jira_entries:
         open_jira_issue(jira, entry)
     else:
         logging.info(f'Found matching issue: {issue.key}.')
-        update_jira_issue(jira, entry, issue)
+        if not ((issue.fields.status.name == 'Component Not Applicable') or
+                (issue.fields.status.name == 'Not Applicable') or
+                (issue.fields.status.name == 'Fixed In Later Version')):
+            update_jira_issue(jira, entry, issue)
