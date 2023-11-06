@@ -9,7 +9,7 @@ import time
 import zipfile
 import pandas as pd
 
-from blackduck.HubRestApi import HubInstance
+from blackduck import Client
 from pathlib import Path
 
 logger = logging.getLogger('blackduck/download-reports')
@@ -18,6 +18,14 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 ch = logging.StreamHandler()
 logger.addHandler(ch)
+
+
+def get_api_link(bd_object, link_type):
+    if '_meta' in bd_object and 'links' in bd_object['_meta']:
+        for link_obj in bd_object['_meta']['links']:
+            if 'rel' in link_obj and link_obj['rel'] == link_type:
+                return link_obj.get('href', None)
+
 
 class FailedDownload(Exception):
     pass
@@ -38,13 +46,16 @@ class ReportsDownloader:
         # Connect to Black Duck
         creds = json.load(cred_file)
         logger.info(f"Connecting to Black Duck hub {creds['url']}")
-        self.hub = HubInstance(creds["url"], creds["username"], creds["password"], insecure=True)
+        self.client = Client(base_url=creds["url"], token=creds["token"])
 
-        self.product = self.hub.get_project_by_name(product)
-        if not self.product:
+        try:
+            self.product = next(self.client.get_resource('projects', params={"q": f"name:{product}"}))
+        except StopIteration:
             raise Exception(f"Unknown product {product}")
-        self.version = self.hub.get_version_by_name(self.product, version)
-        if not self.version:
+
+        try:
+            self.version = next(self.client.get_resource('versions', self.product, params={"q": f"versionName:{version}"}))
+        except StopIteration:
             raise Exception(f"Unknown version {version} for product {product}")
 
 
@@ -59,7 +70,7 @@ class ReportsDownloader:
         logger.debug(f"Report ID is {report_id}")
         retries = 200
         while retries > 0:
-            response = self.hub.download_report(report_id)
+            response = self.client.session.get(f"/api/reports/{report_id}")
             if response.status_code != 200:
                 logger.debug(f"Report not ready yet, retrying #{retries}")
                 time.sleep(6)
@@ -109,11 +120,16 @@ class ReportsDownloader:
         """
 
         logger.info(f"Requesting creation of CSV reports")
-        response = self.hub.create_version_reports(
-            self.version,
-            ['VERSION', 'CODE_LOCATIONS', 'COMPONENTS', 'SECURITY', 'FILES'],
-            'CSV'
-        )
+
+        payload = {
+            "categories": ['VERSION', 'CODE_LOCATIONS', 'COMPONENTS', 'SECURITY', 'FILES'],
+            "versionId": self.version['_meta']['href'].split("/")[-1],
+            "reportType": "VERSION",
+            "reportFormat": "CSV",
+        }
+
+        response = self.client.session.post(get_api_link(self.version, 'versionReport'), json=payload)
+
         if response.status_code != 201:
             logger.debug(response.content)
             raise Exception(f"Error {response.status_code} creating CSV reports")
@@ -129,10 +145,18 @@ class ReportsDownloader:
         # CBD-5305: For now, only incorporate Copyright notices for capella.
         # Probably do this for all products in future.
         copyright = True if self.product == "couchbase-cloud" else False
-        response = self.hub.create_version_notices_report(
-            self.version,
-            'TEXT',
-            include_copyright_info=copyright)
+
+        payload = {
+            'versionId': self.version['_meta']['href'].split("/")[-1],
+            'reportFormat': 'TEXT',
+            'reportType': 'VERSION_LICENSE',
+        }
+
+        if copyright:
+            payload['categories'] = ["COPYRIGHT_TEXT"]
+
+        response = self.client.session.post(get_api_link(self.version, 'licenseReports'), json=payload)
+
         if response.status_code != 201:
             logger.debug(response.content)
             raise Exception(f"Error {response.status_code} creating Notices file")
@@ -147,26 +171,25 @@ class ReportsDownloader:
         """
 
         logger.info(f"Downloading .bdio scans")
-        output = self.hub.download_project_scans(
-            self.product_name, self.version_name,
-            str(self.output_dir)
-        )
 
+        codelocations = self.client.get_resource('codelocations', self.version)
+        bdio_scan_count = 0
         logger.debug(f"Creating {self.prefix}-bdio.zip")
         with zipfile.ZipFile(self.output_dir / f"{self.prefix}-bdio.zip", "w") as z:
-            for entry in output:
-                # I think the API *meant* to use a tuple here, but instead
-                # they used a two-item set, so we have to guess which one is
-                # the filename
-                for filename in entry:
-                    path = Path(filename)
-                    if not path.is_absolute():
-                        continue
-                    logger.debug(f"Adding {path} to zip")
-                    z.write(path, arcname=path.name)
-                    path.unlink()
+            for codelocation in codelocations:
+                bdio_link = get_api_link(codelocation, 'scan-data')
+                bdio_file = Path(os.path.join(self.output_dir, bdio_link.split("/")[-1]))
+                response = self.client.session.get(bdio_link, allow_redirects=True)
+                if response.status_code == 200:
+                    open(bdio_file, 'wb').write(response.content)
+                    z.write(bdio_file, arcname=bdio_file.name)
+                    bdio_file.unlink()
+                    bdio_scan_count += 1
+                else:
+                    logger.error("Failed to download {bdio_link}")
+                    sys.exit(1)
 
-        logger.info(f"Downloaded {len(output)} scans")
+        logger.info(f"Downloaded {bdio_scan_count} scans")
 
 
     def download(self):

@@ -4,13 +4,11 @@ import argparse
 import csv
 import json
 import logging
-import mdutils
 import os
-import pathlib
 import requests
 import sys
 
-from blackduck.HubRestApi import HubInstance
+from blackduck import Client
 from mdutils.mdutils import MdUtils
 from mdutils.tools import TextUtils
 from pathlib import Path
@@ -31,7 +29,7 @@ class ComponentLicenseChecker:
         # Connect to Black Duck
         creds = json.load(cred_file)
         logger.debug(f"Connecting to Black Duck hub {creds['url']}")
-        self.hub = HubInstance(creds["url"], creds["username"], creds["password"], insecure=True)
+        self.client = Client(base_url=creds["url"], token=creds["token"])
 
         self.report_dir = Path(report_dir)
         self.init_reports()
@@ -94,9 +92,7 @@ class ComponentLicenseChecker:
         lic_text_file = self._get_lic_text_file(lic_id)
         if not lic_text_file.exists():
             logger.debug(f"Getting license text for {lic_id} from Black Duck hub")
-            response = self.hub.execute_get(
-                self.hub.get_urlbase() + "/api/licenses/" + lic_id + "/text"
-            )
+            response = self.client.session.get(f"/api/licenses/{lic_id}/text")
             response.encoding = 'utf-8'
             with lic_text_file.open("w") as o:
                 o.write(response.json()['text'])
@@ -104,9 +100,7 @@ class ComponentLicenseChecker:
         lic_name_file = self._get_lic_name_file(lic_id)
         if not lic_name_file.exists():
             logger.debug(f"Getting license name for {lic_id} from Black Duck hub")
-            response = self.hub.execute_get(
-                self.hub.get_urlbase() + "/api/licenses/" + lic_id
-            )
+            response = self.client.session.get(f"/api/licenses/{lic_id}")
             response.encoding = 'utf-8'
             lic_name = response.json()['name']
             with lic_name_file.open("w") as o:
