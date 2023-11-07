@@ -57,7 +57,7 @@ The following components are licensed under WTFPL. Please correct in
 Black Duck Hub.
 
 --------------------------
-${wtfpls}
+$(grep -i 'what the f.ck' components.csv)
 --------------------------
 
 This script will now terminate to avoid committing offensive language to
