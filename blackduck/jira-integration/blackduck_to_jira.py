@@ -309,15 +309,14 @@ project_files = {}
 
 # Keep two lists of notifications: scan and update
 # Blackduck notifications can be categorized based on vulnerabilityNotificationCause and eventSource.  Common entries include:
-#   - eventSource: SCAN, KB_UPDATE, USER_ACTION, USER_ACTION_REMEDIATION, USER_ACTION_REPRIORITIZATION
+#   - eventSource: SCAN, KB_UPDATE, USER_ACTION, USER_ACTION_REMEDIATION, USER_ACTION_REPRIORITIZATION, USER_ACTION_ADJUSTMENT
 #   - vulnerabilityNotificationCause: ADDED, REMOVED, IGNORE_CHANGED, SEVERITY_CHANGED
-# eventsource SCAN gives us 90% of notifications from scans.  A scan also triggers eventSource=USER_ACTION +
-# vulnerabilityNotificationCause=Removed.  It is unclear the logic behind it.
 #
-# Keep two lists of notifications to process: scan and update
-#   - Scan: Since we do fresh scans, all vulnerabilities are removed and re-added for each scan.  This could lead to one of these scenarios:
-# a new ticket if it doesn't exist, re-opening of a closed ticket, or closing  a ticket.  No need to worry about modifying a ticket.
-#
+# Keep two lists of notifications: scan and update
+#   - Scan: Since we do fresh scans, components are removed and re-added for each scan.  Blackeduck do not remove/re-added
+# manually added components (from <PRODUCT>-black-duck-manifest.yaml).  It simply modify based on the entries.  Entries in the
+# Scan list will result in, a new ticket if it doesn't exist, re-opening of a closed ticket, or closing  a ticket (when component
+# is removed).
 #   - Update: notifications from eventSource of KB_UPDATE, USER_ACTION_REMEDIATION, etc.  These are not done by scan.
 # These could lead to a new ticket, add/update/remove vulnerabilities to
 # an existing ticket, transition a ticket.
@@ -329,7 +328,7 @@ for notification in notifications:
         if notification['content']['deletedVulnerabilityIds']:
             scan_notifications += get_notification_info(
                 notification, 'deletedVulnerabilityIds')
-    elif notification['content']['vulnerabilityNotificationCause'] == 'REMOVED' and notification['content']['eventSource'] == 'USER_ACTION':
+    elif notification['content']['vulnerabilityNotificationCause'] == 'REMOVED' and 'USER_ACTION' in notification['content']['eventSource']:
         if notification['content']['deletedVulnerabilityIds']:
             scan_notifications += get_notification_info(
                 notification, 'deletedVulnerabilityIds')
