@@ -8,6 +8,13 @@ EOF
     exit 1
 }
 
+function unlock_keychain {
+    #unlock keychain
+    #${KEYCHAIN_PASSWORD} is injected as an env password in jenkins job
+    echo "------- Unlocking keychain -----------"
+    security unlock-keychain -p ${KEYCHAIN_PASSWORD} ${HOME}/Library/Keychains/login.keychain-db
+}
+
 check_notarization_status() {
     request=$1
 
@@ -23,10 +30,15 @@ check_notarization_status() {
         return 1
     fi
 
-    STATUS=$(
-        echo "$XML_OUTPUT" | \
-        xmllint --xpath '//dict/key[text() = "status"]/following-sibling::string[1]/text()' -
-    )
+    if [ -n "$XML_OUTPUT" ]; then
+        STATUS=$(
+            echo "$XML_OUTPUT" | \
+            xmllint --xpath '//dict/key[text() = "status"]/following-sibling::string[1]/text()' -
+        )
+    else
+        echo "XML_OUTPUT is empty = - will ignore and keep trying"
+        return 1
+    fi
     case ${STATUS} in
         Accepted)
             echo "Request ${request} succeeded!"
@@ -52,6 +64,11 @@ check_notarization_status() {
             ;;
     esac
 }
+
+##Main
+
+#unlock keychain
+unlock_keychain
 
 # default to notarize both community and enterprise
 EDITION="community enterprise"

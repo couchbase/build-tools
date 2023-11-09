@@ -12,11 +12,22 @@
 #
 #
 
-function usage
-    {
+function usage {
     echo "Incorrect parameters..."
     echo -e "\nUsage:  ${0}   version   builld_num   edition    OSX (eg. elcaptian) [1 = download package]\n\n"
-    }
+}
+
+function unlock_keychain {
+    #unlock keychain
+    #${KEYCHAIN_PASSWORD} is injected as an env password in jenkins job
+    echo "------- Unlocking keychain -----------"
+    security unlock-keychain -p ${KEYCHAIN_PASSWORD} ${HOME}/Library/Keychains/login.keychain-db
+}
+
+##Main
+
+#unlock keychain
+unlock_keychain
 
 if [[ "$#" < 2 ]] ; then usage ; exit DEAD ; fi
 

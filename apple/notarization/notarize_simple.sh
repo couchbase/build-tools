@@ -6,6 +6,13 @@ usage() {
     exit 1
 }
 
+function unlock_keychain {
+    #unlock keychain
+    #${KEYCHAIN_PASSWORD} is injected as an env password in jenkins job
+    echo "------- Unlocking keychain -----------"
+    security unlock-keychain -p ${KEYCHAIN_PASSWORD} ${HOME}/Library/Keychains/login.keychain-db
+}
+
 notarize_pkg() {
     echo "-------Notarizing for ${PKG}-------"
     XML_OUTPUT=$(xcrun notarytool submit "${PKG}" \
@@ -36,13 +43,18 @@ notarize_pkg() {
                 --keychain "~/Library/Keychains/login.keychain-db" \
                 --output-format plist 2>&1
         )
-        if [ $? != 0 ]; then
+        if [ $? != 0 ] || [ -z ${XML_OUTPUT} ]; then
             echo "Error checking on status for ${REQUEST_ID} - will ignore and keep trying"
             return 1
         fi
-        STATUS=$(echo "${XML_OUTPUT}" | \
-            xmllint --xpath '//dict/key[text() = "status"]/following-sibling::string[1]/text()' -
-        )
+        if [ -n "${XML_OUTPUT}" ]; then
+            STATUS=$(echo "${XML_OUTPUT}" | \
+                xmllint --xpath '//dict/key[text() = "status"]/following-sibling::string[1]/text()' -
+            )
+        else
+            echo "XML_OUTPUT is empty = - will ignore and keep trying"
+            return 1
+        fi
         case ${STATUS} in
             Accepted)
                 echo "Request ${REQUEST_ID} succeeded!"
@@ -88,4 +100,5 @@ if [[ $# -eq 0 ]] ; then
     usage
 fi
 PKG=${1}
+unlock_keychain
 notarize_pkg

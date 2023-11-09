@@ -1,7 +1,5 @@
 #!/bin/zsh -e
 
-#${KEYCHAIN_PASSWORD} and ${AC_PASSWORD} are injected as an env password in jenkins job
-
 function usage
 {
   echo "\nUsage: $0 -p <Product> -r <Release> -v <Version> -b <Build> -e <Edition> -a <Arch> -n\n"
@@ -18,6 +16,7 @@ function usage
 function unlock_keychain
 {
     #unlock keychain
+    #${KEYCHAIN_PASSWORD} is injected as an env password in jenkins job
     echo "------- Unlocking keychain -----------"
     security unlock-keychain -p ${KEYCHAIN_PASSWORD} ${HOME}/Library/Keychains/login.keychain-db
 }
