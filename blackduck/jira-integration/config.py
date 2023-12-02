@@ -4,7 +4,7 @@ BLACKDUCK = {
 JIRA = {
     'project': 'VULN',
     'issue_type': 'Bug',
-    'not_applicable': '101',  # Corresponding workflow transition ID in jira
+    'low_severity': '171',  # Corresponding workflow transition ID in jira
     'to_do': '11',  # Corresponding workflow transition ID in jira
     'done': '151',  # Corresponding workflow transition ID in jira
     'BD_COMPONENT': 'customfield_13582',

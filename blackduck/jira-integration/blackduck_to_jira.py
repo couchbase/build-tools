@@ -127,11 +127,11 @@ def open_jira_issue(jira, notification):
     new_issue = jira.new_issue(config.JIRA['project'], notification)
     logging.info('Creating a new Jira issue, %s', new_issue.key)
     # When severity is LOW, we want to keep a record of it, but leave it in
-    # 'Not Applicable' State
+    # 'Done' State
     if notification['severity'] == 'LOW':
         jira.transition_issue(
             new_issue,
-            config.JIRA['not_applicable'],
+            config.JIRA['low_severity'],
             notification['date'])
 
     if related_issues:
@@ -163,28 +163,35 @@ def construct_ticket_fields(notification, ticket_cves_list,
     ticket_fields = {}
     ticket_fields['date'] = notification['date']
     ticket_fields['cves_list'] = ticket_cves_list
-    ticket_cves.sort(
-        key=lambda d: config.BLACKDUCK['severity_list'].index(
-            d['severity']))
-    if ticket_cves:
-        ticket_fields['severity'] = ticket_cves[0]['severity']
-    for t_cve in ticket_cves:
-        ticket_detail_cves += f"{t_cve['severity']}:[ [{t_cve['name']}|{t_cve['link']}] ]\n"
 
-    for file in notification['files']:
-        if not re.search(file, detail_files):
-            detail_files += f"{file}\n"
+    # If all CVEs have been removed in BD, simply set it to empty
+    if len(ticket_cves) != 0:
+        sorted_ticket_cves = sorted(ticket_cves.items(),
+                                    key=lambda d: config.BLACKDUCK['severity_list'].index(
+            d[1]['severity']))
+        ticket_fields['severity'] = sorted_ticket_cves[0][1]["severity"]
+        for cve in ticket_cves:
+            ticket_detail_cves += f"{ticket_cves[cve]['severity']}:[{cve}|{ticket_cves[cve]['link']}]\n"
+        for file in notification['files']:
+            if not re.search(file, detail_files):
+                detail_files += f"{file}\n"
+        detail_sum = re.sub(
+            r"\*Severity Status\*:.+",
+            f"*Severity Status*:*{ticket_fields['severity']}*",
+            detail_sum)
+        ticket_fields['detail'] = (f"{detail_sum}"
+                                   f"{{anchor}}\n"
+                                   f"{ticket_detail_cves}"
+                                   f"{{anchor}}"
+                                   f"{detail_files}")
+    else:
+        ticket_fields['detail'] = ''
 
-    ticket_fields['detail'] = (f"{detail_sum}"
-                               f"{{anchor}}\n"
-                               f"{ticket_detail_cves}"
-                               f"{{anchor}}"
-                               f"{detail_files}")
     return ticket_fields
 
 
 def update_jira_issue(jira, notification, issue):
-    ticket_cves = []
+    ticket_cves = {}
     ticket_needs_update = False
 
     logging.info('Checking to see if %s needs to be updated.', issue.key)
@@ -212,35 +219,42 @@ def update_jira_issue(jira, notification, issue):
     lines = [s for s in detail_cves.splitlines() if s]
     for line in lines:
         [severity, name, url, junk] = re.split(r':\[ \[|\||\] \]', line)
-        ticket_cves.append({'severity': severity, 'name': name, 'link': url})
+        ticket_cves.update({name: {'severity': severity, 'link': url}})
 
     if notification['notification_type'] == 'newVulnerabilityIds':
         for n in notification['cves']:
             if n['name'] not in ticket_cves_list:
                 ticket_needs_update = True
                 ticket_cves_list.append(n['name'])
-                ticket_cves.append({'severity': n['severity'],
-                                    'name': n['name'],
-                                    'link': n['link']})
+                ticket_cves[n['name']] = {}
+                ticket_cves[n['name']]['severity'] = n['name']
+                ticket_cves[n['name']]['link'] = n['link']
+        else:
+            # Usually BD sends severity change of an existing vulnerability as
+            # updatedVulnerabilityIds.  But, in at least one case, it sends
+            # the notification of deleting the old vulnerability and adding a
+            # new one.  Hence, we need to check if newVulnerabilityIds
+            # to ensure it is not a severity update.
+            if n['severity'] != ticket_cves[n['name']]['severity']:
+                ticket_needs_update = True
+                ticket_cves[n['name']]['severity'] = n['severity']
+
     if notification['notification_type'] == 'deletedVulnerabilityIds':
         for n in notification['cves']:
             if n['name'] in ticket_cves_list:
                 ticket_needs_update = True
                 ticket_cves_list.remove(n['name'])
-                ticket_cves = [c for c in ticket_cves.copy() if not (
-                    c['name'] == n['name'])]
+                del ticket_cves[n['name']]
 
     if notification['notification_type'] == 'updatedVulnerabilityIds':
         ticket_needs_update = True
-        for n in notification['cves']:
-            ticket_cves = [c for c in ticket_cves.copy() if not (
-                c['name'] == n['name'])]
-            ticket_cves.append({'severity': n['severity'],
-                                'name': n['name'],
-                                'link': n['link']})
+        ticket_cves[n['name']]['severity'] = n['severity']
+        ticket_cves[n['name']]['link'] = n['link']
+
     if ticket_needs_update:
         ticket_fields = construct_ticket_fields(
             notification, ticket_cves_list, ticket_cves, detail_sum, detail_files)
+
         jira.update_issue(issue, ticket_fields)
         # CVE list is empty, close the ticket
         if not ticket_fields['cves_list']:
@@ -252,7 +266,8 @@ def update_jira_issue(jira, notification, issue):
 
         # Reopen the ticket since CVEs have changed.
         # Close the ticket if severity is LOW.
-        if issue.fields.status.name in ['Done', 'Not Applicable', 'Mitigated']:
+        if issue.fields.status.name in [
+                'Done', 'Mitigated']:
             if ticket_fields['severity'] != 'LOW':
                 jira.transition_issue(
                     issue,
@@ -262,7 +277,7 @@ def update_jira_issue(jira, notification, issue):
             if ticket_fields['severity'] == 'LOW':
                 jira.transition_issue(
                     issue,
-                    config.JIRA['Not Applicable'],
+                    config.JIRA['low_severity'],
                     notification['date'])
 
 
