@@ -43,6 +43,10 @@ function chk_cmd {
     done
 }
 
+function version_lt() {
+    [ "${1}" = "${2}" ] && return 1 || [  "${1}" = "$(printf "${1}\n${2}" | sort -V | head -n1)" ]
+}
+
 xtrace_stack=()
 
 # Disable bash's 'xtrace', but remember the current setting so

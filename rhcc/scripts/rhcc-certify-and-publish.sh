@@ -1,26 +1,46 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
 
 usage() {
     echo "Usage: $0 -i IMAGE"
-    echo "       $0 -s -p PRODUCT -t INTERNAL_TAG -a <amd64|arm64> -r RELEASE_TAG [ -r RELEASE TAG ... ] -c RHCC_CONFILE_FILE [-b]"
+    echo "   or: $0 -s -p PRODUCT -t INTERNAL_TAG -a <amd64|arm64> -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l] [-B]"
     echo
     echo "With only -i, simply runs 'preflight' on the specified image."
+    echo
     echo "With -s and the other arguments, handles the complete release-to-RHCC"
     echo "process - pulls the staged image (presumed to exist on the internal"
     echo "Docker registry with the correct name for PRODUCT and the specified"
     echo "internal tag), uploads it to quay.io with the specified release tag(s),"
     echo "runs preflight, and submits the preflight certification report to"
     echo "RHCC. In this mode, -i is ignored."
-    echo "  -b: build preflight from source"
+    echo
+    echo "INTERNAL_TAG must exactly match a tag on build-docker.couchbase.com/cb-rhcc."
+    echo
+    echo "RELEASE_TAG_BASE will generally be the version number, but could also"
+    echo "be eg. '7.6.0-MP1'."
+    echo "REBUILD_NUM must be unique for every time a given RELEASE_TAG_BASE is"
+    echo "published to RHCC, generally starting from 1 when the GA image is uploaded."
+    echo
+    echo "This script will create the following tags on RHCC:"
+    echo
+    echo "  <RELEASE_TAG_BASE>-<ARCH>"
+    echo "  <RELEASE_TAG_BASE>-<REBUILD_NUM>-<ARCH>"
+    echo "  <RELEASE_TAG_BASE>-rhcc-<ARCH>"
+    echo
+    echo "When ARCH is 'amd64', it will also create each of the above tags without"
+    echo "the -<ARCH> suffix."
+    echo
+    echo "  -B: build preflight from source"
+    echo "  -l: also update :latest tag on RHCC"
     exit 1
 }
 
 SUBMIT="false"
+LATEST="false"
 BUILD_PREFLIGHT="false"
-while getopts :i:p:t:a:r:c:sbh opt; do
+while getopts :i:p:t:a:r:b:c:slBh opt; do
     case ${opt} in
         i) IMAGE="$OPTARG"
            ;;
@@ -30,13 +50,17 @@ while getopts :i:p:t:a:r:c:sbh opt; do
            ;;
         a) ARCH="$OPTARG"
            ;;
-        r) RELEASE_TAGS="$RELEASE_TAGS $OPTARG"
+        r) RELEASE_TAG_BASE="$OPTARG"
            ;;
         c) CONFFILE="$OPTARG"
            ;;
+        b) REBUILD_NUM="$OPTARG"
+           ;;
         s) SUBMIT="true"
            ;;
-        b) BUILD_PREFLIGHT="true"
+        l) LATEST="true"
+           ;;
+        B) BUILD_PREFLIGHT="true"
            ;;
         h) usage
            ;;
@@ -116,8 +140,9 @@ if ${SUBMIT}; then
     chk_set CONFFILE
     chk_set PRODUCT
     chk_set INTERNAL_TAG
+    chk_set REBUILD_NUM
     chk_set ARCH
-    chk_set RELEASE_TAGS
+    chk_set RELEASE_TAG_BASE
 
     # Read useful details from config json
     product_path=".products.\"${PRODUCT}\""
@@ -149,21 +174,19 @@ if ${SUBMIT}; then
 
     # Upload all images - we have to do this first because preflight -s
     # only works on an image already uploaded to quay.io.
-    for tag in ${RELEASE_TAGS}; do
+    for tag in ${RELEASE_TAG_BASE}-${REBUILD_NUM} ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
         image_base=quay.io/redhat-isv-containers/${project_id}:${tag}
 
-        if [ "${ARCH}" = "amd64" ]; then
-            # Upload amd64 images with generic, non arch specific tags
-            upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}
-            # Remember the first non-arch-specific tag for running preflight.
-            [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}
-        else
-            # arm64 images are only uploaded with -arm64 tags. Remember the
-            # first one for running preflight.
-            [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}-${ARCH}
-        fi
         # Upload arch specific tags for all architectures
         upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}-${ARCH}
+
+        # Remember the first uploaded tag for running preflight.
+        [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}-${ARCH}
+
+        # Also upload amd64 images with generic, non arch specific tags
+        if [ "${ARCH}" = "amd64" ]; then
+            upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}
+        fi
     done
 
 else

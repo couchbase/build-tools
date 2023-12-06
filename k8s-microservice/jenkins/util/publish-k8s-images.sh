@@ -135,17 +135,16 @@ if product_in_rhcc "${PRODUCT}" && [ "${OPENSHIFT_BUILD}" != "0" ]; then
 
         status "Keys don't match, performing copy"
         if ${LATEST}; then
-            LATEST_ARG="-r latest"
+            LATEST_ARG="-l"
         fi
 
         # Important to push the unique X.Y.Z-B version first, as that's the
         # one that rhcc-certify-and-publish.sh will attempt to preflight
         # check. When republishing, preflight will fail if asked to verify
         # an already-published tag.
-        ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh -s -b \
+        ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh -s -B \
             -c ${HOME}/.docker/rhcc-metadata.json \
             -p ${PRODUCT} -t ${INTERNAL_TAG} -a ${arch} \
-            -r ${PUBLIC_TAG}-${OPENSHIFT_BUILD} -r ${PUBLIC_TAG}  \
-            -r ${PUBLIC_TAG}-rhcc ${LATEST_ARG}
+            -r ${PUBLIC_TAG} -b ${OPENSHIFT_BUILD} ${LATEST_ARG}
     done
 fi
