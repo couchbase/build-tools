@@ -43,8 +43,11 @@ esac
 # and release_binaries_to_s3.
 # Do this after the above check so that we will only propose changes for
 # images that have corresponding manifests and artifacts.
+# release_binaries_to_s3 uses PRODUCT while update_manifest_released uses
+# PRODUCT_PATH, but for top-level products those are the same thing.
 cat <<EOF > trigger.properties
 PRODUCT_PATH=${PRODUCT}
+PRODUCT=${PRODUCT}
 RELEASE=${VERSION}
 VERSION=${VERSION}
 BLD_NUM=${BLD_NUM}
