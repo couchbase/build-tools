@@ -22,14 +22,11 @@ download_analytics_jars() {
 }
 
 create_analytics_poms() {
-  # This will be also be added to PATH by scan-environment.sh in case
-  # Detect needs it
-
   # We need to ask Analytics to build us a BOM, which we then convert
   # to a series of poms that Black Duck can scan. Unfortunately this
   # requires actually building most of Analytics. However, it does
   # allow us to bypass having Detect scan the analytics/ directory.
-  pushd "${WORKSPACE}/tempbuild"
+  pushd "${BUILD_DIR}"
   ninja analytics
   popd
 
@@ -44,9 +41,10 @@ create_analytics_poms() {
 
 # Main script starts here - decide which action to take based on VERSION
 
-# Have to run cmake to extract list of GOVERSIONs. Couldn't find a reliable
-# way to extract the CMake version from the source (because CMake downloads
-# themselves are inconsistent), so just hardcode a recent CMake.
+# Have to configure the Server build for several reasons. Couldn't find
+# a reliable way to extract the CMake version from the source (because
+# CMake downloads themselves are inconsistent), so just hardcode a
+# recent CMake.
 CMAKE_VERSION=3.23.1
 NINJA_VERSION=1.10.2
 cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
@@ -54,22 +52,28 @@ cbdep install -d "${WORKSPACE}/extra" ninja ${NINJA_VERSION}
 export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${WORKSPACE}/extra/ninja-${NINJA_VERSION}/bin:${PATH}"
 export CB_MAVEN_REPO_LOCAL=~/.m2/repository
 
-rm -rf "${WORKSPACE}/tempbuild"
-mkdir "${WORKSPACE}/tempbuild"
-pushd "${WORKSPACE}/tempbuild"
+BUILD_DIR="${WORKSPACE}/tempbuild"
+rm -rf "${BUILD_DIR}"
+mkdir "${BUILD_DIR}"
+pushd "${BUILD_DIR}"
 LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
 
-YAML="${WORKSPACE}/src/couchbase-server-black-duck-manifest.yaml"
-cat <<EOF > "${YAML}"
-components:
-  go programming language:
-    bd-id: 6d055c2b-f7d7-45ab-a6b3-021617efd61b
-    versions:
-EOF
+# Extract the set of Go versions from the build. Since we didn't specify
+# PRODUCT_VERSION to CMake above, it will be just ${VERSION}-0000. We
+# trust that 'python' on the PATH is the venv set up by the top-level
+# blackduck-detect-scan.sh script, and in particular that it's a venv
+# which has PyYAML in it.
+GO_MANIFEST="${WORKSPACE}/src/couchbase-server-black-duck-manifest.yaml"
+GOVER_FILE="tlm/couchbase-server-${VERSION}-0000-go-versions.yaml"
+"${SCRIPT_DIR}/build-go-manifest.py" \
+  --go-versions "${GOVER_FILE}" \
+  --output "${GO_MANIFEST}" \
+  --max-ver-file max-go-ver.txt
 
-for gover in $(perl -lne 'm#go-([0-9.]*?)/go# && print $1' build.ninja | sort -u); do
-    echo "      - \"${gover}\"" >> "${YAML}"
-done
+# Also install the maximum Golang version and put it on PATH for later
+GOMAX=$(cat max-go-ver.txt)
+cbdep install -d "${WORKSPACE}/extra" golang ${GOMAX}
+export PATH="${WORKSPACE}/extra/go${GOMAX}/bin:${PATH}"
 
 popd
 
