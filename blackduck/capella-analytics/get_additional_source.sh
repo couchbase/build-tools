@@ -58,14 +58,13 @@ mkdir "${BUILD_DIR}"
 pushd "${BUILD_DIR}"
 LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
 
-# Extract the set of Go versions from the build. Since we didn't specify
-# PRODUCT_VERSION to CMake above, it will be just ${VERSION}-0000. We
-# trust that 'python' on the PATH is the venv set up by the top-level
+# Extract the set of Go versions from the build. We trust that 'python'
+# on the PATH is the venv set up by the top-level
 # blackduck-detect-scan.sh script, and in particular that it's a venv
 # which has PyYAML in it.
-GO_MANIFEST="${WORKSPACE}/src/couchbase-server-black-duck-manifest.yaml"
-GOVER_FILE="tlm/couchbase-server-${VERSION}-0000-go-versions.yaml"
-"${SCRIPT_DIR}/build-go-manifest.py" \
+GO_MANIFEST="${WORKSPACE}/src/capella-analytics-black-duck-manifest.yaml"
+GOVER_FILE=$(ls tlm/couchbase-server-*-go-versions.yaml)
+"${SCRIPT_DIR}/../scripts/build-go-manifest.py" \
   --go-versions "${GOVER_FILE}" \
   --output "${GO_MANIFEST}" \
   --max-ver-file max-go-ver.txt

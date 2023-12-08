@@ -68,7 +68,7 @@ if [ -e "${GOVER_FILE}" ]; then
   # just ${VERSION}-0000. We trust that 'python' on the PATH is the venv
   # set up by the top-level blackduck-detect-scan.sh script, and in
   # particular that it's a venv which has PyYAML in it.
-  "${SCRIPT_DIR}/build-go-manifest.py" \
+  "${SCRIPT_DIR}/../scripts/build-go-manifest.py" \
     --go-versions "${GOVER_FILE}" \
     --output "${GO_MANIFEST}" \
     --max-ver-file max-go-ver.txt
