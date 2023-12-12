@@ -48,32 +48,6 @@ if [ "x${PRODUCT}" = "x" ]; then
     exit 2
 fi
 
-if [ "x${COMMUNITY}" = "x" ]; then
-    if [ "${PRODUCT}" = "couchbase-server" ]; then
-        COMMUNITY=private
-    else
-        # Set to "public" which means "all files" - appropriate for majority of
-        # products that don't have EE/CE split. Also only Server has the
-        # "sometimes we release CE, sometimes we don't" thing.
-        COMMUNITY=public
-    fi
-fi
-
-if [ ${#PLATFORMS[@]} -eq 0 ]; then
-    if [ "${PRODUCT}" = "couchbase-server" ]; then
-        # For Server 7.2.4 and later, only release generic linux, macos, windows
-        if [ "7.2.4" = $(printf "7.2.4\n${VERSION}" | sort -n | head -1) ]; then
-            PLATFORMS=(linux macos windows)
-        else
-            PLATFORMS=(ubuntu amzn2 centos debian rhel macos oel suse windows linux)
-        fi
-    else
-        # This is a "no-op" platform wildcard, since all filenames will have
-        # at least one - in them.
-        PLATFORMS=(-)
-    fi
-fi
-
 if [ "x${VERSION}" = "x" ]; then
     echo "Version not set"
     usage
@@ -100,6 +74,32 @@ if ! [[ $BLD_NUM =~ ^[0-9]*$ ]]; then
     exit 3
 fi
 
+if [ "x${COMMUNITY}" = "x" ]; then
+    if [ "${PRODUCT}" = "couchbase-server" ]; then
+        COMMUNITY=private
+    else
+        # Set to "public" which means "all files" - appropriate for majority of
+        # products that don't have EE/CE split. Also only Server has the
+        # "sometimes we release CE, sometimes we don't" thing.
+        COMMUNITY=public
+    fi
+fi
+
+if [ ${#PLATFORMS[@]} -eq 0 ]; then
+    if [ "${PRODUCT}" = "couchbase-server" ]; then
+        # For Server 7.2.4 and later, only release generic linux, macos, windows
+        if [ "7.2.4" = $(printf "7.2.4\n${VERSION}" | sort -n | head -1) ]; then
+            PLATFORMS=(linux macos windows)
+        else
+            PLATFORMS=(ubuntu amzn2 centos debian rhel macos oel suse windows linux)
+        fi
+    else
+        # This is a "no-op" platform wildcard, since all filenames will have
+        # at least one - in them.
+        PLATFORMS=(-)
+    fi
+fi
+
 RELEASES_MOUNT=/releases
 if [ ! -e ${RELEASES_MOUNT} ]; then
     echo "'releases' directory is not mounted"
@@ -112,6 +112,14 @@ if [ ! -e ${LB_MOUNT} ]; then
     exit 4
 fi
 
+# Product-specific extra stuff
+case "${PRODUCT}" in
+    couchbase-operator)
+        # couchbase-operator's uploads include files starting with
+        # "couchbase-autonomous-operator"
+        EXTRA_POSITIVE_WILDCARDS='couchbase-autonomous-operator*'
+        ;;
+esac
 
 # Compute target filename components
 if [ -z "$SUFFIX" ]; then
@@ -199,25 +207,39 @@ fi
 
 for platform in ${PLATFORMS[@]}
 do
-    # Have to disable bash's filename expansion here (with "set -f") - doesn't
-    # seem to be any other way to pass EXTRA_FIND_ARGS to find without bash
-    # expanding the glob wildcards first. (EXTRA_FIND_ARGS isn't used anymore,
-    # but leaving it in case we need it again in future.)
+    # Have to disable bash's filename expansion here (with "set -f") -
+    # we want to pass any wildcard arguments un-expanded to find.
+    POSITIVE=""
+    for extra in ${EXTRA_POSITIVE_WILDCARDS}; do
+        # Additional positive wildcards need to be joined with "or" (-o)
+        POSITIVE+=" -o -name ${extra}"
+    done
+    NEGATIVE=""
+    for extra in ${EXTRA_NEGATIVE_WILDCARDS}; do
+        # Additional negative wildcards are joined with the default "and",
+        # plus of course "-not"
+        NEGATIVE+=" -not -name ${extra}"
+    done
     for file in $( \
         set -f; \
-        find . -maxdepth 1 \( \
-            -name *${PRODUCT}*${platform}* \
-            -not -name *unsigned* \
-            -not -name *unnotarized* \
-            -not -name *asan* \
-            -not -name *.md5 \
-            -not -name *.sha26 \
-            -not -name *.properties \
-            -not -name *properties.json \
-            -not -name *-manifest.xml \
-            -not -name *-source.tar.gz \
-            ${EXTRA_FIND_ARGS} \
-        \) )
+        find . -maxdepth 1 \
+            \( \
+                -name *${PRODUCT}*${platform}* \
+                ${POSITIVE} \
+            \) \
+            \( \
+                -not -name *unsigned* \
+                -not -name *unnotarized* \
+                -not -name *asan* \
+                -not -name *.md5 \
+                -not -name *.sha26 \
+                -not -name *.properties \
+                -not -name *properties.json \
+                -not -name *-manifest.xml \
+                -not -name *-source.tar.gz \
+                ${NEGATIVE} \
+            \)
+    )
     do
         # Remove leading "./" from find results
         file=${file/.\//}
