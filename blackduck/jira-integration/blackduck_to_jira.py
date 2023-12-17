@@ -171,7 +171,7 @@ def construct_ticket_fields(notification, ticket_cves_list,
             d[1]['severity']))
         ticket_fields['severity'] = sorted_ticket_cves[0][1]["severity"]
         for cve in ticket_cves:
-            ticket_detail_cves += f"{ticket_cves[cve]['severity']}:[{cve}|{ticket_cves[cve]['link']}]\n"
+            ticket_detail_cves += f"{ticket_cves[cve]['severity']}:[ [{cve}|{ticket_cves[cve]['link']}] ]\n"
         for file in notification['files']:
             if not re.search(file, detail_files):
                 detail_files += f"{file}\n"
