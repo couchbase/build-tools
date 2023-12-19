@@ -174,13 +174,12 @@ if ${KEEP_GIT}; then
     set +x
     # As with build_from_manifest.py, we dereference symlinks in .git
     # directories so they work on Windows.
-    echo "Dereferencing .git symlinks"
+    echo "Dereferencing symlinks"
     echo =======================
-    # Make a local temp file
-    tempfile=./tmpgitfile
-    find . -type l -path '*/.git/*' -print0 | while read -rd $'\0' file; do
+    tempfile=./tmpfile
+    find . -type l -print0 | while read -rd $'\0' file; do
         cp -aL "${file}" ${tempfile}
-        rm "${file}"
+        rm -rf "${file}"
         mv ${tempfile} "${file}"
     done
     set -x
