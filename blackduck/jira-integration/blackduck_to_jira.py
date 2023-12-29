@@ -247,9 +247,11 @@ def update_jira_issue(jira, notification, issue):
                 del ticket_cves[n['name']]
 
     if notification['notification_type'] == 'updatedVulnerabilityIds':
-        ticket_needs_update = True
-        ticket_cves[n['name']]['severity'] = n['severity']
-        ticket_cves[n['name']]['link'] = n['link']
+        for n in notification['cves']:
+            if n['name'] in ticket_cves_list:
+                ticket_needs_update = True
+                ticket_cves[n['name']]['severity'] = n['severity']
+                ticket_cves[n['name']]['link'] = n['link']
 
     if ticket_needs_update:
         ticket_fields = construct_ticket_fields(
