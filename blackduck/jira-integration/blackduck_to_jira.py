@@ -209,10 +209,12 @@ def update_jira_issue(jira, notification, issue):
             notification['date'])
         return
     # Get existing ticket data
-    ticket_cves_list = list(
-        getattr(
+    ticket_cves_list = []
+    bd_cves = getattr(
             issue.fields,
-            config.JIRA['BD_CVES']).split(','))
+            config.JIRA['BD_CVES'])
+    if bd_cves:
+        ticket_cves_list = list(bd_cves.split(','))
     ticket_severity = getattr(issue.fields, config.JIRA['BD_SEVERITY'])
     [detail_sum, detail_cves, detail_files] = re.split(
         '{anchor}', getattr(issue.fields, config.JIRA['BD_DETAIL']))
