@@ -59,3 +59,8 @@
 "903a5281-80d6-454c-b18c-ac526e69ae2c":
   bd-id-aliases:
     - "593ed15d-7aaf-4ef3-91bf-691c6dc31ccc"
+
+# abseil
+"48190a0a-604d-41eb-aadc-9c942ecdb6fd":
+  bd-id-aliases:
+    - "99ea2532-8ecf-4c21-ac5b-1b00740c80f5"

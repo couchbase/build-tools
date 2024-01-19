@@ -732,6 +732,25 @@ class UpdateComponents(ManifestWalker):
             sys.exit(3)
         logging.debug(f"Component version URL is {component_version_url}")
 
+        # Sanity check: Did the component-version URL come back with a
+        # different component ID? If so, likely a case where Black Duck
+        # changed the canonical component ID. It's too late to correct
+        # the situation now, and we need to keep a permanent historical
+        # record in bd_aliases.yaml because those old component IDs may
+        # not last forever in the Knowledgebase but will be in our git
+        # history forever. But we can at least raise a useful error
+        # message.
+        if not comp_id in component_version_url:
+            logging.fatal(
+                f"ERROR! Component ID mismatch\n\n\n\n\n"
+                f"Our black-duck-manifest references component ID {comp_id} "
+                f"for component {comp_name}; however searching for version "
+                f"{version} returned the URL {component_version_url} which "
+                f"references a different component ID. This probably means "
+                f"that the Black Duck Knowledgebase has changed the ID. "
+                f"Please add a new entry in bd_aliases.yaml that maps this "
+                f"new canonical ID to the older ID {comp_id}.\n\n\n\n"
+            )
         pv_components_url = self.hub.get_link(self.project_version, "components")
         if self.dryrun:
             logging.info("DRYRUN: not updating Black Duck")
