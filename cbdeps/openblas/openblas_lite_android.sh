@@ -63,6 +63,6 @@ make $MAKE_ARGS BUILD_LAPACK_DEPRECATED=0 NO_LAPACKE=1 BUILD_RELAPACK=0 NO_SHARE
  CC=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/$ANDROID_ARCH-linux-android$ANDROID_ABI$ANDROID_API_VERSION-clang \
  RANLIB=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib \
  AR=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar \
- libs
+ libs netlib
 
 make NO_SHARED=1 PREFIX="" DESTDIR=${INSTALL_DIR} install
