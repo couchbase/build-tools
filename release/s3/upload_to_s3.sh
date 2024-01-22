@@ -11,6 +11,7 @@ function usage() {
     echo "  -b: build number to release"
     echo "  -t: product; defaults to couchbase-server"
     echo "  -s: version suffix, eg. 'MP1' or 'beta' [optional]"
+    echo "  -d: filenames are of the form VERSION.BLD_NUM rather than VERSION-BLD_NUM"
     echo "  -c: how to handle CE builds [optional]. Legal values are:"
     echo "        private: to make it non-downloadable (default for server)"
     echo "        public: CE builds are downloadable (default except server)"
@@ -24,13 +25,15 @@ function usage() {
 
 LIVE=false
 
-while getopts "r:v:V:b:t:s:c:p:lh?" opt; do
+BLD_SEP=-
+while getopts "r:v:V:b:t:s:dc:p:lh?" opt; do
     case $opt in
         r) RELEASE=$OPTARG;;
         v) VERSION=$OPTARG;;
         b) BLD_NUM=$OPTARG;;
         t) PRODUCT=$OPTARG;;
         s) SUFFIX=$OPTARG;;
+        d) BLD_SEP=\\. ;;
         c) COMMUNITY=$OPTARG;;
         p) PLATFORMS+=("$OPTARG");;
         l) LIVE=true;;
@@ -64,8 +67,8 @@ if [ "x${BLD_NUM}" = "x" ]; then
     exit 2
 fi
 
-if ! [[ $VERSION =~ ^[0-9]*\.[0-9]*\.[0-9]*$ ]]; then
-    echo "Version number format incorrect. Correct format is A.B.C where A, B and C are integers."
+if ! [[ $VERSION =~ ^[0-9]*\.[0-9]*(\.[0-9]*)?$ ]]; then
+    echo "Version number format incorrect. Correct format is A.B[.C] where A, B and C are integers."
     exit 3
 fi
 
@@ -112,12 +115,18 @@ if [ ! -e ${LB_MOUNT} ]; then
     exit 4
 fi
 
-# Product-specific extra stuff
+# Product-specific extra stuff - hopefully minimal things here!
+EXTRA_POSITIVE_WILDCARDS=()
+EXTRA_NEGATIVE_WILDCARDS=()
 case "${PRODUCT}" in
     couchbase-operator)
         # couchbase-operator's uploads include files starting with
         # "couchbase-autonomous-operator"
-        EXTRA_POSITIVE_WILDCARDS='couchbase-autonomous-operator*'
+        EXTRA_POSITIVE_WILDCARDS+='couchbase-autonomous-operator*'
+        ;;
+    couchbase-odbc-driver)
+        # artifacts are named just "couchbase-odbc-*"
+        EXTRA_POSITIVE_WILDCARDS+='couchbase-odbc-*'
         ;;
 esac
 
@@ -205,22 +214,25 @@ if [ -e ${NOTICES_FILE} ]; then
     cp ${NOTICES_FILE} ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-notices.txt
 fi
 
+# Prepare any additional positive/negative find arguments
+POSITIVE=""
+for extra in "${EXTRA_POSITIVE_WILDCARDS[@]}"; do
+    # Additional positive wildcards need to be joined with "or" (-o)
+    POSITIVE+=" -o -name ${extra}"
+done
+NEGATIVE=""
+for extra in "${EXTRA_NEGATIVE_WILDCARDS[@]}"; do
+    # Additional negative wildcards are joined with the default "and",
+    # plus of course "-not"
+    NEGATIVE+=" -not -name ${extra}"
+done
+
+# Main upload loop
 for platform in ${PLATFORMS[@]}
 do
-    # Have to disable bash's filename expansion here (with "set -f") -
-    # we want to pass any wildcard arguments un-expanded to find.
-    POSITIVE=""
-    for extra in ${EXTRA_POSITIVE_WILDCARDS}; do
-        # Additional positive wildcards need to be joined with "or" (-o)
-        POSITIVE+=" -o -name ${extra}"
-    done
-    NEGATIVE=""
-    for extra in ${EXTRA_NEGATIVE_WILDCARDS}; do
-        # Additional negative wildcards are joined with the default "and",
-        # plus of course "-not"
-        NEGATIVE+=" -not -name ${extra}"
-    done
     for file in $( \
+        # Have to disable bash's filename expansion here (with "set -f") -
+        # we want to pass any wildcard arguments un-expanded to find.
         set -f; \
         find . -maxdepth 1 \
             \( \
@@ -232,7 +244,7 @@ do
                 -not -name *unnotarized* \
                 -not -name *asan* \
                 -not -name *.md5 \
-                -not -name *.sha26 \
+                -not -name *.sha256 \
                 -not -name *.properties \
                 -not -name *properties.json \
                 -not -name *-manifest.xml \
@@ -245,7 +257,7 @@ do
         file=${file/.\//}
 
         # "artifact" is the filename with the build number stripped out
-        artifact=${file/$VERSION-$BLD_NUM/$FILENAME_VER}
+        artifact=${file/$VERSION${BLD_SEP}$BLD_NUM/$FILENAME_VER}
 
         # Handle various options for CE artifacts
         if [[ "$COMMUNITY" == "none" && "${artifact}" =~ "community" ]]; then
