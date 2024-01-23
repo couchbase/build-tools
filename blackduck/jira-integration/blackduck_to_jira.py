@@ -179,14 +179,11 @@ def construct_ticket_fields(notification, ticket_cves_list,
             r"\*Severity Status\*:.+",
             f"*Severity Status*:*{ticket_fields['severity']}*",
             detail_sum)
-        ticket_fields['detail'] = (f"{detail_sum}"
-                                   f"{{anchor}}\n"
-                                   f"{ticket_detail_cves}"
-                                   f"{{anchor}}"
-                                   f"{detail_files}")
-    else:
-        ticket_fields['detail'] = ''
-
+    ticket_fields['detail'] = (f"{detail_sum}"
+                               f"{{anchor}}\n"
+                               f"{ticket_detail_cves}"
+                               f"{{anchor}}"
+                               f"{detail_files}")
     return ticket_fields
 
 
@@ -216,12 +213,14 @@ def update_jira_issue(jira, notification, issue):
     if bd_cves:
         ticket_cves_list = list(bd_cves.split(','))
     ticket_severity = getattr(issue.fields, config.JIRA['BD_SEVERITY'])
-    [detail_sum, detail_cves, detail_files] = re.split(
-        '{anchor}', getattr(issue.fields, config.JIRA['BD_DETAIL']))
-    lines = [s for s in detail_cves.splitlines() if s]
-    for line in lines:
-        [severity, name, url, junk] = re.split(r':\[ \[|\||\] \]', line)
-        ticket_cves.update({name: {'severity': severity, 'link': url}})
+    bd_details = getattr(issue.fields, config.JIRA['BD_DETAIL'])
+    if bd_details:
+        [detail_sum, detail_cves, detail_files] = re.split(
+            '{anchor}', bd_details)
+        lines = [s for s in detail_cves.splitlines() if s]
+        for line in lines:
+            [severity, name, url, junk] = re.split(r':\[ \[|\||\] \]', line)
+            ticket_cves.update({name: {'severity': severity, 'link': url}})
 
     if notification['notification_type'] == 'newVulnerabilityIds':
         for n in notification['cves']:
