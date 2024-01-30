@@ -62,6 +62,7 @@ Push-Location $RootDir/openblas/build_$Arch
 if($Arch -eq "arm64") {
     & $CMAKE `
     -G Ninja `
+    -DNOFORTRAN=ON `
     -DCMAKE_CROSSCOMPILING=ON `
     -DCMAKE_SYSTEM_NAME="Windows" `
     -DARCH=arm64 `
@@ -81,6 +82,7 @@ if($Arch -eq "arm64") {
 } else {
     & $CMAKE `
     -G Ninja `
+    -DNOFORTRAN=ON `
     -DCMAKE_C_COMPILER=clang-cl `
     -DCMAKE_MAKE_PROGRAM="$NINJA" `
     -DBUILD_WITHOUT_LAPACK=0 `
@@ -93,4 +95,22 @@ if($Arch -eq "arm64") {
     -S ..
 }
 
- & $NINJA install
+function FilterCompileOutput {
+    param(
+        [Parameter(Mandatory=$true)][string]
+        $line
+    )
+
+    if($line.StartsWith("[")) {
+        Write-Host $line
+    } else {
+        Add-Content -Path $RootDir/build.err -Value $line
+    }
+}
+
+if(Test-Path $RootDir/build.err) {
+    Remove-Item $RootDir/build.err
+}
+
+New-Item -ItemType File $RootDir/build.err
+& $NINJA install | ForEach-Object { FilterCompileOutput -line $_}

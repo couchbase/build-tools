@@ -30,7 +30,7 @@ if "%PLATFORM%" == "windows_msvc2012" (
   goto do_tools_version
 )
 echo "Unknown platform %PLATFORM%!"
-exit 3
+exit /b 3
 
 :do_tools_version
 echo %tools_version%| FIND /I "201">Nul && (
@@ -42,7 +42,7 @@ echo %tools_version%| FIND /I "201">Nul && (
 )
 if not exist "%tools_dir%" (
   echo "%tools_dir% does not exist!"
-  exit 5
+  exit /b 5
 )
 echo Using tools from %tools_dir%
 
@@ -58,10 +58,8 @@ if not defined target_arch (
 
 if /i "%target_arch%" == "amd64" goto setup_amd64
 if /i "%target_arch%" == "x86" goto setup_x86
-
-echo Unknown architecture: %target_arch%. Must be amd64 or x86
-set ERRORLEVEL=1
-goto eof
+if /i "%target_arch%" == "arm64" goto setup_arm64
+goto missing_target_arch
 
 :setup_x86
 echo Setting up Visual Studio environment for x86
@@ -71,6 +69,11 @@ goto setup_environment
 :setup_amd64
 echo Setting up Visual Studio environment for amd64
 call "%tools_dir%\vcvarsall.bat" amd64
+goto setup_environment
+
+:setup_arm64
+echo Setting up Visual Studio environment for cross amd64 -> arm64
+call "%tools_dir%\vcvarsall.bat" x64_arm64
 goto setup_environment
 
 :setup_environment
@@ -98,12 +101,10 @@ goto eof
 
 :missing_root
 echo source_root should be set in the source root
-set ERRORLEVEL=1
-goto eof
+exit /b 1
 
 :missing_target_arch
 echo target_arch must be set in environment to x86 or amd64
-set ERRORLEVEL=1
-goto eof
+exit /b 2
 
 :eof
