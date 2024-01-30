@@ -33,13 +33,29 @@ copy /Y %SCRIPTPATH%\windows_patches\asm_to_inline_asm.py third_party\icu\script
 rem Tell gn we want to use our own compiler
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 
+rem third_party\abseil-cpp has some pre-generated .def files which define
+rem the symbols to be exported when building that library. Unfortunately
+rem they're baked to Chromium's standards, including using the "custom"
+rem libc++, which leads to "link errors" (actually symbol-not-found errors)
+rem when building abseil-cpp as part of the v8 build. So here we use their
+rem script to re-build the x64 def files to match what we're building.
+rem First we patch the python script to fix it up for our build environment,
+rem also to only build the x64 defs.
+git -C third_party\abseil-cpp reset --hard
+git -C third_party\abseil-cpp apply %SCRIPTPATH%\windows_patches\generate_def_files.patch || goto error
+
+rem Now run the script. Somewhat ridiculously, this requires actually
+rem building abseil-cpp twice. Then we'll build it two more times as part
+rem of the main v8 build.
+python3 third_party\abseil-cpp\generate_def_files.py || goto error
+
 rem Actual v8 configure and build steps - we build debug and release.
 rem Ideally this set of args should match the corresponding set in
 rem v8_unix.sh.
 
-set V8_ARGS=use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false
+set V8_ARGS=v8_enable_webassembly=false use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false
 
-call gn gen out-release --args="%V8_ARGS% is_debug=false" || goto error
+call gn gen out-release --args="%V8_ARGS% is_debug=false dcheck_always_on=false" || goto error
 
 echo on
 call ninja -C out-release v8 || goto error

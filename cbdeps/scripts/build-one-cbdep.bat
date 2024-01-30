@@ -18,11 +18,13 @@ rem Ensure latest cbdep tool is on PATH
 if not exist tools (
   mkdir tools
 )
-set SECURITYPROTOCOL=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-set SITE=https://packages.couchbase.com/cbdep/cbdep-windows.exe
-set FILENAME=%ROOT_DIR%\tools\cbdep.exe
-powershell -command "& { %SECURITYPROTOCOL%; Invoke-WebRequest -Uri %SITE% -Outfile %FILENAME% }" || goto error
 
+set CBDEP_FILENAME=%ROOT_DIR%\tools\cbdep.exe
+set CBDEP_URL=https://packages.couchbase.com/cbdep/cbdep-windows.exe
+if not exist %CBDEP_FILENAME% (
+  set SECURITYPROTOCOL=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+  powershell -command "& { %SECURITYPROTOCOL%; Invoke-WebRequest -Uri %CBDEP_URL% -Outfile %CBDEP_FILENAME% }" || goto error
+)
 set PATH=%ROOT_DIR%\tools;%PATH%
 
 if NOT "%PROFILE%" == "server" (

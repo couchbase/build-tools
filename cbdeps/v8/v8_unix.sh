@@ -22,17 +22,14 @@ else
     NINJA=${DEPS}/ninja-1.11.0/bin/ninja
 fi
 
-# We want to compile V8 with gcc10, but the binutils included with centos7
-# is incompatible, however the single-linux arm worker has a new binutils
-# in /opt/gcc-12.2.0/bin so we set up the path to land on gcc10, and fall
-# back to the binutils in the gcc12 dir.
-export PATH=/opt/gcc-10.2.0/bin:/opt/gcc-12.2.0/bin:$PATH
-
-# icu apparently expects to be built with clang on arm, this flag isn't
-# present in gcc
-if [ "${PLATFORM}" = "linux" -a "$(uname -m)" = "aarch64" ]; then
-    sed -i 's/-mmark-bti-property//g' v8/third_party/icu/BUILD.gn
+# Use gcc10 on Linux, to maintain compatibility with Server 7.2.x.
+if [ "${PLATFORM}" = "linux" ]; then
+    export PATH=/opt/gcc-10.2.0/bin:$PATH
 fi
+
+#
+# Build gn (including platform-specific hacks and patches)
+#
 
 # Build gn using the stock compiler on the system. gn will find "clang"
 # automatically on Macs; on Linux, it will use CC/CXX.
@@ -41,6 +38,14 @@ if [ "${PLATFORM}" = "linux" ]; then
     export CC=gcc
     export CXX=g++
 fi
+
+# MB-60408: Newer gn builds set '-std=c++20', but our Mac x86_64
+# build agent is running Xcode 12 which doesn't honor that flag.
+# Revert to an older SHA which uses c++17.
+if [ "${PLATFORM}" = "macosx" -a "$(uname -m)" = "x86_64" ]; then
+    git checkout d4be45bb28fbfc16a41a1e02c86137df6815f2dd
+fi
+
 python3 build/gen.py
 ${NINJA} -C out
 unset CC CXX
@@ -48,6 +53,28 @@ popd
 export PATH=$(pwd)/gn/out:$PATH
 
 cd v8
+
+#
+# HACKS AND PATCHES for v8 build
+#
+
+# icu apparently expects to be built with clang on arm, this flag isn't
+# present in gcc
+if [ "${PLATFORM}" = "linux" -a "$(uname -m)" = "aarch64" ]; then
+    sed -i 's/-mmark-bti-property//g' third_party/icu/BUILD.gn
+fi
+
+# Cherry-pick back this fix for arm64 processors, if we don't already have it
+if ! git merge-base --is-ancestor 2bb1e2026176 HEAD; then
+    git cherry-pick 2bb1e2026176
+fi
+
+# This change is required for building on gcc < 13.
+# https://groups.google.com/g/v8-reviews/c/mns34cDIvDo
+if ! git merge-base --is-ancestor de611e69ad51; then
+    git cherry-pick de611e69ad51
+fi
+
 
 V8_ARGS=""
 
@@ -90,6 +117,7 @@ else
             # Cool. Inject them in a place that Google's clang happens
             # to want to look.
             pushd third_party/llvm-build/Release+Asserts
+            rm -f include
             ln -s "${incdir}"
             popd
         else
@@ -140,9 +168,9 @@ touch build/config/gclient_args.gni
 # Ideally this set of args should match the corresponding set in
 # v8_windows.bat.
 
-V8_ARGS="${V8_ARGS} use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false"
+V8_ARGS="${V8_ARGS} v8_enable_webassembly=false use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false"
 
-gn gen out/release --args="$V8_ARGS is_debug=false"
+gn gen out/release --args="$V8_ARGS is_debug=false dcheck_always_on=false"
 ${NINJA} -j4 -C out/release v8
 
 gn gen out/debug --args="$V8_ARGS is_debug=true v8_optimized_debug=true symbol_level=1 v8_enable_slow_dchecks=true"

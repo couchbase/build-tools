@@ -70,7 +70,7 @@ if [[ -n $MANIFEST_REPO ]]; then
     echo "Syncing to manifest file ${MANIFEST_FILE}"
     echo ================================
     repo init -m "${MANIFEST_FILE}" -g all --reference=~/reporef
-    repo sync --jobs=24 --quiet
+    repo sync --jobs=24 --quiet --current
 else
     # Historic toy build
     "${SCRIPT_DIR}/../utilities/sync_historic_manifest" \

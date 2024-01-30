@@ -1,0 +1,45 @@
+diff --git a/generate_def_files.py b/generate_def_files.py
+index 512747a..d50ddc1 100755
+--- a/generate_def_files.py
++++ b/generate_def_files.py
+@@ -60,13 +60,11 @@ def _GenerateDefFile(cpu, is_debug, extra_gn_args=[], suffix=None):
+ 
+   flavor = _DebugOrRelease(is_debug)
+   gn_args = [
+-      'ffmpeg_branding = "Chrome"',
+       'is_component_build = true',
+       'is_debug = {}'.format(str(is_debug).lower()),
+       'proprietary_codecs = true',
+       'symbol_level = 0',
+-      'target_cpu = "{}"'.format(cpu),
+-      'target_os = "win"',
++      'use_custom_libcxx = false',
+   ]
+   gn_args.extend(extra_gn_args)
+ 
+@@ -74,8 +72,8 @@ def _GenerateDefFile(cpu, is_debug, extra_gn_args=[], suffix=None):
+   autoninja = 'autoninja'
+   symbol_dumper = ['third_party/llvm-build/Release+Asserts/bin/llvm-nm']
+   if sys.platform == 'win32':
+-    gn = 'gn.bat'
+-    autoninja = 'autoninja.bat'
++    gn = 'gn.exe'
++    autoninja = 'ninja.exe'
+     symbol_dumper = ['dumpbin', '/symbols']
+     import shutil
+     if not shutil.which('dumpbin'):
+@@ -171,14 +169,5 @@ if __name__ == '__main__':
+     logging.error('This script requires Python 3.')
+     exit(1)
+ 
+-  if not os.getcwd().endswith('src') or not os.path.exists('chrome/browser'):
+-    logging.error('Run this script from a chromium/src/ directory.')
+-    exit(1)
+-
+-  _GenerateDefFile('x86', True)
+-  _GenerateDefFile('x86', False)
+   _GenerateDefFile('x64', True)
+   _GenerateDefFile('x64', False)
+-  _GenerateDefFile('x64', False, ['is_asan = true'], 'asan')
+-  _GenerateDefFile('arm64', True)
+-  _GenerateDefFile('arm64', False)
