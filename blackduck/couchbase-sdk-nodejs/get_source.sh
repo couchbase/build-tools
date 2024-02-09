@@ -1,22 +1,27 @@
 #!/bin/bash -ex
 
-SCRIPT_ROOT="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-
 # example usage
 # get_source.sh couchbase-sdk-nodejs 4.2.8 4.2.8 9999
 
 # Set to "couchbase-sdk-nodejs", ignored in this script.
 PRODUCT=$1
-# By default this will be the same as VERSION; however, if your scan-config.json specified a release key for this version, 
-# that value will be passed here
+# By default this will be the same as VERSION; however, if your
+# scan-config.json specified a release key for this version, that value
+# will be passed here
 RELEASE=$2
-# Onee of the version keys from scan-config.json.
+# One of the version keys from scan-config.json.
 VERSION=$3
 # Set to 9999, ignored in this script as it is not useful for SDK scans.
 BLD_NUM=$4
 
 TARBALL="couchbase-${VERSION}.tgz"
 SOURCE_DIR=couchnode
+
+NODE_VER=20.9.0
+
+# Make sure node's present
+cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
+export PATH="${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
 
 # Lets only use git if we cannot find the source tarball on npm.
 npm pack couchbase@$VERSION || true

@@ -4,7 +4,33 @@ PRODUCT_PATH=${PRODUCT/::/\/}
 PRODUCT_BASENAME=$(basename $PRODUCT_PATH)
 PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PRODUCT_PATH}"
 DETECT_SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
+GET_ADDITIONAL_SOURCE_SCRIPT="${PROD_DIR}/get_additional_source.sh"
+GET_SOURCE_SCRIPT="${PROD_DIR}/get_source.sh"
 SCAN_CONFIG="${PROD_DIR}/scan-config.json"
+ENV_FILE="${PROD_DIR}/.env"
+
+# run_script executes a script by sourcing it (passing any args) in a subshell.
+# We capture its exports and dump them to file before the subshell closes, and
+# source that file when execution resumes. This results in any environmental
+# changes made by the scripts being available to the following steps and the
+# scan itself
+function run_script() {
+  local script=$1
+  shift
+  (
+    source "${script}" "$@"
+    set +x
+    printf "$(export -p | sed 's/declare -x/declare -gx/g')\n" >> "${ENV_FILE}"
+    set -x
+  )
+  source "${ENV_FILE}" >&/dev/null
+}
+
+# Tidy up any .env files which were created by run_script
+function clean_up() {
+  rm  -f "${ENV_FILE}"
+}
+trap clean_up EXIT
 
 # Arrange for cbdep to be on the PATH for everyone
 CBDEP_DIR="${WORKSPACE}/extra/cbdep"
@@ -32,7 +58,7 @@ cd "${SRC_DIR}"
 
 # Prep a virtualenv - we need this below if any black duck manifests are found
 # and also for installing packages via pip where required e.g. sdk-ruby
-venv="${WORKSPACE}/.venv"
+venv="${PROD_DIR}/.venv"
 if [ ! -d "${venv}" ]; then
   python3 -m venv "${venv}"
 fi
@@ -43,8 +69,8 @@ pip3 install -r "${DETECT_SCRIPT_DIR}/requirements.txt"
 
 # If the product doesn't have a bespoke get_source.sh, then look up the
 # build manifest and sync that
-if [ -x "${PROD_DIR}/get_source.sh" ]; then
-    "${PROD_DIR}/get_source.sh" ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
+if [ -x "${GET_SOURCE_SCRIPT}" ]; then
+  run_script "${GET_SOURCE_SCRIPT}" ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
 else
     pushd "${WORKSPACE}"
 
@@ -85,21 +111,8 @@ if [ "${status}" = "200" ]; then
 fi
 
 # Product-specific script for getting additional sources
-if [ -x "${PROD_DIR}/get_additional_source.sh" ]; then
-  "${PROD_DIR}/get_additional_source.sh" ${RELEASE} ${VERSION} ${BLD_NUM}
-fi
-
-# Product-specific environment overrides
-if [ -x "${PROD_DIR}/scan-environment.sh" ]; then
-  SCAN_ENV=$("${PROD_DIR}/scan-environment.sh")
-  if [ $? != 0 ]; then
-    echo "Error setting override environment! Output was"
-    echo "${SCAN_ENV}"
-    exit 3
-  fi
-  eval "${SCAN_ENV}"
-  echo "Environment after injection from scan-environment.sh:"
-  env
+if [ -x "${GET_ADDITIONAL_SOURCE_SCRIPT}" ]; then
+  run_script "${GET_ADDITIONAL_SOURCE_SCRIPT}" ${RELEASE} ${VERSION} ${BLD_NUM}
 fi
 
 # The Azure people are always causing problems. Now v64.2.0 is too large
@@ -141,7 +154,7 @@ fi
 python3 -u "${DETECT_SCRIPT_DIR}/run-scanner" \
   ${DRY_RUN_ARG} \
   ${CONFIG_ARG} \
-  --token ~/.ssh/blackduck-token.txt \
+  --token ~/.ssh/blackduck-api-token \
   --pdf
 
 # Copy up dry-run archives

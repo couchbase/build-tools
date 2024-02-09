@@ -8,6 +8,11 @@ BLD_NUM=$4
 # current repo, do not remove:
 # github.com/couchbase/couchbase-php-client
 
+PHP_VERSION=8.1.4-cb1
+
+cbdep install php-nts ${PHP_VERSION}
+export PATH="/tmp/php/php-nts-${PHP_VERSION}/bin:${PATH}"
+
 case "$VERSION" in
     3.1*|3.2*)
         REPO=ssh://git@github.com/couchbase/php-couchbase.git

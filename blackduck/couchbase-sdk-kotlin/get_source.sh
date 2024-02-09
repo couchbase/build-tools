@@ -5,6 +5,11 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
+MAVEN_VERSION=3.6.3
+
+cbdep install -d "${WORKSPACE}/extra" mvn ${MAVEN_VERSION}
+export PATH="${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:${PATH}"
+
 git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
 TAG="kotlin-client-${VERSION}"

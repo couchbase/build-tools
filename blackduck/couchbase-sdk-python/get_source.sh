@@ -1,7 +1,5 @@
 #!/bin/bash -ex
 
-SCRIPT_ROOT="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-
 # example usage
 # get_source.sh couchbase-sdk-python 4.1.9 4.1.9 9999
 
@@ -17,6 +15,8 @@ BLD_NUM=$4
 
 TARBALL="couchbase-${VERSION}.tar.gz"
 SOURCE_DIR=couchbase-python-client
+
+pip3 install "conan<2"
 
 # Lets only use git if we cannot find the source tarball on PyPI.
 # Would be nice to ignore build isolation (--no-build-isolation), but the pip resolver
@@ -58,3 +58,6 @@ popd
 # SEE: https://sig-product-docs.synopsys.com/bundle/integrations-detect/page/components/detectors.html
 rm -rf $TARBALL_CONTENTS_DIR
 rm $TARBALL
+
+# Need to keep git for SDK's version file to work
+export KEEP_GIT=true

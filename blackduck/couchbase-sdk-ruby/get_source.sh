@@ -1,6 +1,8 @@
 #!/bin/bash -ex
 
-SCRIPT_ROOT="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+SCRIPT_ROOT="$(dirname ${BASH_SOURCE[0]})"
+
+WORKDIR="${WORKSPACE}/src"
 
 # example usage
 # get_source.sh couchbase-sdk-ruby 3.4.5 3.4.5 9999
@@ -14,4 +16,10 @@ VERSION=$3
 # ignored in this script, as it is not useful for SDK scans (will be 9999)
 BLD_NUM=$4
 
-exec ruby ${SCRIPT_ROOT}/get_source.rb $VERSION $RELEASE
+export GEM_HOME="${SCRIPT_ROOT}/.gem"
+export GEM_PATH="${GEM_HOME}"
+
+pushd "${WORKDIR}"
+bundle config set --local path "${GEM_HOME}"
+ruby "${SCRIPT_ROOT}/get_source.rb" $VERSION $RELEASE
+popd

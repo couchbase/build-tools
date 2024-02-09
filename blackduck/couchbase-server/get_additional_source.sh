@@ -5,6 +5,7 @@ VERSION=$2
 BLD_NUM=$3
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BUILD_DIR="${WORKSPACE}/tempbuild"
 
 NODEJS_VERSION=16.20.2
 
@@ -49,14 +50,23 @@ CMAKE_VERSION=3.23.1
 NINJA_VERSION=1.10.2
 cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
 cbdep install -d "${WORKSPACE}/extra" ninja ${NINJA_VERSION}
-export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${WORKSPACE}/extra/ninja-${NINJA_VERSION}/bin:${PATH}"
+export PATH="${BUILD_DIR}/tlm/deps/maven.exploded/bin:${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${WORKSPACE}/extra/ninja-${NINJA_VERSION}/bin:${PATH}"
 export CB_MAVEN_REPO_LOCAL=~/.m2/repository
+export LANG=en_US.UTF-8
 
-BUILD_DIR="${WORKSPACE}/tempbuild"
+if command -v yum; then
+  CB_DOWNLOAD_DEPS_PLATFORM="centos7;linux"
+elif command -v apt; then
+  CB_DOWNLOAD_DEPS_PLATFORM="ubuntu20.04;linux"
+fi
+
 rm -rf "${BUILD_DIR}"
 mkdir "${BUILD_DIR}"
 pushd "${BUILD_DIR}"
-LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
+cmake \
+  -D CB_DOWNLOAD_DEPS_PLATFORM="${CB_DOWNLOAD_DEPS_PLATFORM}" \
+  -G Ninja \
+  "${WORKSPACE}/src"
 
 # Extract the set of Go versions from the build. If the Go version
 # report exists in the build directory, use that; otherwise peel stuff

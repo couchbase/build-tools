@@ -8,6 +8,11 @@ BLD_NUM=$4
 # current repo, do not remove:
 # github.com/couchbase/couchbase-jvm-clients
 
+MAVEN_VERSION=3.6.3
+
+cbdep install -d "${WORKSPACE}/extra" mvn ${MAVEN_VERSION}
+export PATH="${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:${PATH}"
+
 if [[ "$VERSION" =~ "2.*" ]]
 then
     TAG=$VERSION
