@@ -16,6 +16,12 @@ VERSION=$3
 # ignored in this script, as it is not useful for SDK scans (will be 9999)
 BLD_NUM=$4
 
+# There's no consistent place across versions to grab a cmake version from
+# the source, at time of writing 3.28.3 is the latest release
+CMAKE_VERSION=3.28.3
+cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
+export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${PATH}"
+
 export GEM_HOME="${SCRIPT_ROOT}/.gem"
 export GEM_PATH="${GEM_HOME}"
 
