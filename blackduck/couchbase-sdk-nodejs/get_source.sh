@@ -19,7 +19,7 @@ SOURCE_DIR=couchnode
 
 NODE_VER=20.9.0
 
-# Make sure node's present
+# Make sure node and conan are present
 cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
 export PATH="${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
 

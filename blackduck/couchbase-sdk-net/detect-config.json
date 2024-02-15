@@ -1,6 +1,7 @@
 {
     "detect_opts": {
         "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.excluded.detector.types": "GO_MOD",
         "detect.nuget.excluded.modules": "^Couchbase.*Test.*",
         "detect.detector.search.depth": 9
     }

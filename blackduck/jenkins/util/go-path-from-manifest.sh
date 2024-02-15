@@ -24,4 +24,4 @@ EOF
 # Install golang and add to PATH
 cbdep install -d "${WORKSPACE}/extra/install" golang ${GOVERSION} >& /dev/null
 
-echo "${WORKSPACE}/extra/install/go${GOVERSION}/bin"
+printf "${WORKSPACE}/extra/install/go${GOVERSION}/bin"

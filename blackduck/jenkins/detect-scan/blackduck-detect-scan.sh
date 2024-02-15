@@ -69,7 +69,7 @@ pip3 install -r "${DETECT_SCRIPT_DIR}/requirements.txt"
 
 # If the product doesn't have a bespoke get_source.sh, then look up the
 # build manifest and sync that
-if [ -x "${GET_SOURCE_SCRIPT}" ]; then
+if [ -f "${GET_SOURCE_SCRIPT}" ]; then
   run_script "${GET_SOURCE_SCRIPT}" ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
 else
     pushd "${WORKSPACE}"
@@ -111,7 +111,7 @@ if [ "${status}" = "200" ]; then
 fi
 
 # Product-specific script for getting additional sources
-if [ -x "${GET_ADDITIONAL_SOURCE_SCRIPT}" ]; then
+if [ -f "${GET_ADDITIONAL_SOURCE_SCRIPT}" ]; then
   run_script "${GET_ADDITIONAL_SOURCE_SCRIPT}" ${RELEASE} ${VERSION} ${BLD_NUM}
 fi
 
@@ -150,12 +150,23 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
   rm -rf ~/blackduck/runs/*
 fi
 
+# If there's a bd-venv, make sure we're in it for the scan
+if [ -f "${WORKSPACE}/bd-venv/activate" ]; then
+  source "${WORKSPACE}/bd-venv/activate"
+fi
+
 # Invoke scan script
 python3 -u "${DETECT_SCRIPT_DIR}/run-scanner" \
   ${DRY_RUN_ARG} \
   ${CONFIG_ARG} \
   --token ~/.ssh/blackduck-api-token \
   --pdf
+
+# If we're in bd-venv, we want to get back into ${venv} for upcoming Python
+# calls (since that's where blackduck and dictdiffer live)
+if [ -f "${WORKSPACE}/bd-venv/activate" ]; then
+  source "${venv}/bin/activate"
+fi
 
 # Copy up dry-run archives
 if [ "x${DRY_RUN}" = "xtrue" ]; then
