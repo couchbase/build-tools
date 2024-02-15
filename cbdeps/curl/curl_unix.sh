@@ -80,6 +80,7 @@ autoreconf -i
             --with-zlib=${zlib_DIR} \
             --without-nghttp2 \
             --without-libidn2 \
+            --without-libpsl \
             --without-zstd
 make all
 make install
@@ -97,8 +98,7 @@ if [[ $(uname -s) == "Darwin" ]]; then
     # Fix the hardcoded path to libcurl in curl.
     install_name_tool -change ${INSTALL_DIR}/lib/libcurl.4.dylib @executable_path/../lib/libcurl.4.dylib ${INSTALL_DIR}/bin/curl
     # Remove the hardcoded rpath to openssl in libcurl that we added earlier
-    # from both libcurl and curl. Have to remove it twice from libcurl. (?)
-    install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/lib/libcurl.4.dylib
+    # from both libcurl and curl.
     install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/lib/libcurl.4.dylib
     install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/bin/curl
     # Finally add a basic rpath to curl.
