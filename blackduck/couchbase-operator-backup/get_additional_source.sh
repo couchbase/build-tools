@@ -40,13 +40,13 @@ trap "docker rm ${container}" EXIT
 
 docker cp ${container}:/opt/couchbase/VERSION.txt .
 
-VERSION=$(sed 's/-.*//' VERSION.txt)
+SERVER_VERSION=$(sed 's/-.*//' VERSION.txt)
 
 mkdir server_src
 cd server_src
 repo init \
     -u ssh://git@github.com/couchbase/manifest \
-    -m released/couchbase-server/${VERSION}.xml \
+    -m released/couchbase-server/${SERVER_VERSION}.xml \
     -g backup
 repo sync backup cbauth gomemcached go-couchbase
 
