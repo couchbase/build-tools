@@ -228,7 +228,7 @@ def update_jira_issue(jira, notification, issue):
                 ticket_needs_update = True
                 ticket_cves_list.append(n['name'])
                 ticket_cves[n['name']] = {}
-                ticket_cves[n['name']]['severity'] = n['name']
+                ticket_cves[n['name']]['severity'] = n['severity']
                 ticket_cves[n['name']]['link'] = n['link']
         else:
             # Usually BD sends severity change of an existing vulnerability as
