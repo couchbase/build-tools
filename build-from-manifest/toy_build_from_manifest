@@ -170,10 +170,11 @@ popd
 pushd src
 
 if ${KEEP_GIT}; then
-    exclude_git_arg=""
+    exclude_git_arg="--exclude .repo"
     set +x
     # As with build_from_manifest.py, we dereference symlinks in .git
-    # directories so they work on Windows.
+    # directories so they work on Windows. As such, we also discard
+    # the .repo directory entirely.
     echo "Dereferencing symlinks"
     echo =======================
     tempfile=./tmpfile
