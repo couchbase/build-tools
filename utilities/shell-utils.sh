@@ -1,10 +1,5 @@
 # General utility shell functions, useful for any script/product
 
-# Provide a dummy "usage" command for clients that don't define it
-type -t usage > /dev/null || usage() {
-    exit 1
-}
-
 function chk_set {
     var=$1
     # ${!var} is a little-known bashism that says "expand $var and then
@@ -47,30 +42,48 @@ function version_lt() {
     [ "${1}" = "${2}" ] && return 1 || [  "${1}" = "$(printf "${1}\n${2}" | sort -V | head -n1)" ]
 }
 
-xtrace_stack=()
 
-# Disable bash's 'xtrace', but remember the current setting so
-# it can be restored later with restore_xtrace().
-function stop_xtrace() {
-    if shopt -q -o xtrace; then
-        set +x
-        xtrace_stack+=("enabled")
-    else
-        xtrace_stack+=("disabled")
-    fi
-}
+####
+# Certain functions that only work in bash, not zsh
+####
 
-# Restore bash's 'xtrace', if it was enabled before the most recent
-# call to stop_xtrace().
-function restore_xtrace() {
-    peek="${xtrace_stack[-1]}"
-    unset 'xtrace_stack[-1]'
-    if [ "${peek}" = "enabled" ]; then
-        set -x
-    else
-        set +x
-    fi
-}
+if [ -n "$BASH_VERSINFO" ]; then
+
+    # Provide a dummy "usage" command for clients that don't define it
+    type -t usage > /dev/null || usage() {
+        exit 1
+    }
+
+    xtrace_stack=()
+
+    # Disable bash's 'xtrace', but remember the current setting so
+    # it can be restored later with restore_xtrace().
+    function stop_xtrace() {
+        if shopt -q -o xtrace; then
+            set +x
+            xtrace_stack+=("enabled")
+        else
+            xtrace_stack+=("disabled")
+        fi
+    }
+
+    # Restore bash's 'xtrace', if it was enabled before the most recent
+    # call to stop_xtrace().
+    function restore_xtrace() {
+        peek="${xtrace_stack[-1]}"
+        unset 'xtrace_stack[-1]'
+        if [ "${peek}" = "enabled" ]; then
+            set -x
+        else
+            set +x
+        fi
+    }
+
+fi
+####
+# End bash-only functions
+####
+
 
 # Given a fully-qualified Docker image name:tag from a registry,
 # returns 0 (success) if the image is available for arm64, or 1

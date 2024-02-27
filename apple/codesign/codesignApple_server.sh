@@ -1,5 +1,4 @@
 #!/bin/bash -ex
-
 #
 # REMEMBER TO ALWAYS PRESERVE SYMLINKS WHEN ZIP and UNZIP
 #
@@ -14,7 +13,8 @@
 
 function usage {
     echo "Incorrect parameters..."
-    echo -e "\nUsage:  ${0}   version   builld_num   edition    OSX (eg. elcaptian) [1 = download package]\n\n"
+    echo -e "\nUsage:  ${0} <couchbase-server.zip> <couchbase-server.dmg>\n\n"
+    exit 1
 }
 
 function unlock_keychain {
@@ -26,49 +26,31 @@ function unlock_keychain {
 
 ##Main
 
-#unlock keychain
-unlock_keychain
+if [[ "$#" < 2 ]] ; then usage ; fi
 
-if [[ "$#" < 2 ]] ; then usage ; exit DEAD ; fi
+ZIP_FILENAME=${1}
+DMG_FILENAME=${2}
+if [[ ! "${DMG_FILENAME}" =~ ^/ ]]; then
+    DMG_FILENAME=$(pwd)/${DMG_FILENAME}
+fi
 
 # enable nocasematch
 shopt -s nocasematch
-
-# default ARCHITECTURE t0 x86_64
-ARCHITECTURE='x86_64'
-
-PKG_VERSION=${1}  # Product Version
-
-PKG_BUILD_NUM=${2}  # Build Number
-
-EDITION=${3} # enterprise vs community
-
-OSX=${4} # macos vs elcapitan
-
-DOWNLOAD_NEW_PKG=${5}  # Get new build
-
-ARCHITECTURE=${6}  # optional arch, x86_64 or arm64
 
 SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )" #find out absolute path of the script
 
 result="rejected"
 
-PKG_URL=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/zz-versions/${PKG_VERSION}/${PKG_BUILD_NUM}
-PKG_NAME_US=couchbase-server-${EDITION}_${PKG_VERSION}-${PKG_BUILD_NUM}-${OSX}_${ARCHITECTURE}-unsigned.zip
-PKG_DIR=couchbase-server-${EDITION}_${PKG_VERSION}
+tmpdir=$(mktemp -d $(pwd)/tmp.XXXXXXXX)
+cleanup() {
+    rm -rf "${tmpdir}"
+}
+trap cleanup EXIT
+unzip -qq ${ZIP_FILENAME} -d ${tmpdir}
+pushd ${tmpdir}
+
 TEMPLATE_DMG_GZ=couchbase-server-macos-template_x86_64.dmg.gz
 
-if [[ ${DOWNLOAD_NEW_PKG} ]]; then
-    curl -O ${PKG_URL}/${PKG_NAME_US}
-
-    if [[ -d ${PKG_DIR} ]] ; then rm -rf ${PKG_DIR} ; fi
-    if [[ -e ${PKG_NAME_US} ]]; then
-        unzip -qq ${PKG_NAME_US}
-    else
-        echo ${PKG_NAME_US} not found!
-        exit 1
-    fi
-fi
 #protoc-gen-go was generated w/ sdk older than 10.9, it will cause notarization failure.
 #it can be removed since it doesn't need to be shipped.
 #it is not packaged in CC anymore, but still exist in older builds
@@ -79,14 +61,11 @@ fi
 #move couchbase-server-macos-template_x86_64.dmg.gz out.  it will trigger notarization failure
 mv "Couchbase Server.app/Contents/Resources/${TEMPLATE_DMG_GZ}" .
 
-if [[ -d ${PKG_DIR} ]]; then
-    pushd ${PKG_DIR}
-else
-    mkdir ${PKG_DIR}
-    mv *.app ${PKG_DIR}
-    mv README.txt ${PKG_DIR}
-    pushd ${PKG_DIR}
-fi
+#move .app and README into packaging directory
+PKG_DIR=couchbase-server-pkg
+mkdir ${PKG_DIR}
+mv *.app README.txt ${PKG_DIR}
+pushd ${PKG_DIR}
 
 echo ------- Unlocking keychain -----------
 set +x
@@ -146,7 +125,7 @@ codesign $sign_flags --sign "$cert_name" Couchbase\ Server.app
 popd
 
 # Verify codesigned successfully
-echo --------- Check signiture of ${PKG_DIR}/*.app--------------
+echo --------- Check signature of ${PKG_DIR}/*.app--------------
 spctl -avvvv ${PKG_DIR}/*.app > tmp.txt 2>&1
 cat tmp.txt
 result=`grep "accepted" tmp.txt | awk '{ print $3 }'`
@@ -161,10 +140,9 @@ fi
 
 # Create dmg package based on a template DMG we pull out of the app
 echo "Creating DMG..."
-DMG_FILENAME=couchbase-server-${EDITION}_${PKG_VERSION}-${PKG_BUILD_NUM}-${OSX}_${ARCHITECTURE}-unnotarized.dmg
 WC_DIR=wc
 WC_DMG=wc.dmg
-rm -rf ${DMG_FILENAME}
+rm -f ${DMG_FILENAME}
 ln -f -s /Applications ${PKG_DIR}
 #
 rm -rf $WC_DMG
@@ -207,3 +185,5 @@ if [[ ${CB_PRODUCTION_BUILD} == 'true' ]]; then
         exit 1
     fi
 fi
+
+popd
