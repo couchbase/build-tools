@@ -60,3 +60,7 @@ fi
 cp local.properties cbl-java/local.properties
 cp local.properties cbl-java/ce/android/local.properties
 cp local.properties cbl-java/ee/android/local.properties
+
+NINJA_VERSION=1.11.1
+cbdep install -d "${WORKSPACE}/extra" ninja ${NINJA_VERSION}
+export PATH="${WORKSPACE}/extra/ninja-${NINJA_VERSION}/bin:${PATH}"
