@@ -56,7 +56,7 @@ function codesign_pkg
     done
 
     pushd ${tmpdir}
-    zip --symlinks -r -X ${pkg} *
+    zip --symlinks -r -X ../${pkg} *
     popd
 
     echo "------- Codesigning the package ${pkg} -------"
