@@ -75,6 +75,7 @@ BLD_DIR=https://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT
 
 # Set up array of expected artifact final filenames.
 expected=()
+do_notarize=true
 case ${PRODUCT} in
 sync_gateway)
     expected+=(couchbase-sync-gateway-enterprise_${VERSION}-${BLD_NUM}_x86_64.zip)
@@ -83,6 +84,8 @@ sync_gateway)
     expected+=(couchbase-sync-gateway-community_${VERSION}-${BLD_NUM}_arm64.zip)
     ;;
 couchbase-lite-c)
+    # This product contains only libraries etc., which cannot be notarized
+    do_notarize=false
     expected+=(${PRODUCT}-enterprise-${VERSION}-${BLD_NUM}-macos.zip)
     expected+=(${PRODUCT}-enterprise-${VERSION}-${BLD_NUM}-macos-symbols.zip)
     expected+=(${PRODUCT}-community-${VERSION}-${BLD_NUM}-macos.zip)
@@ -185,8 +188,12 @@ for pkg in ${(k)urls}; do
 done
 
 # Now notarize the whole bunch.
-header "Notarizing all files..."
-"${SCRIPT_DIR}/notarization/notarize_simple.sh" *
+if ${do_notarize}; then
+    header "Notarizing all files..."
+    "${SCRIPT_DIR}/notarization/notarize_simple.sh" *
+else
+    header "Skipping notarization for product ${PRODUCT}..."
+fi
 
 echo
 echo
