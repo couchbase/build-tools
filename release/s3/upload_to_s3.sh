@@ -189,13 +189,6 @@ upload()
     rsync -a ${UPLOAD_TMP_DIR}/* ${RELEASE_DIR}/
 }
 
-OPWD=`pwd`
-finish() {
-    cd $OPWD
-    exit
-}
-trap finish EXIT
-
 if [ ! -e ${LB_MOUNT}/${PRODUCT}/$RELEASE/$BLD_NUM ]; then
     echo "Given build doesn't exist: ${LB_MOUNT}/${PRODUCT}/$RELEASE/$BLD_NUM"
     exit 5
@@ -210,9 +203,7 @@ cd ${LB_MOUNT}/${PRODUCT}/$RELEASE/$BLD_NUM
 # Copy manifest and notices.txt to release directory
 cp ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-manifest.xml
 NOTICES_FILE=blackduck/${PRODUCT}-${VERSION}-${BLD_NUM}-notices.txt
-if [ -e ${NOTICES_FILE} ]; then
-    cp ${NOTICES_FILE} ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-notices.txt
-fi
+cp ${NOTICES_FILE} ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-notices.txt
 
 # Prepare any additional positive/negative find arguments
 POSITIVE=""

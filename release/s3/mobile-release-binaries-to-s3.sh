@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 function usage() {
     echo
@@ -146,18 +146,16 @@ then
     RELEASE_DIR=${REL_MOUNT}/mobile/staging/${S3_REL_DIRNAME}/${VERSION}
 fi
 
-# Fix the latestbuilds path for ios 1.4.x
-if [[ ${PRODUCT} == *ios ]] && [[ ${RELEASE} == 1.* ]]; then
-    SRC_DIR=${LB_MOUNT}/${PRODUCT}/${RELEASE}/${REL_DIRNAME}/${BLD_NUM}
-elif [[ ${PRODUCT} == couchbase-lite-net ]]; then
-    SRC_DIR=${LB_MOUNT}/${PRODUCT}/${RELEASE}/${BLD_NUM}/release
-else
-    SRC_DIR=${LB_MOUNT}/${PRODUCT}/${RELEASE}/${BLD_NUM}
-fi
+# Primary latestbuilds build output directory
+BUILD_DIR=${LB_MOUNT}/${PRODUCT}/${RELEASE}/${BLD_NUM}
 
-if [ ! -e ${BUILD_DIR} ]; then
-    echo "Given build doesn't exist: ${BUILD_DIR}"
-    exit 4
+# Most products put their artifacts directly in BUILD_DIR, but
+# couchbase-lite-net has an additional 'release' subdir. Set SRC_DIR to
+# the directory to pull artifacts from.
+if [[ ${PRODUCT} == couchbase-lite-net ]]; then
+    SRC_DIR=${BUILD_DIR}/release
+else
+    SRC_DIR=${BUILD_DIR}
 fi
 
 upload()
@@ -190,15 +188,8 @@ upload()
     rsync -au ${UPLOAD_TMP_DIR}/* ${RELEASE_DIR}/
 }
 
-OPWD=`pwd`
-finish() {
-    cd $OPWD
-    exit
-}
-trap finish EXIT
-
 cd ${SRC_DIR}
-FILES=$(ls -Iblackduck | egrep -v 'source|\.xml|\.json|\.properties|\.md5|\.sha|coverage|CHANGELOG|changes\.log|unsigned|logtest|litetest|Package.swift')
+FILES=$(ls -Iblackduck -Iunfinished | egrep -v 'source|\.xml|\.json|\.properties|\.md5|\.sha|coverage|CHANGELOG|changes\.log|unsigned|logtest|litetest|Package.swift')
 UPLOAD_TMP_DIR=/tmp/${RELEASE}-${BLD_NUM}
 rm -rf ${UPLOAD_TMP_DIR} && mkdir -p ${UPLOAD_TMP_DIR}
 cd ${UPLOAD_TMP_DIR}
@@ -209,6 +200,17 @@ for fl in $FILES; do
     echo "Generating sha256 on $target_file ..."
     sha256sum ${target_file} > ${target_file}.sha256
 done
+
+# Copy manifest and notices.txt to release directory. These files are
+# *technically* named ${PRODUCT}-${VERSION}-${BLD_NUM}, unlike the other
+# build artifats; however this script uses VERSION to mean something
+# slightly different, which doesn't match the filenames. Fortunately for
+# all mobile products, RELEASE==VERSION, so we can safely use ${RELEASE}
+# in these filenames as well.
+# These files always live in the primary BUILD_DIR.
+cp ${BUILD_DIR}/${PRODUCT}-${RELEASE}-${BLD_NUM}-manifest.xml ${PRODUCT}-${RELEASE}-manifest.xml
+NOTICES_FILE=${BUILD_DIR}/blackduck/${PRODUCT}-${RELEASE}-${BLD_NUM}-notices.txt
+cp ${NOTICES_FILE} ${PRODUCT}-${VERSION}-notices.txt
 
 echo "Uploading files from ${UPLOAD_TMP_DIR} ..."
 upload
