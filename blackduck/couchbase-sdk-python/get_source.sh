@@ -31,6 +31,7 @@ if [ ! -f "${TARBALL}" ]; then
     pushd $SOURCE_DIR
     git checkout $RELEASE
     git submodule update --init --recursive
+    python -m pip install --upgrade setuptools cmake
     mkdir sdist
     python setup.py sdist -d sdist
     TARBALL=$(find sdist -type f -name "*.tar.gz")
