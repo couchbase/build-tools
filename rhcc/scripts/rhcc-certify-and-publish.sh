@@ -105,7 +105,7 @@ if [ -x "${PREFLIGHT_EXE}" ]; then
     status "Using existing preflight binary"
 elif ${BUILD_PREFLIGHT}; then
     status "Building preflight..."
-    PREFLIGHTVER=1.2.1
+    PREFLIGHTVER=1.9.1
 
     # The pre-compiled preflight binaries sometimes requires a newer
     # glibc than is available where this script runs. So we build it
