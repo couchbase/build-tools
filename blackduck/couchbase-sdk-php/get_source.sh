@@ -35,7 +35,28 @@ else
     echo "No tag $TAG, assuming master"
 fi
 
-# Work-around for Black Duck Detect bug
-sed -i '/DOCTYPE/d' package.xml
+TARBALL=
+case "$VERSION" in
+    4.2.*)
+        gem install --user-install --no-document nokogiri
+        ruby bin/package.rb
+        TARBALL=$(ls -1 couchbase-*.tgz | head -1)
+        mv $TARBALL ../
+        ;;
+
+    *)
+        # Work-around for Black Duck Detect bug
+        sed '/DOCTYPE/d' package.xml
+        ;;
+esac
 
 popd
+
+if [[ ! -z "${TARBALL}" ]]
+then
+    tar xf ${TARBALL}
+    rm ${TARBALL}
+    rm -rf couchbase-php-client
+    mv couchbase-* couchbase-php-client
+    cp package.xml couchbase-php-client/
+fi
