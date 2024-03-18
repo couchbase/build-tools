@@ -6,6 +6,7 @@ import logging
 import os
 import pathlib
 import subprocess
+import sys
 from enum import Enum
 from jinja2 import Template
 from typing import Dict, List, Union
@@ -79,7 +80,7 @@ def render_template(
 
 def sync_to_s3bucket(
     region: str, bucket: str, profile: str, s3_path: str,
-    local_dir: pathlib.Path, only_recent: bool
+    local_dir: pathlib.Path, only_recent: bool, invalidate_after_upload: bool
 ) -> None:
     """
     Synchronizes the *contents* of a local directory to an S3 path as
@@ -132,6 +133,36 @@ def sync_to_s3bucket(
         )
     finally:
         conf_file.unlink()
+
+    if invalidate_after_upload:
+        # Determine the Cloudfront distribution ID associated with the bucket
+        logging.debug(
+            f"Looking up Cloudfront distribution ID for bucket {bucket}"
+        )
+        distribution_id = run_output([
+            "aws", "cloudfront", "list-distributions", "--output", "text",
+            "--query",
+            f"""
+            DistributionList.Items[] |
+            [?AliasICPRecordals[?CNAME=='{bucket}']] |
+            [0].Id
+            """
+        ]).rstrip()
+        if distribution_id == "":
+            logging.fatal(
+                f"Cannot determine Cloudfront distribution ID for {bucket}!"
+            )
+            sys.exit(3)
+
+        # Run invalidation for upload path
+        logging.info(
+            f"Running invalidation for bucket {bucket}, path {s3_path}"
+        )
+        run([
+            "aws", "cloudfront", "create-invalidation",
+            "--distribution-id", distribution_id,
+            "--paths", f"/{s3_path}/*"
+        ])
 
 class Action(Enum):
     ADD = 1

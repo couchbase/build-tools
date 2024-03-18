@@ -34,6 +34,7 @@ targets:
       profile: default
       prefix: repos
       transport: https
+      invalidate: true
 
   staging:
     local:
@@ -54,6 +55,7 @@ targets:
       profile: default
       prefix: repos
       transport: http
+      invalidate: true
 
   beta-staging:
     local:

@@ -92,7 +92,8 @@ class ReposTool:
             target_meta["profile"],
             f'{target_meta["prefix"]}',
             pathlib.Path(self.targets_conf[self.target]["local"]["base_dir"]),
-            only_recent=only_recent
+            only_recent=only_recent,
+            invalidate_after_upload = target_meta.get("invalidate", False)
         )
 
 
