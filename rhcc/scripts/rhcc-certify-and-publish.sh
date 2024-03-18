@@ -115,7 +115,7 @@ elif ${BUILD_PREFLIGHT}; then
     cbdep install -d deps golang 1.19.7
     export PATH=$(pwd)/deps/go1.19.7/bin:${PATH}
     status Cloning openshift-preflight repository
-    git clone https://github.com/redhat-openshift-ecosystem/openshift-preflight -b ${PREFLIGHTVER} &> /dev/null
+    git clone https://github.com/redhat-openshift-ecosystem/openshift-preflight -b ${PREFLIGHTVER}
     cd openshift-preflight
     perl -pi -e 's/if user == ""/if user == "nobody"/' certification/internal/policy/container/runs_as_nonroot.go
     status Building preflight binary
