@@ -10,15 +10,8 @@ cbdep install -d "${WORKSPACE}/extra" golang ${GO_VER}
 
 export GONOSUMDB="github.com/prometheus/node_exporter"
 
-# Install node version used in fm-ui-v2 (with failover to 20.9.0)
-NODE_VER_FILE=couchbase-cloud/cmd/fm-ui-v2/Dockerfile
-PATTERN="^\# node\/[0-9]+\.[0-9]+\.[0-9]+$"
-DEFAULT_VERSION=20.9.0
-if grep -Eq "${PATTERN}" "${NODE_VER_FILE}" >&/dev/null; then
-    NODE_VER=$(grep -E "${PATTERN}" "${NODE_VER_FILE}" | sed "s/.*\///")
-else
-    NODE_VER=${DEFAULT_VERSION}
-fi
+# Install highest node version used in build-and-deliver-predev action
+NODE_VER=$(grep -oP '(?<=node-version: )\S+' couchbase-cloud/.github/workflows/build-and-deliver-predev.yml | sed 's/"//g' | sort -V | tail -n1)
 cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
 
 # Ensure go + node are pathed
