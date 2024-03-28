@@ -28,6 +28,12 @@
     "14.0.4": "14.0.0"
     "14.0.6": "14.0.5"
 
+# libstdc++
+"899d93c9-1182-4d34-9349-5bf3e34aaa69":
+  fallback-versions:
+    # Yes, this is the right way around - BD knows 13.2.1 but not 13.2.0
+    "13.2.0": "13.2.1"
+
 # Go programming language
 "6d055c2b-f7d7-45ab-a6b3-021617efd61b":
   fallback-versions:
