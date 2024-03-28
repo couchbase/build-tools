@@ -159,7 +159,7 @@ src_dir = pathlib.Path(args.src_dir)
 cbpy_version = args.version
 
 # Load tlm files
-with (src_dir / "package" / "black-duck-manifest.yaml").open() as m:
+with (src_dir / "package" / "cbpy-black-duck-manifest.yaml").open() as m:
     blackduck_manifest = yaml.safe_load(m)
 with (src_dir / "blackduck-ignore.txt").open() as i:
     bd_ignored.update([

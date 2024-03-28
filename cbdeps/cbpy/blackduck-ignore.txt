@@ -1,5 +1,5 @@
 # Packages listed in this file will not be checked against
-# couchbase-server-black-duck-manifest.yaml - mostly OS/compiler
+# cbpy-black-duck-manifest.yaml - mostly OS/compiler
 # runtime libraries that are notoriously difficult to find in
 # Black Duck, or are already handled by tlm/deps's manifest
 ld_impl_linux-64
