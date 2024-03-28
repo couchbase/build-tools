@@ -204,4 +204,4 @@ fi
 # environment variables to have been set appropriately.
 echo
 status Running preflight on container ${EXTERNAL_IMAGE}...
-"${PREFLIGHT_EXE}" check container ${EXTERNAL_IMAGE} ${EXTRA_PREFLIGHT_ARGS}
+"${PREFLIGHT_EXE}" check container ${EXTERNAL_IMAGE} --platform ${ARCH} ${EXTRA_PREFLIGHT_ARGS}
