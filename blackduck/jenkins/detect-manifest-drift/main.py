@@ -3,10 +3,6 @@
 import re
 import yaml
 
-ok = []
-drifted = []
-missing = []
-
 
 def heading(text):
     print()
@@ -35,9 +31,9 @@ def cbdeps():
         ])}]
 
 
-def blackduck_deps():
+def blackduck_manifest():
     with open('tlm/deps/couchbase-server-black-duck-manifest.yaml') as f:
-        return yaml.safe_load(f)['components']
+        return yaml.safe_load(f)
 
 
 def sort(d):
@@ -73,34 +69,59 @@ def show_missing():
                   dep['version'])
 
 
-blackduck = blackduck_deps()
+# Load couchbase-server-black-duck-manifest.yaml and save important keys
+bd_manifest = blackduck_manifest()
+bd_components = bd_manifest['components']
+bd_include_projects = bd_manifest.get('include-projects', [])
 
-for cbdep_dependency in [dep for dep in cbdeps() if dep['product'] not in blackduck.keys()]:
-    missing.append(cbdep_dependency)
+# Load manifest.cmake into useful dict
+cbdeps_manifest = cbdeps()
 
-for cbdep_dependency in [dep for dep in cbdeps() if dep['product'] in blackduck.keys()]:
-    cbdeps_versions = []
-    if(isinstance(blackduck[cbdep_dependency['product']], dict)):
-        if 'cbdeps-versions' in blackduck[cbdep_dependency['product']]:
-            cbdeps_versions = [
-                short_version(str(x)) for x in blackduck[cbdep_dependency['product']]['cbdeps-versions']]
-        else:
-            cbdeps_versions = [
-                short_version(str(x)) for x in blackduck[cbdep_dependency['product']]['versions']]
+# Initialize arrays of component names
+ok = []
+drifted = []
+missing = []
+
+# Iterate over all cbdeps from manifest.cmake
+for cbdep_entry in cbdeps_manifest:
+    cbdep = cbdep_entry['product']
+
+    # If cbdep is in include-projects, it's OK.
+    if cbdep in bd_include_projects:
+        ok.append({"cbdep_dependency": cbdep_entry})
+        continue
+
+    # If cbdep isn't in 'components', save it in 'missing'
+    if cbdep not in bd_components.keys():
+        missing.append(cbdep_entry)
+        continue
+
+    # Ok, cbdep is in both manifets. Extract version(s) from bd manifest.
+    if(isinstance(bd_components[cbdep], list)):
+        bd_versions = bd_components[cbdep]
     else:
-        cbdeps_versions = [
-            short_version(str(x)) for x in blackduck[cbdep_dependency['product']]]
+        bd_versions = bd_components[cbdep].get(
+            'cbdeps-versions',
+            bd_components[cbdep]['versions']
+        )
+    bd_versions = [short_version(str(x)) for x in bd_versions]
 
-    if (short_version(cbdep_dependency['version']) not in cbdeps_versions):
-        if(cbdeps_versions == []):
-            ok.append({"cbdep_dependency": cbdep_dependency,
-                   "versions": cbdeps_versions})
+    # Ensure version from manifest.cmake is in BD versions.
+    if (short_version(cbdep_entry['version']) not in bd_versions):
+        # Version from manifest.cmake is NOT in BD manifest!
+        if(bd_versions == []):
+            # If BD manifest lists *no* versions, we're meant to ignore
+            # the cbdep, so mark it OK
+            ok.append({"cbdep_dependency": cbdep_entry})
         else:
-            drifted.append({"cbdep_dependency": cbdep_dependency,
-                            "versions": cbdeps_versions})
+            # BD manifest does not include the version specified by
+            # manifest.cmake! Mark it drifted
+            drifted.append({
+                "cbdep_dependency": cbdep_entry,
+                "versions": bd_versions
+            })
     else:
-        ok.append({"cbdep_dependency": cbdep_dependency,
-                   "versions": cbdeps_versions})
+        ok.append({"cbdep_dependency": cbdep_entry})
 
 show_ok()
 show_drifted()

@@ -86,10 +86,10 @@ class ManifestWalker(ABC):
         instance if not specified.
         """
 
-        for_project = self.name if for_project is None else for_project
-        logging.info(f"Searching for manifests for project {for_project}")
+        project = self.name if for_project is None else for_project
+        logging.info(f"Searching for manifests for project {project}")
 
-        manifest_filename = f"{for_project}-black-duck-manifest.yaml"
+        manifest_filename = f"{project}-black-duck-manifest.yaml"
         manifest_count = 0
         for root, _, files in os.walk(self.src_root):
             if manifest_filename in files:
@@ -97,11 +97,14 @@ class ManifestWalker(ABC):
                 self.add_manifest(os.path.join(root, manifest_filename))
 
         if manifest_count == 0:
-            logging.warning(f"Loaded zero manifests for {for_project}!")
+            logging.warning(f"Loaded zero manifests for {project}!")
         else:
-            logging.info(f"Loaded {manifest_count} manifests for {for_project}")
+            logging.info(f"Loaded {manifest_count} manifests for {project}")
 
-        self.done_loading_manifests()
+        # Only log the "done" message when we reach the bottom of this
+        # routine for the default project
+        if for_project is None:
+            self.done_loading_manifests()
 
 
     def add_manifest(self, manifest_file):
@@ -117,7 +120,6 @@ class ManifestWalker(ABC):
 
         # Iterate through each top-level object in the manifest
         for key, value in manifest.items():
-
             match key:
                 case "include-projects":
                     # include-projects object: recursively call back to
@@ -135,7 +137,7 @@ class ManifestWalker(ABC):
                         # If the value is an empty list, skip it (probably just
                         # there to keep the drift-detector happy).
                         if isinstance(comp_data, list) and len(comp_data) == 0:
-                            return
+                            continue
 
                         self.add_component(comp_name, comp_data)
 
@@ -857,7 +859,10 @@ class UpdateComponents(ManifestWalker):
         # bespoke format. Here we decode them and invoke the corresponding
         # actions.
         for (action, target, value) in diff:
-            logging.debug(f"Executing '{action}' '{target}' '{value}'")
+            # "change" actions are kinda noisy - we'll log explicit messages
+            # for them later if they're applicable
+            if action != "change":
+                logging.debug(f"Executing '{action}' '{target}' '{value}'")
 
             if action == "remove" or action == "add":
                 if target == '':
@@ -892,8 +897,8 @@ class UpdateComponents(ManifestWalker):
             elif action == "change":
                 if target.endswith(".bd-name"):
                     # Don't care if the bd-name from the manifest doesn't match
-                    # Black Duck at this point
-                    logging.debug(f"Ignoring unnecessary change to bd-name")
+                    # Black Duck at this point - log a trace message
+                    logging.log(5, f"Ignoring unnecessary change to bd-name")
                 elif target.endswith(".license-approved"):
                     # "value" is a tuple of (old-value, new-value). We only
                     # care about new-value. If it's None, do nothing; otherwise
@@ -903,7 +908,7 @@ class UpdateComponents(ManifestWalker):
                         # that only black-duck-manifest.yaml files with explicit
                         # "license-approved" fields will change anything in
                         # Black Duck.
-                        logging.debug(f"Ignoring 'None' change to license-approved")
+                        logging.log(5, f"Ignoring 'None' change to license-approved")
                     else:
                         self.change_component_version_license_approved(
                             target, value[1]
