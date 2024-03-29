@@ -131,7 +131,7 @@ def open_jira_issue(jira, notification):
     if notification['severity'] == 'LOW':
         jira.transition_issue(
             new_issue,
-            config.JIRA['low_severity'],
+            config.JIRA['done'],
             notification['date'])
 
     if related_issues:
@@ -163,6 +163,7 @@ def construct_ticket_fields(notification, ticket_cves_list,
     ticket_fields = {}
     ticket_fields['date'] = notification['date']
     ticket_fields['cves_list'] = ticket_cves_list
+    ticket_fields['severity'] = 'LOW'
 
     # If all CVEs have been removed in BD, simply set it to empty
     if len(ticket_cves) != 0:
@@ -230,15 +231,15 @@ def update_jira_issue(jira, notification, issue):
                 ticket_cves[n['name']] = {}
                 ticket_cves[n['name']]['severity'] = n['severity']
                 ticket_cves[n['name']]['link'] = n['link']
-        else:
-            # Usually BD sends severity change of an existing vulnerability as
-            # updatedVulnerabilityIds.  But, in at least one case, it sends
-            # the notification of deleting the old vulnerability and adding a
-            # new one.  Hence, we need to check if newVulnerabilityIds
-            # to ensure it is not a severity update.
-            if n['severity'] != ticket_cves[n['name']]['severity']:
-                ticket_needs_update = True
-                ticket_cves[n['name']]['severity'] = n['severity']
+            else:
+                # Usually BD sends severity change of an existing vulnerability as
+                # updatedVulnerabilityIds.  But, in at least one case, it sends
+                # the notification of deleting the old vulnerability and adding a
+                # new one.  Hence, we need to check if newVulnerabilityIds
+                # to ensure it is not a severity update.
+                if n['severity'] != ticket_cves[n['name']]['severity']:
+                    ticket_needs_update = True
+                    ticket_cves[n['name']]['severity'] = n['severity']
 
     if notification['notification_type'] == 'deletedVulnerabilityIds':
         for n in notification['cves']:
@@ -259,8 +260,8 @@ def update_jira_issue(jira, notification, issue):
             notification, ticket_cves_list, ticket_cves, detail_sum, detail_files)
 
         jira.update_issue(issue, ticket_fields)
-        # CVE list is empty, close the ticket
-        if not ticket_fields['cves_list']:
+        # Automatically close ticket ticket, when severity is low
+        if ticket_fields['severity'] == 'LOW':
             jira.transition_issue(
                 issue,
                 config.JIRA['done'],
@@ -268,22 +269,14 @@ def update_jira_issue(jira, notification, issue):
             return
 
         # Reopen the ticket since CVEs have changed.
-        # Close the ticket if severity is LOW.
         if issue.fields.status.name in [
-                'Done', 'Mitigated']:
-            if ticket_fields['severity'] != 'LOW':
-                jira.transition_issue(
-                    issue,
-                    config.JIRA['to_do'],
-                    notification['date'])  # transition to TO DO
-        else:
-            if ticket_fields['severity'] == 'LOW':
-                jira.transition_issue(
-                    issue,
-                    config.JIRA['low_severity'],
-                    notification['date'])
+                'Done', 'Mitigated', 'Not Applicable']:
+            jira.transition_issue(
+                issue,
+                config.JIRA['to_do'],
+                notification['date'])  # transition to TO DO
 
-
+# Main
 parser = argparse.ArgumentParser('Retreive vulnerability notifications')
 parser.add_argument('-p', '--project_name', required=True,
                     help='Search notifications for this project.')
@@ -413,7 +406,6 @@ for entry in scan_notification_jira_entries:
         logging.info(f'Found matching issue: {issue.key}.')
         if entry['notification_type'] == 'newVulnerabilityIds':
             if not ((issue.fields.status.name == 'Component Not Applicable') or
-                    (issue.fields.status.name == 'Not Applicable') or
                     (issue.fields.status.name == 'Fixed In Later Version')):
                 update_jira_issue(jira, entry, issue)
         if issue and entry['notification_type'] == 'deletedVulnerabilityIds':
@@ -433,6 +425,5 @@ for entry in update_notification_jira_entries:
     else:
         logging.info(f'Found matching issue: {issue.key}.')
         if not ((issue.fields.status.name == 'Component Not Applicable') or
-                (issue.fields.status.name == 'Not Applicable') or
                 (issue.fields.status.name == 'Fixed In Later Version')):
             update_jira_issue(jira, entry, issue)
