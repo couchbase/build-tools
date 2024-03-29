@@ -8,6 +8,8 @@ function usage() {
     echo "  -r: release branch: master, 1.5.0, etc."
     echo "  -v: version number: 1.5.0, 2.0DB15, etc."
     echo "  -b: build number: 128, etc."
+    echo "  -s: version suffix, eg. 'MP1' or 'beta' [optional]"
+    echo "  -l: Push it to live (production) s3. Default is to push to staging [optional]"
     echo "  -c: how to handle community builds [optional]:"
     echo "        public: publicly accessible [default]"
     echo "        private: uploaded but not downloadable"
@@ -16,14 +18,17 @@ function usage() {
 }
 
 COMMUNITY=public
+LIVE=false
 
-while getopts "p:r:v:b:c:h" opt; do
+while getopts "p:r:v:b:s:c:hl" opt; do
     case $opt in
         p) PRODUCT=$OPTARG;;
         r) RELEASE=$OPTARG;;
         v) VERSION=$OPTARG;;
         b) BLD_NUM=$OPTARG;;
+        s) SUFFIX=$OPTARG;;
         c) COMMUNITY=$OPTARG;;
+        l) LIVE=true;;
         h|?) usage
            exit 0;;
         *) echo "Invalid argument $opt"
@@ -62,105 +67,62 @@ if [ ! -e ${LB_MOUNT} ]; then
     exit 3
 fi
 
-REL_MOUNT=/releases
+RELEASES_MOUNT=/releases
 if [ ! -e ${REL_MOUNT} ]; then
     echo "'releases' directory is not mounted"
     exit 3
 fi
 
-# Compute S3 component dirname
-case "$PRODUCT" in
-    sync_gateway)
-        S3_REL_DIRNAME=couchbase-sync-gateway
-        ;;
-    *ios)
-        REL_DIRNAME=ios
-        if [[ ${RELEASE} == 1.* ]]; then
-            S3_REL_DIRNAME=couchbase-lite/ios
-        else
-            S3_REL_DIRNAME=couchbase-lite-ios
-        fi
-        ;;
-    couchbase-lite-c)
-        S3_REL_DIRNAME=couchbase-lite-c
-        ;;
-    *tvos)
-        PRODUCT=couchbase-lite-ios
-        REL_DIRNAME=tvos
-        S3_REL_DIRNAME=couchbase-lite/tvos
-        ;;
-    *macosx)
-        PRODUCT=couchbase-lite-ios
-        REL_DIRNAME=macosx
-        S3_REL_DIRNAME=couchbase-lite/macosx
-        ;;
-    couchbase-lite-android)
-        if [[ ${RELEASE} == 1.* ]]; then
-            S3_REL_DIRNAME=couchbase-lite/android
-        else
-            S3_REL_DIRNAME=couchbase-lite-android
-        fi
-        ;;
-    couchbase-lite-android-ee)
-        S3_REL_DIRNAME=couchbase-lite-android-ee
-        ;;
-    *java)
-        if [[ ${RELEASE} == 1.* ]]; then
-            S3_REL_DIRNAME=couchbase-lite/java
-        else
-            S3_REL_DIRNAME=couchbase-lite-java
-        fi
-        ;;
-    *net)
-        REL_DIRNAME=couchbase-lite-net
-        if [[ ${RELEASE} == 1.* ]]; then
-            S3_REL_DIRNAME=couchbase-lite/net
-        else
-            S3_REL_DIRNAME=couchbase-lite-net
-        fi
-        ;;
-    *log)
-        REL_DIRNAME=couchbase-lite-log
-        S3_REL_DIRNAME=couchbase-lite-log
-        ;;
-    *cblite)
-        REL_DIRNAME=couchbase-lite-cblite
-        S3_REL_DIRNAME=couchbase-lite-cblite
-        ;;
-    couchbase-lite-phonegap)
-        S3_REL_DIRNAME=couchbase-lite-phonegap
-        ;;
-    *)
-        echo "Unsupported Product!"
-        usage
-        ;;
-esac
-
-# Compute destination directories
-S3_DIR=s3://packages.couchbase.com/releases/${S3_REL_DIRNAME}/${VERSION}
-RELEASE_DIR=${REL_MOUNT}/mobile/${S3_REL_DIRNAME}/${VERSION}
-
-if [[ ${STAGE} == "true" ]]
-then
-    S3_DIR=s3://packages-staging.couchbase.com/releases/${S3_REL_DIRNAME}/${VERSION}
-    RELEASE_DIR=${REL_MOUNT}/mobile/staging/${S3_REL_DIRNAME}/${VERSION}
+# Compute target filename components
+if [ -z "${SUFFIX}" ]; then
+    RELEASE_DIRNAME=$VERSION
+    FILENAME_VER=$VERSION
+else
+    RELEASE_DIRNAME=$VERSION-$SUFFIX
+    FILENAME_VER=$VERSION-$SUFFIX
 fi
 
 # Primary latestbuilds build output directory
 BUILD_DIR=${LB_MOUNT}/${PRODUCT}/${RELEASE}/${BLD_NUM}
 
-# Most products put their artifacts directly in BUILD_DIR, but
-# couchbase-lite-net has an additional 'release' subdir. Set SRC_DIR to
-# the directory to pull artifacts from.
-if [[ ${PRODUCT} == couchbase-lite-net ]]; then
-    SRC_DIR=${BUILD_DIR}/release
+# Compute root destination directories, creating them as necessary.
+if [[ "${LIVE}" = "true" ]]; then
+    S3_ROOT=s3://packages.couchbase.com/releases
+    RELEASE_ROOT=${RELEASES_MOUNT}
 else
-    SRC_DIR=${BUILD_DIR}
+    S3_ROOT=s3://packages-staging.couchbase.com/releases
+    RELEASE_ROOT=${RELEASES_MOUNT}/staging
+    mkdir -p -m 755 ${RELEASE_ROOT}
 fi
+
+# Determine product specific directories
+case "${PRODUCT}" in
+    sync_gateway)
+        S3_DIR=${S3_ROOT}/couchbase-sync-gateway/${RELEASE_DIRNAME}
+        RELEASE_DIR=${RELEASE_ROOT}/mobile/couchbase-sync-gateway/${RELEASE_DIRNAME}
+        mkdir -p -m 755 ${RELEASE_DIR}
+        ;;
+    couchbase-lite-android*|couchbase-lite-c|couchbase-lite-ios|couchbase-lite-java*|couchbase-lite-vector-search|couchbase-lite-cblite|couchbase-lite-log)
+        S3_DIR=${S3_ROOT}/${PRODUCT}/${RELEASE_DIRNAME}
+        RELEASE_DIR=${RELEASE_ROOT}/mobile/${PRODUCT}/${RELEASE_DIRNAME}
+        mkdir -p -m 755 ${RELEASE_DIR}
+        SRC_DIR=${BUILD_DIR}
+        ;;
+    couchbase-lite-net*)
+        S3_DIR=${S3_ROOT}/${PRODUCT}/${RELEASE_DIRNAME}
+        RELEASE_DIR=${RELEASE_ROOT}/mobile/${PRODUCT}/${RELEASE_DIRNAME}
+        mkdir -p -m 755 ${RELEASE_DIR}
+        SRC_DIR=${BUILD_DIR}/release
+        ;;
+    *)
+        echo "Unsupported Product!"
+        usage
+        exit 1
+        ;;
+esac
 
 upload()
 {
-
     echo "Uploading ${RELEASE_DIRNAME} to ${S3_DIR} ..."
     echo
 
@@ -194,7 +156,7 @@ UPLOAD_TMP_DIR=/tmp/${RELEASE}-${BLD_NUM}
 rm -rf ${UPLOAD_TMP_DIR} && mkdir -p ${UPLOAD_TMP_DIR}
 cd ${UPLOAD_TMP_DIR}
 for fl in $FILES; do
-    target_file=${fl/${RELEASE}-${BLD_NUM}/${VERSION}}
+    target_file=${fl/${RELEASE}-${BLD_NUM}/${FILENAME_VER}}
     echo "Copying ${SRC_DIR}/${fl} to $target_file ..."
     cp ${SRC_DIR}/${fl} ${target_file}
     echo "Generating sha256 on $target_file ..."
@@ -210,7 +172,9 @@ done
 # These files always live in the primary BUILD_DIR.
 cp ${BUILD_DIR}/${PRODUCT}-${RELEASE}-${BLD_NUM}-manifest.xml ${PRODUCT}-${RELEASE}-manifest.xml
 NOTICES_FILE=${BUILD_DIR}/blackduck/${PRODUCT}-${RELEASE}-${BLD_NUM}-notices.txt
-cp ${NOTICES_FILE} ${PRODUCT}-${VERSION}-notices.txt
+if [ -f ${NOTICES_FILE} ]; then
+    cp ${NOTICES_FILE} ${PRODUCT}-${VERSION}-notices.txt
+fi
 
 echo "Uploading files from ${UPLOAD_TMP_DIR} ..."
 upload

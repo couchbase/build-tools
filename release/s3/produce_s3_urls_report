@@ -76,6 +76,8 @@ def get_url_list(product, version, editions, staging):
   # Product-specific exclude lists (hopefully few)
   if product == 'couchbase-lite-java':
     exclude_regexes.extend([r'macos.zip$', r'windows.zip$', r'macos.zip.sha256$', r'windows.zip.sha256$'])
+  if product == 'couchbase-lite-vector-search':
+    exclude_regexes.extend([r'android.*', r'apple.*', r'linux.*', r'windows.*'])
   if product != 'couchbase-operator':
     # We upload this file for all k8s products, but only want to report the
     # URL for couchbase-operator
@@ -195,6 +197,12 @@ def get_product_download_urls(product, version):
         ],
         "Couchbase Lite Android Kotlin": [
           f"https://docs.couchbase.com/couchbase-lite/{majmin}/android/gs-install.html#kotlin-step-by-step-install"
+        ]
+      }
+    case "couchbase-lite-android-vector-search":
+      return {
+        "Couchbase Lite Android Vector Search: [
+          f"https://docs.couchbase.com/couchbase-lite/current/android/gs-install.html#java-step-by-step-install"
         ]
       }
     case "couchbase-lite-java":
