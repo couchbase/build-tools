@@ -25,6 +25,23 @@ fi
 # Use gcc10 on Linux, to maintain compatibility with Server 7.2.x.
 if [ "${PLATFORM}" = "linux" ]; then
     export PATH=/opt/gcc-10.2.0/bin:$PATH
+
+    if [ "$(uname -m)" = "aarch64" ]; then
+        # And for aarch64, build with newest binutils too
+        mkdir -p ${DEPS}/binutils
+
+        pushd ${DEPS}/binutils
+        BINUTILS_VER=2.42
+        curl -Lf https://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.xz -o binutils.tar.xz
+        mkdir binutils && cd binutils
+        tar xf ../binutils.tar.xz --strip-components=1
+        ./configure --prefix=${DEPS}/binutils-${BINUTILS_VER} --enable-gold
+        make -j$(nproc)
+        make install
+        popd
+
+        export PATH=${DEPS}/binutils-${BINUTILS_VER}/bin:$PATH
+    fi
 fi
 
 #
