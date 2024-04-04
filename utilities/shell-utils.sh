@@ -151,10 +151,11 @@ function image_amd64_key() {
 # "build" project in the current manifest, using either the 'repo' tool
 # (if there's a .repo dir in pwd) or else the 'xmllint' tools (if
 # there's a manifest.xml in pwd). If neither tool works, die. If the
-# manifest simply doesn't have such an annotation, returns "".
+# manifest simply doesn't have such an annotation, returns $2 (default "").
 function annot_from_manifest {
 
     annot=$(echo "$1" | tr '[a-z]' '[A-Z]')
+    default_value=$2
 
     # Try to extract the annotation using "repo" if available, otherwise
     # "xmllint" on "manifest.xml". If neither tool works, die!
@@ -172,7 +173,11 @@ function annot_from_manifest {
         exit 3
     fi
 
-    echo ${DEP_VERSION}
+    if [ -z "${DEP_VERSION}" ]; then
+        echo "${default_value}"
+    else
+        echo ${DEP_VERSION}
+    fi
 }
 
 # Extracts the value of the GOVERSION or GO_VERSION annotation from the
