@@ -1,6 +1,7 @@
 {
     "detect_opts": {
         "detect.detector.search.depth": 9,
+        "detect.accuracy.required": "NONE",
         "logging.level.com.synopsys.integration": "DEBUG",
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.detector.search.continue": true,
