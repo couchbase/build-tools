@@ -62,7 +62,7 @@ LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
 # on the PATH is the venv set up by the top-level
 # blackduck-detect-scan.sh script, and in particular that it's a venv
 # which has PyYAML in it.
-GO_MANIFEST="${WORKSPACE}/src/capella-analytics-black-duck-manifest.yaml"
+GO_MANIFEST="${WORKSPACE}/src/couchbase-columnar-black-duck-manifest.yaml"
 GOVER_FILE=$(ls tlm/couchbase-server-*-go-versions.yaml)
 "${SCRIPT_DIR}/../scripts/build-go-manifest.py" \
   --go-versions "${GOVER_FILE}" \
