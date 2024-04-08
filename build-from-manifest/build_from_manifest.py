@@ -128,7 +128,9 @@ class ManifestBuilder:
 
         print('Updating manifest repository...')
         run(['git', 'fetch', '--all'], check=True)
-        run(['git', 'checkout', '-B', 'master', 'origin/master'], check=True)
+        # Always call the local branch "master", but checkout the repo's
+        # default branch via `origin/HEAD`
+        run(['git', 'checkout', '-B', 'master', 'origin/HEAD'], check=True)
 
     def parse_manifest(self):
         """
