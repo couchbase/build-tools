@@ -1,0 +1,4 @@
+components:
+    prometheus:
+        bd-id: 04b82d3f-8119-4a41-bfb6-e71168773767
+        versions: [ "@@BD_VERSION@@" ]
