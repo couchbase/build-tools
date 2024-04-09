@@ -2,7 +2,7 @@
 set -e
 
 if [ -d tlm ]; then
-    (cd tlm && git fetch --all && git reset --hard origin/master)
+    (cd tlm && git fetch --all && git reset --hard origin/HEAD)
 else
     git clone https://github.com/couchbase/tlm
 fi

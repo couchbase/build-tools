@@ -1,0 +1,24 @@
+#!/bin/bash -e
+
+# Does everything possible to ensure that a given directory looks like a
+# freshly-cloned git repository, including having a remote named
+# 'origin'; being checked out to a local branch with the same name as
+# the repository's default branch, tracking that remote branch; and with
+# no local changes
+
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/shell-utils.sh"
+
+usage() {
+    echo "$0 <git repository> [ <output directory> ]"
+    exit 1
+}
+
+GITREPO=$1
+DIR=$2
+
+chk_set GITREPO
+# OK if DIR not specified; will use basename
+
+clean_git_clone "${GITREPO}" "${DIR}"

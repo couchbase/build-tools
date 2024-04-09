@@ -151,11 +151,8 @@ PATCH_VIA_GERRIT_OPTS=${OPTS}
 EOF
 
 # And stick the build-properties into git for remote toy builders
-if [ ! -d toy-build-manifests ]; then
-    git clone ssh://github.com/couchbasebuild/toy-build-manifests
-fi
+clean_git_clone ssh://github.com/couchbasebuild/toy-build-manifests
 pushd toy-build-manifests
-git fetch --all && git reset --hard origin/master
 mkdir -p ${PRODUCT_PATH}/${RELEASE}
 cp ../build.properties ${PRODUCT_PATH}/${RELEASE}/${VERSION}.properties
 cp ../src/manifest.xml ${PRODUCT_PATH}/${RELEASE}/${VERSION}.xml
@@ -163,7 +160,7 @@ git add ${PRODUCT_PATH}/${RELEASE}
 git commit --allow-empty \
     -m "${PRODUCT} ${RELEASE} build ${VERSION}-${TOY_BLD_NUM}" \
     -m "$(date)"
-git push origin master
+git push
 popd
 
 # Back into the repo sync for remaining operations

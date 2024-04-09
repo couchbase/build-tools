@@ -104,6 +104,7 @@ class ManifestBuilder:
         self.release = None
         self.last_build_num = 0
         self.build_num = None
+        self.util_dir = pathlib.Path(__file__).parent.parent / "utilities"
 
     def prepare_files(self):
         """
@@ -119,18 +120,6 @@ class ManifestBuilder:
                 output_file.unlink()
 
             self.output_files[name] = output_file
-
-    @staticmethod
-    def update_manifest_repo():
-        """
-        Update the manifest repository
-        """
-
-        print('Updating manifest repository...')
-        run(['git', 'fetch', '--all'], check=True)
-        # Always call the local branch "master", but checkout the repo's
-        # default branch via `origin/HEAD`
-        run(['git', 'checkout', '-B', 'master', 'origin/HEAD'], check=True)
 
     def parse_manifest(self):
         """
@@ -192,31 +181,18 @@ class ManifestBuilder:
         Handle the various manifest tasks:
           - Clone the manifest repository if it's not already there
           - Update the manifest repository to latest revision
-          - Parse the manifest and gather product and manfiest config
+          - Parse the manifest and gather product and manifest config
             information
         """
 
         manifest_dir = pathlib.Path('manifest')
-
-        # If we've been requested to use a different manifest repository,
-        # delete the manifest directory so that the next block will
-        # re-clone it
-        if manifest_dir.exists():
-            with pushd(manifest_dir):
-                url = run(
-                    ['git', 'ls-remote', '--get-url', 'origin'],
-                    check=True, stdout=PIPE
-                ).stdout.decode().strip()
-            if url != self.manifest_project:
-                print('"manifest" dir pointing to different remote, removing..')
-                shutil.rmtree(manifest_dir)
-
-        if not manifest_dir.exists():
-            run(['git', 'clone', self.manifest_project, 'manifest'],
-                check=True)
+        run([
+            self.util_dir / "clean_git_clone",
+            self.manifest_project,
+            manifest_dir
+        ])
 
         with pushd(manifest_dir):
-            self.update_manifest_repo()
             self.parse_manifest()
             self.determine_product_path()
             self.get_product_and_manifest_config()
@@ -261,11 +237,7 @@ class ManifestBuilder:
                             'git', 'commit', '-am', f'Automated update of '
                             f'{self.product} from submodules'
                         ], check=True)
-                        run([
-                            'git', 'push',
-                            self.push_manifest_project,
-                            'refs/heads/master:refs/heads/master'
-                        ], check=True)
+                        run(['git', 'push'], check=True)
                     else:
                         print('Skipping push of updated input manifest '
                               'due to --no-push')
@@ -353,17 +325,13 @@ class ManifestBuilder:
         """
 
         bm_dir = pathlib.Path('build-manifests')
-
-        if not bm_dir.is_dir():
-            run(['git', 'clone', f'ssh://git@github.com/'
-                 f'{self.build_manifests_org}/build-manifests'],
-                check=True)
+        run([
+            self.util_dir / "clean_git_clone",
+            f'ssh://git@github.com/{self.build_manifests_org}/build-manifests',
+            bm_dir
+        ])
 
         with pushd(bm_dir):
-            print('Updating the build-manifests repository...')
-            run(['git', 'fetch', '--all'], check=True)
-            run(['git', 'reset', '--hard', 'origin/master'], check=True)
-
             self.build_manifest_filename = pathlib.Path(
                 f'{self.product_path}/{self.release}/{self.version}.xml'
             ).resolve()
@@ -495,8 +463,7 @@ class ManifestBuilder:
             run(['git', 'commit', '-m', commit_msg], check=True)
 
             if self.push:
-                run(['git', 'push', 'origin', f'HEAD:refs/heads/master'],
-                    check=True)
+                run(['git', 'push'], check=True)
             else:
                 print('Skipping push of new build manifest due to --no-push')
 

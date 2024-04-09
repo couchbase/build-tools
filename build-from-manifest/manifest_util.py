@@ -43,7 +43,7 @@ def scan_manifests(manifest_repo="ssh://git@github.com/couchbase/manifest"):
         os.chdir(manifest_dir)
         print("Updating manifest repository...")
         check_call(["git", "fetch", "--all"])
-        check_call(["git", "reset", "--hard", "origin/master"])
+        check_call(["git", "reset", "--hard", "origin/HEAD"])
 
     return get_metadata_for_products(manifest_dir)
 

@@ -84,6 +84,54 @@ fi
 # End bash-only functions
 ####
 
+function clean_git_clone() {
+    # Does everything possible to ensure that a given directory looks
+    # like a freshly-cloned git repository, including having a remote
+    # named 'origin' pointing to the specified URL; being checked out to
+    # a local branch with the same name as the repository's default
+    # branch, tracking that remote branch; and with no local changes
+    local gitrepo=$1
+    local outdir=$2
+
+    if [ -z "${outdir}" ]; then
+        outdir=$(basename "${gitrepo}")
+    fi
+
+    # Create dir if not already there
+    if [ ! -d "${outdir}" ]; then
+        mkdir -p "${outdir}"
+    fi
+    pushd "${outdir}"
+
+    # Initialize fresh git repository if not already one
+    if [ ! -d ".git" ]; then
+        # Need to specify some default branch name to avoid warnings
+        git init -b main
+    fi
+
+    # Point 'origin' to the git repository and fetch changes
+    curr=$(git config --local --default="unset" --get remote.origin.url)
+    if [ "${curr}" = "unset" ]; then
+        git remote add origin "${gitrepo}"
+    elif [ "${curr}" != "${gitrepo}" ]; then
+        git remote set-url origin "${gitrepo}"
+    fi
+    git fetch origin
+
+    # Ensure we're up-to-date with the remote's default branch
+    git remote set-head origin --auto
+    default_branch=$(basename $(git rev-parse --abbrev-ref origin/HEAD))
+
+    # Wipe all local changes
+    git reset --hard
+    git clean -dfx
+
+    # Create new local branch with correct name and check it out
+    git checkout -B ${default_branch} --track origin/${default_branch}
+
+    popd
+}
+
 
 # Given a fully-qualified Docker image name:tag from a registry,
 # returns 0 (success) if the image is available for arm64, or 1

@@ -62,6 +62,7 @@ class DockerTool:
         self.force_update_github = False
         self.debug = False
         self.dryrun = False
+        self.util_dir = pathlib.Path(__file__).parent.parent / "utilities"
 
 
     @contextlib.contextmanager
@@ -339,15 +340,11 @@ class DockerTool:
         """
 
         self.gitdir = pathlib.Path("docker").resolve()
-        if not self.gitdir.exists():
-            logging.info (f"Cloning from {self.gitrepo}")
-            self.run(["git", "clone", self.gitrepo, self.gitdir])
-        logging.info (f"Updating {self.gitrepo} in {self.gitdir}")
-        with self.pushd(self.gitdir):
-            self.run(["git", "clean", "-dfx"])
-            self.run(["git", "config", "remote.origin.url", self.gitrepo])
-            self.run(["git", "fetch", "origin", "refs/heads/master"])
-            self.run(["git", "checkout", "-B", "master", "origin/master"])
+        self.run([
+            self.util_dir / "clean_git_clone",
+            self.gitrepo,
+            self.gitdir
+        ])
 
 
     def _setup_platform(self, platform: str) -> str:
@@ -609,7 +606,7 @@ class DockerTool:
                 logging.info("Skipping 'git push' due to dryrun")
             else:
                 logging.info(f"Pushing updates back to {self.gitrepo}")
-                self.run(["git", "push", "origin", "refs/heads/master"])
+                self.run(["git", "push"])
 
 
 if __name__ == "__main__":
