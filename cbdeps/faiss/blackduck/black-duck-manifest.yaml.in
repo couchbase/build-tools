@@ -1,0 +1,11 @@
+# Packages that we build as part of Server build.
+components:
+    faiss:
+        bd-id: 9c5b89a8-e3a1-4f7a-af8e-ebac244b7791
+        versions: [ "@@BD_VERSION@@" ]
+    openblas:
+        bd-id: 4d295b0d-132b-4b5f-aaaa-0ea2b007e5a8
+        versions: [ "@@OPENBLAS_VERSION@@" ]
+    openmp:
+        bd-id: 3e4b047b-679f-49b3-9e10-7530476781de
+        versions: [ "@@OPENMP_VERSION@@" ]

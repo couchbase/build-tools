@@ -64,11 +64,31 @@ MD5_NAME=${PROD_NAME}-${PLATFORM}-${ARCH}-${VERSION}-${BLD_NUM}.md5
 
 echo "Performing build..."
 PACKAGE_DIR="$( cd "$SCRIPT_DIR/../${PROD_NAME}" && pwd )" # build-tools/cbdeps/PACKAGE
-
 INSTALL_DIR=${ROOT_DIR}/install
 rm -rf ${INSTALL_DIR}
 mkdir -p ${INSTALL_DIR}
-${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${PROFILE} ${RELEASE} ${VERSION} ${BLD_NUM} ${ARCH}
+
+# We tuck the black-duck-manifest, if any, into the Linux x86_64 package
+# since that's where the BD scans run.
+if [ "${PLATFORM}" == "linux" -a "${ARCH}" == "x86_64" ]; then
+    BD_MANIFEST="${INSTALL_DIR}/blackduck/${PROD_NAME}-black-duck-manifest.yaml"
+    mkdir "${INSTALL_DIR}/blackduck"
+
+    # If the package has a simple one-component BD manifest template,
+    # substitute in the version. The manifest may specify an alternative
+    # version appropriate for BD. For packages with more complex
+    # requirements, simply write the final manifest as part of the
+    # <pkg>_unix.sh script when $9 is set.
+    if [ -e "${PACKAGE_DIR}/black-duck-manifest.yaml.in" ]; then
+        BD_VERSION=$(annot_from_manifest BD_VERSION "${VERSION}")
+        echo "Populating black-duck-manifest.yaml..."
+        cat "${PACKAGE_DIR}/black-duck-manifest.yaml.in" \
+            | sed -e "s/@@BD_VERSION@@/${BD_VERSION}/g" \
+            > "${BD_MANIFEST}"
+    fi
+fi
+
+${PACKAGE_DIR}/${PROD_NAME}_unix.sh ${INSTALL_DIR} ${ROOT_DIR} ${PLATFORM} ${PROFILE} ${RELEASE} ${VERSION} ${BLD_NUM} ${ARCH} ${BD_MANIFEST}
 
 echo "Preparing for package..."
 PACKAGE=${PACKAGE_DIR}/package
@@ -76,32 +96,6 @@ if [ -d ${PACKAGE} ]; then
     cp -pr ${PACKAGE}/* ${INSTALL_DIR}
 fi
 echo ${VERSION}-${BLD_NUM} > ${INSTALL_DIR}/VERSION.txt
-
-# We tuck the black-duck-manifest, if any, into the Linux x86_64 package
-# since that's where the BD scans run
-if [ "${PLATFORM}" == "linux" -a "${ARCH}" == "x86_64" ]; then
-    # The manifest may specify an alternative version appropriate for BD
-    BD_VERSION=$(annot_from_manifest BD_VERSION "${VERSION}")
-    BD_MANIFEST="${INSTALL_DIR}/blackduck/${PROD_NAME}-black-duck-manifest.yaml"
-
-    if [ -x "${PACKAGE_DIR}/create-black-duck-manifest.sh" ]; then
-        # Call package's custom script to create the manifest - pass it the
-        # full path to the file it should create, and the manifest's BD_VERSION
-        echo "Creating black-duck-manifest.yaml..."
-        mkdir "${INSTALL_DIR}/blackduck"
-        ${PACKAGE_DIR}/create-black-duck-manifest.sh \
-            "${BD_MANIFEST}" "${BD_VERSION}"
-
-    elif [ -e "${PACKAGE_DIR}/black-duck-manifest.yaml.in" ]; then
-        # If the package has a simple one-component manifest template,
-        # substitute in the version
-        echo "Populating black-duck-manifest.yaml..."
-        mkdir "${INSTALL_DIR}/blackduck"
-        cat "${PACKAGE_DIR}/black-duck-manifest.yaml.in" \
-            | sed -e "s/@@BD_VERSION@@/${BD_VERSION}/g" \
-            > "${BD_MANIFEST}"
-    fi
-fi
 
 echo "Create package..."
 PKG_DIR=${ROOT_DIR}/packages/${PROD_NAME}/${VERSION}/${BLD_NUM}
