@@ -237,7 +237,14 @@ class ManifestBuilder:
                             'git', 'commit', '-am', f'Automated update of '
                             f'{self.product} from submodules'
                         ], check=True)
-                        run(['git', 'push'], check=True)
+                        # Due to clean_git_clone, we can be assured that
+                        # the local git branch name matches the name in
+                        # Gerrit and that a bare "push" will push to a
+                        # branch with the same name, even when pushing
+                        # to a different remote URL
+                        run([
+                            'git', 'push', self.push_manifest_project
+                        ], check=True)
                     else:
                         print('Skipping push of updated input manifest '
                               'due to --no-push')
