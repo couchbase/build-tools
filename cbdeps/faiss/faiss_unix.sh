@@ -38,7 +38,7 @@ function build_openmp() {
     cd openmp
 
     # Build
-    cmake -B build -DCMAKE_BUILD_TYPE=Release \
+    cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DCMAKE_INSTALL_PREFIX="${ROOT_DIR}/openmp"
     cd build
     make -j8 install
@@ -74,6 +74,7 @@ fi
 # Build
 cd "${ROOT_DIR}/faiss"
 cmake -B build \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
     -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DFAISS_ENABLE_C_API=ON \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" -DCMAKE_INSTALL_LIBDIR=lib \
