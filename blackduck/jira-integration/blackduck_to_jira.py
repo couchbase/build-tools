@@ -270,11 +270,14 @@ def update_jira_issue(jira, notification, issue):
 
         # Reopen the ticket since CVEs have changed.
         if issue.fields.status.name in [
-                'Done', 'Mitigated', 'Not Applicable']:
+                'Mitigated', 'Not Applicable']:
             jira.transition_issue(
                 issue,
                 config.JIRA['to_do'],
                 notification['date'])  # transition to TO DO
+
+        if issue.fields.status.name == 'Done':
+            logging.info(f'Issue is in {issue.fields.status.name} state.  No need to reopen.')
 
 # Main
 parser = argparse.ArgumentParser('Retreive vulnerability notifications')
