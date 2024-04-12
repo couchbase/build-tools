@@ -101,6 +101,7 @@ case "${PRODUCT}" in
         S3_DIR=${S3_ROOT}/couchbase-sync-gateway/${RELEASE_DIRNAME}
         RELEASE_DIR=${RELEASE_ROOT}/mobile/couchbase-sync-gateway/${RELEASE_DIRNAME}
         mkdir -p -m 755 ${RELEASE_DIR}
+        SRC_DIR=${BUILD_DIR}
         ;;
     couchbase-lite-android*|couchbase-lite-c|couchbase-lite-ios|couchbase-lite-java*|couchbase-lite-vector-search|couchbase-lite-cblite|couchbase-lite-log)
         S3_DIR=${S3_ROOT}/${PRODUCT}/${RELEASE_DIRNAME}
