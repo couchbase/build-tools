@@ -74,7 +74,7 @@ function tag_release {
     else
         if [ $(git tag -l "${TAG}") ]
         then
-            error "Tag ${TAG} already exists, please investigate"
+            status "Tag ${TAG} already exists, please ensure that is correct"
         else
             git tag -a "${TAG}" "${REVISION}" -m "Release ${TAG}"
             git push "ssh://review.couchbase.org:29418/${PRODUCT}.git" ${VERSION}
