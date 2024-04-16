@@ -1,0 +1,4 @@
+components:
+    jemalloc:
+        bd-id: 2504dce9-b1c9-4037-9b03-8a222d9a1570
+        versions: [ "@@BD_VERSION@@" ]

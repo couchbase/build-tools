@@ -1,9 +1,12 @@
 set -x
 set -e
 
-configure_args=$1
-install_dir=$2
-install_suffix=$3
+root_dir=$1
+configure_args=$2
+install_dir=$3
+install_suffix=$4
+
+cd "${root_dir}/jemalloc"
 
 full_args="CC=cl CXX=cl ${configure_args} --prefix=${install_dir} --with-install-suffix=${install_suffix}"
 

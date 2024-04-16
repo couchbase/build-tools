@@ -8,17 +8,18 @@
 # will be governed by the Apache License, Version 2.0, included in the file
 # licenses/APL2.txt.
 
-set -ex
+set -e
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Build the main installation with je_ symbol prefix
-"${SCRIPT_DIR}/scripts/build_jemalloc.sh" \
-   "${ROOT_DIR}" \
-   "--with-jemalloc-prefix=je_ --disable-cache-oblivious --disable-zone-allocator \
-   --disable-initial-exec-tls --disable-cxx" \
-   "${INSTALL_DIR}" \
-   ""
+cd "${ROOT_DIR}/jemalloc"
+
+# Create alternative libs without je_ prefix
+"${SCRIPT_DIR}/../jemalloc/scripts/build_jemalloc.sh" \
+    "${ROOT_DIR}" \
+    "--with-jemalloc-prefix=" \
+    "${INSTALL_DIR}" \
+    "_noprefix"
