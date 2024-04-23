@@ -28,16 +28,32 @@ OS_BUILD=${OS_BUILD-1}
 if ${LATEST}; then
     LATEST_ARG="-l"
 fi
+
+# couchbase-operator has two "sub-projects", couchbase-admission-controller
+# and couchbase-operator-certification. Those exist only as Docker images.
+# Go ahead and release those images now if we're doing a couchbase-operator
+# release, and then fall through to continue releasing couchbase-operator.
+case "${PRODUCT}" in
+    couchbase-admission-controller|couchbase-operator-certification)
+        echo "${PRODUCT} is released as side-effect of couchbase-operator; quitting"
+        exit 1
+        ;;
+    couchbase-operator)
+        header Releasing couchbase-admission-controller...
+        ${script_dir}/util/publish-k8s-images.sh \
+            -p couchbase-admission-controller -i ${VERSION}-${BLD_NUM} \
+            -t ${public_tag} -o ${OS_BUILD} ${LATEST_ARG}
+        header Releasing couchbase-operator-certification...
+        ${script_dir}/util/publish-k8s-images.sh \
+            -p couchbase-operator-certification -i ${VERSION}-${BLD_NUM} \
+            -t ${public_tag} -o ${OS_BUILD} ${LATEST_ARG}
+        ;;
+esac
+
 ${script_dir}/util/publish-k8s-images.sh \
     -p ${PRODUCT} -i ${VERSION}-${BLD_NUM} -t ${public_tag} \
     -o ${OS_BUILD} ${LATEST_ARG}
 
-case "${PRODUCT}" in
-    couchbase-admission-controller|couchbase-operator-certification)
-        echo "Only do docker stuff for ${PRODUCT}; all done!"
-        exit 0
-        ;;
-esac
 
 # For convenience, save a trigger.properties for update_manifest_released
 # and release_binaries_to_s3.
