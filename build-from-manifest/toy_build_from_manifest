@@ -31,6 +31,9 @@ elif [[ -n $GERRIT_TOPICS ]]; then
     OPTS+="-t $GERRIT_TOPICS "
 fi
 
+# Prep the toy-build-manifests repo
+clean_git_clone ssh://github.com/couchbasebuild/toy-build-manifests
+
 # Two possible ways to be invoked: Standard toy build or Historic toy build.
 # MANIFEST_REPO is the switch between the two.
 if [[ -n $MANIFEST_REPO ]]; then
@@ -143,6 +146,45 @@ if [ -e "${PRODUCT_CONFIG}" ]; then
     fi
 fi
 
+# If SKIP_DUPLICATE_BUILD is set, exit early if there are no differences
+# since the last toy build for the same product/release/version tuple.
+# This is mostly useful for regularly-scheduled toy builds like some
+# cbdeps; interactively-triggered toy builds will generally have
+# SKIP_DUPLICATE_BUILD unset.
+if ${SKIP_DUPLICATE_BUILD}; then
+    pushd src
+    # This logic is copied from build_from_manifest.py and should
+    # probably be in a common location. That would allow the set of
+    # ignored projects to be configured per-product as well. Since this
+    # feature is primarily for regularly-occuring cbdeps builds from
+    # upstream sources, also skip changes in the build-tools project.
+    prev_bld="./toy-build-manifests/${PRODUCT_PATH}/${RELEASE}/${VERSION}"
+    if [ -e "${prev_bld}.xml" ]; then
+        diffs=$(
+            repo diffmanifests --raw "${prev_bld}.xml" \
+            | grep '^C ' \
+            | grep -v '^C (testrunner|product-metadata|product-texts|golang|mobile-testkit|build-tools)'
+        )
+        if [ -z "${diffs}" ]; then
+            set +x
+
+            # Read info from previous build; don't care about losing info
+            # about current build because we're about to quit
+            eval $(sed -e 's/=\(.*\)/="\1"/' "${prev_bld}.properties")
+            echo
+            echo "============================================================="
+            echo "***** No changes since last build ${PRODUCT} ${VERSION} ${TOY_BLD_NUM}"
+            echo "============================================================="
+            echo
+
+            # Quit
+            exit 0
+        fi
+    fi
+    popd
+
+fi
+
 # Now save some additional stuff that toy build jobs might need
 cat <<EOF >> build.properties
 MANIFEST_REPO=${MANIFEST_REPO}
@@ -151,7 +193,6 @@ PATCH_VIA_GERRIT_OPTS=${OPTS}
 EOF
 
 # And stick the build-properties into git for remote toy builders
-clean_git_clone ssh://github.com/couchbasebuild/toy-build-manifests
 pushd toy-build-manifests
 mkdir -p ${PRODUCT_PATH}/${RELEASE}
 cp ../build.properties ${PRODUCT_PATH}/${RELEASE}/${VERSION}.properties
