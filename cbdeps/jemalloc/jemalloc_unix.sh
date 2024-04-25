@@ -19,6 +19,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 "${SCRIPT_DIR}/scripts/build_jemalloc.sh" \
    "${ROOT_DIR}" \
    "--with-jemalloc-prefix=je_ --disable-cache-oblivious --disable-zone-allocator \
-   --disable-initial-exec-tls --disable-cxx" \
+   --disable-initial-exec-tls --disable-cxx --with-lg-tcache-limit=15" \
    "${INSTALL_DIR}" \
    ""
