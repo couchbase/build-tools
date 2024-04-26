@@ -1,4 +1,4 @@
-#!/usr/bin/env -S python3 -u
+#!/usr/bin/env python3
 
 import argparse
 import contextlib
@@ -28,6 +28,7 @@ class DockerTool:
     gitrepo: Optional[str]
     gitdir: Optional[pathlib.Path]
     contextdir: Optional[pathlib.Path]
+    local_install_dir: Optional[pathlib.Path]
     do_docker_build: bool
     do_docker_push: bool
     do_docker_load: bool
@@ -54,6 +55,7 @@ class DockerTool:
         self.gitrepo = githubrepo
         self.gitdir = None
         self.contextdir = None
+        self.local_install_dir = None
         self.do_docker_build = False
         self.do_docker_push = False
         self.do_docker_load = False
@@ -236,6 +238,20 @@ class DockerTool:
             ])
 
 
+    def set_local_install_dir(self, local_install_dir: str) -> None:
+        """
+        Sets up the "docker build" step to pull a local installation directory
+        as /opt/couchbase, rather than downloading an installer file.
+        """
+
+        self.local_install_dir = pathlib.Path(local_install_dir).resolve()
+        if not self.local_install_dir.exists():
+            self.error_msg = f"--from-local-install must specify an existing directory"
+        self.add_templateoverrides([
+            "FROM_LOCAL_INSTALL=1"
+        ])
+
+
     def add_buildargs(self, buildargs: List[str]) -> None:
         """
         Specify build arguments to be passed to "docker buildx build"
@@ -278,10 +294,15 @@ class DockerTool:
 
         if len(self.imagenames) == 0 and any([
             self.do_docker_save,
-            self.do_docker_load,
             self.do_docker_push
         ]):
             return "No image names specified for Docker push/save action!"
+
+        if self.local_install_dir is not None:
+            if self.contextdir is not None:
+                return "--from-local-install may not be combined with --write-context"
+            if self.do_update_github:
+                return "--from-local-install may not be combined with --update-github"
 
         if self.do_update_github and self.contextdir is not None:
             return "--update-github may not be combined with --write-context"
@@ -331,6 +352,7 @@ class DockerTool:
             self._save_image()
         if self.do_update_github:
             self._update_github()
+        self._final_cleanup()
         logging.info("\n\n*** All done! ***\n")
 
 
@@ -420,6 +442,15 @@ class DockerTool:
             self.contextdir = \
                 self.gitdir / self.edition / self.product / self.version
             clean_contextdir = self.force_update_github
+
+        elif self.local_install_dir:
+            # Generate context into the local install dir, but don't
+            # clean it!
+            logging.debug(
+                f"Using local install dir {self.local_install_dir} "
+                f"as context dir"
+            )
+            self.contextdir = self.local_install_dir
 
         else:
             # Create a temporary directory to generate into. Hold on to
@@ -608,6 +639,22 @@ class DockerTool:
                 logging.info(f"Pushing updates back to {self.gitrepo}")
                 self.run(["git", "push"])
 
+    def _final_cleanup(self) -> None:
+        """
+        Anything that needs to be done at the end
+        """
+
+        if self.local_install_dir is not None:
+            # Attempt to clean up Dockerfile and other context. We can't
+            # be perfect because we don't necessarily know what the Dockerfile
+            # generator will generate.
+            logging.debug(f"Cleaning up generated files in {self.local_install_dir}")
+            shutil.rmtree(
+                self.local_install_dir / "scripts",
+                ignore_errors=True
+            )
+            (self.local_install_dir / "Dockerfile").unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -710,6 +757,14 @@ if __name__ == "__main__":
         "is of the form X.Y.Z-BBBB referring to a valid build number."
     )
     extraopts.add_argument(
+        "--from-local-install", type=str, metavar="INSTALLDIR",
+        help="Copy a local directory to /opt/couchbase in the Docker image, "
+        "rather than pulling any installer package. When specified, VERSION "
+        "will only determine eg. how the generator picks a base image. Note "
+        "that files may be written to INSTALLDIR. Cannot be specified with "
+        "--write-context or --update-github."
+    )
+    extraopts.add_argument(
         "--force-update-github", action="store_true",
         help="With --update-github, force-recreate Dockerfile"
     )
@@ -724,7 +779,12 @@ if __name__ == "__main__":
     extraopts.add_argument(
         "--build-arg", type=str, action="append",
         metavar="BUILDARG", dest="buildargs",
-        help="Docker build argument; may be repeated"
+        help="Docker buildx build argument; may be repeated"
+    )
+    extraopts.add_argument(
+        "--template-arg", type=str, action="append",
+        metavar="TEMPLATEARG", dest="templateargs",
+        help="Template arguments for Dockerfile generation; may be repeated"
     )
     extraopts.add_argument(
         "--dryrun", action="store_true",
@@ -793,8 +853,12 @@ if __name__ == "__main__":
 
     # Other tool config
     tool.set_from_latestbuilds(args.from_latestbuilds)
+    if args.from_local_install is not None:
+        tool.set_local_install_dir(args.from_local_install)
     if args.buildargs is not None:
         tool.add_buildargs(args.buildargs)
+    if args.templateargs is not None:
+        tool.add_templateoverrides(args.templateargs)
 
     # Ask tool if it's ready
     errmsg = tool.check_ready()
