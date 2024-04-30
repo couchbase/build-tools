@@ -29,7 +29,7 @@ function maven_deploy {
     local APP_VERSION=${VERSION}
     local MVN_CMD="mvn --settings ./settings.xml -Dpublish.username=${PUBLISH_USERNAME} -Dpublish.password=${PUBLISH_PASSWORD} -DrepositoryId=${REPOSITORY_ID}"
 
-    if [[ ${PKG_FILE} == *".aar" ]]; then
+    if [[ ${CLASSIFIER} == "" ]]; then
         POM_OPTION='-DpomFile='${POM_FILE}
     else
         POM_OPTION='-DgeneratePom=false'
@@ -39,7 +39,6 @@ function maven_deploy {
     else
         CLASSIFER_OPTION=''
     fi
-
     CMD="${MVN_CMD} gpg:sign-and-deploy-file -Durl=${PUBLISH_URL} -DgroupId=${GROUPID} -DartifactId=${ARTIFACT_ID} -Dversion=${APP_VERSION} -Dfile=./${PKG_FILE} -Dpackaging=${PKG_TYPE} ${CLASSIFER_OPTION} ${POM_OPTION}"
     $CMD || exit $?
 }
@@ -80,7 +79,7 @@ if [[ -n ${SUFFIX} ]]; then
     VERSION=${VERSION}-${SUFFIX}
 fi
 
-INTERNAL_MAVEN_URL="http://proget.build.couchbase.com/maven2/internalmaven/com/couchbase/lite"
+INTERNAL_MAVEN_URL="https://proget.sc.couchbase.com/maven2/internalmaven/com/couchbase/lite"
 GROUPID='com.couchbase.lite'
 POM_FILE='default-pom.xml'
 
@@ -89,19 +88,37 @@ case ${PRODUCT} in
         PUBLISH_NAMES="${PRODUCT}"
         PUBLISH_URL="https://oss.sonatype.org/service/local/staging/deploy/maven2/"
         REPOSITORY_ID="ossrh"
-        PUBLISH_LIST="aar javadoc javasrc"
+        PUBLISH_LIST="aar javadoc sources"
         ;;
     couchbase-lite-android-ee|couchbase-lite-android-ee-ktx)
         PUBLISH_NAMES="${PRODUCT}"
         PUBLISH_URL="https://mobile.maven.couchbase.com/maven2/dev"
         REPOSITORY_ID="releases"
-        PUBLISH_LIST="aar javadoc javasrc"
+        PUBLISH_LIST="aar javadoc sources"
         ;;
     couchbase-lite-android-vector-search)
         PUBLISH_NAMES="${PRODUCT}-arm64 ${PRODUCT}-x86_64"
         PUBLISH_URL="https://mobile.maven.couchbase.com/maven2/dev"
         REPOSITORY_ID="releases"
         PUBLISH_LIST="aar"
+        ;;
+    couchbase-lite-java-vector-search)
+        PUBLISH_NAMES="${PRODUCT}"
+        PUBLISH_URL="https://mobile.maven.couchbase.com/maven2/dev"
+        REPOSITORY_ID="releases"
+        PUBLISH_LIST="jar"
+        ;;
+    couchbase-lite-java)
+        PUBLISH_NAMES="${PRODUCT}"
+        PUBLISH_URL="https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+        REPOSITORY_ID="ossrh"
+        PUBLISH_LIST="jar javadoc sources"
+        ;;
+    couchbase-lite-java-ee)
+        PUBLISH_NAMES="${PRODUCT}"
+        PUBLISH_URL="https://mobile.maven.couchbase.com/maven2/dev"
+        REPOSITORY_ID="releases"
+        PUBLISH_LIST="jar javadoc sources"
         ;;
     *)
         echo "Unknown Product: ${PRODUCT}"
@@ -118,8 +135,9 @@ for PUBLISH_NAME in ${PUBLISH_NAMES}; do
     update_version
 
     aar="${PUBLISH_NAME}-${RELEASE}-${BLD_NUM}.aar"
+    jar="${PUBLISH_NAME}-${RELEASE}-${BLD_NUM}.jar"
     javadoc="${PUBLISH_NAME}-${RELEASE}-${BLD_NUM}-javadoc.jar"
-    javasrc="${PUBLISH_NAME}-${RELEASE}-${BLD_NUM}-sources.jar"
+    sources="${PUBLISH_NAME}-${RELEASE}-${BLD_NUM}-sources.jar"
     for file in ${PUBLISH_LIST}; do
         url=${INTERNAL_MAVEN_URL}/${PUBLISH_NAME}/${RELEASE}-${BLD_NUM}/${!file}
         echo "Downloading ${url}..."
@@ -127,6 +145,8 @@ for PUBLISH_NAME in ${PUBLISH_NAMES}; do
         echo "Uploading ${file}..."
         if [[ ${file} == "aar" ]]; then
             maven_deploy ${aar} 'aar' ''
+        elif [[ ${file} == "jar" ]]; then
+            maven_deploy ${jar} 'jar' ''
         else
             maven_deploy ${!file} 'jar' ${file}
         fi

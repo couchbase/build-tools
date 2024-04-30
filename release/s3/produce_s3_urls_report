@@ -211,6 +211,12 @@ def get_product_download_urls(product, version):
           f"https://docs.couchbase.com/couchbase-lite/{majmin}/java/gs-install.html"
         ]
       }
+    case "couchbase-lite-java-vector-search":
+      return {
+        "Couchbase Lite Android Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/java/gs-install.html"
+        ]
+      }
     case "couchbase-lite-c":
       return {
         "Couchbase Lite C for Linux": [
