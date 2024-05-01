@@ -158,13 +158,15 @@ if ${SKIP_DUPLICATE_BUILD}; then
     # ignored projects to be configured per-product as well. Since this
     # feature is primarily for regularly-occuring cbdeps builds from
     # upstream sources, also skip changes in the build-tools project.
-    prev_bld="./toy-build-manifests/${PRODUCT_PATH}/${RELEASE}/${VERSION}"
+    prev_bld="../toy-build-manifests/${PRODUCT_PATH}/${RELEASE}/${VERSION}"
     if [ -e "${prev_bld}.xml" ]; then
+        set +e
         diffs=$(
             repo diffmanifests --raw "${prev_bld}.xml" \
             | grep '^C ' \
             | grep -v '^C (testrunner|product-metadata|product-texts|golang|mobile-testkit|build-tools)'
         )
+        set -e
         if [ -z "${diffs}" ]; then
             set +x
 
