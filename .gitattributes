@@ -1,2 +1,4 @@
-*.sh	text eol=lf
-*.bat	text eol=crlf
+*.sh    text eol=lf
+*.bat   text eol=crlf
+annot_from_manifest  text eol=lf
+clean_git_clone      text eol=lf

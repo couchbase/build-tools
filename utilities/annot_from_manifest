@@ -1,0 +1,12 @@
+#!/bin/bash -e
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${SCRIPT_DIR}/shell-utils.sh"
+
+usage() {
+    echo "Usage: $0 <annot name> [ <default value> ]"
+    echo "Requires either a .repo or manifest.xml in PWD"
+    exit 1
+}
+
+annot_from_manifest "$@"
