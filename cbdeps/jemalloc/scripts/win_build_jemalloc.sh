@@ -13,6 +13,12 @@ full_args="CC=cl CXX=cl ${configure_args} --prefix=${install_dir} --with-install
 # Create skeleton in install directory
 mkdir -p ${install_dir}/{Release,Debug,ReleaseAssertions}/{bin,lib}/
 
+# Hack the .vcxproj to honor the install_suffix.
+vcxproj="./msvc/projects/vc2017/jemalloc/jemalloc${install_suffix}.vcxproj"
+if [ -n "${install_suffix}" ]; then
+    mv msvc/projects/vc2017/jemalloc/jemalloc.vcxproj "${vcxproj}"
+fi
+
 # Configure build
 ./autogen.sh ${full_args}
 
@@ -32,27 +38,27 @@ cp -r include/msvc_compat ${install_dir}/include
 # Perform actual builds with msbuild and jemalloc.vcxproj as this is now
 # the supported build method on Windows.
 # Release build
-msbuild.exe ./msvc/projects/vc2017/jemalloc/jemalloc.vcxproj -property:Configuration=Release -maxcpucount
+msbuild.exe "${vcxproj}" -property:Configuration=Release -maxcpucount
 
 # Debug build
-msbuild.exe ./msvc/projects/vc2017/jemalloc/jemalloc.vcxproj -property:Configuration=Debug -maxcpucount
+msbuild.exe "${vcxproj}" -property:Configuration=Debug -maxcpucount
 
 # Copy the build output to the install directory
 pushd msvc/projects/vc2017/jemalloc/x64
-cp -f Release/jemalloc.dll ${install_dir}/Release/bin/jemalloc${install_suffix}.dll
-cp -f Release/jemalloc.lib ${install_dir}/Release/lib/jemalloc${install_suffix}.lib
-cp -f Release/jemalloc.pdb ${install_dir}/Release/lib/jemalloc${install_suffix}.pdb
-cp -f Debug/jemallocd.dll ${install_dir}/Debug/bin/jemalloc${install_suffix}d.dll
-cp -f Debug/jemallocd.lib ${install_dir}/Debug/lib/jemalloc${install_suffix}d.lib
-cp -f Debug/jemallocd.pdb ${install_dir}/Debug/lib/jemalloc${install_suffix}d.pdb
+cp -f Release/jemalloc${install_suffix}.dll ${install_dir}/Release/bin/
+cp -f Release/jemalloc${install_suffix}.lib ${install_dir}/Release/lib/
+cp -f Release/jemalloc${install_suffix}.pdb ${install_dir}/Release/lib/
+cp -f Debug/jemalloc${install_suffix}d.dll ${install_dir}/Debug/bin/
+cp -f Debug/jemalloc${install_suffix}d.lib ${install_dir}/Debug/lib
+cp -f Debug/jemalloc${install_suffix}d.pdb ${install_dir}/Debug/lib/
 popd
 
 # Debugging Assertions build - Built against the Release CRT so it can
 # be dropped into a normal Release/RelWithDebInfo build.
 ./autogen.sh ${full_args} --enable-debug
-msbuild.exe ./msvc/projects/vc2017/jemalloc/jemalloc.vcxproj -property:Configuration=Release -maxcpucount
+msbuild.exe "${vcxproj}" -property:Configuration=Release -maxcpucount
 pushd msvc/projects/vc2017/jemalloc/x64
-cp -f Release/jemalloc.dll ${install_dir}/ReleaseAssertions/bin/jemalloc${install_suffix}.dll
-cp -f Release/jemalloc.lib ${install_dir}/ReleaseAssertions/lib/jemalloc${install_suffix}.lib
-cp -f Release/jemalloc.pdb ${install_dir}/ReleaseAssertions/lib/jemalloc${install_suffix}.pdb
+cp -f Release/jemalloc${install_suffix}.dll ${install_dir}/ReleaseAssertions/bin/
+cp -f Release/jemalloc${install_suffix}.lib ${install_dir}/ReleaseAssertions/lib/
+cp -f Release/jemalloc${install_suffix}.pdb ${install_dir}/ReleaseAssertions/lib/
 popd
