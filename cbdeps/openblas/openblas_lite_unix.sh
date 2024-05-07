@@ -8,6 +8,6 @@ ARCH=$8
 scriptdir="$(realpath $( dirname -- "$BASH_SOURCE"; ))";
 case $PLATFORM in
     android) $scriptdir/openblas_lite_android.sh $ARCH $ROOT_DIR $INSTALL_DIR ;;
-    linux) $scriptdir/openblas_lite_linux.sh $ROOT_DIR $INSTALL_DIR ;;
+    linux) $scriptdir/openblas_lite_linux.sh $ARCH $ROOT_DIR $INSTALL_DIR ;;
     *) echo "!!! Unknown Lite platform $PLATFORM !!!"; exit 1;;
 esac
