@@ -37,6 +37,7 @@ if [ "$ARCH" == "x86_64" ]; then
  fi
 
 cmake \
+    -DCMAKE_C_COMPILER=/opt/gcc-13.2.0/bin/gcc \
     -DBUILD_WITHOUT_LAPACK=0 \
     -DNOFORTRAN=1 \
     -DDYNAMIC_ARCH=$DYNAMIC_ARCH \
