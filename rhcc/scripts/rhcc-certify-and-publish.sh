@@ -105,7 +105,7 @@ if [ -x "${PREFLIGHT_EXE}" ]; then
     status "Using existing preflight binary"
 elif ${BUILD_PREFLIGHT}; then
     status "Building preflight..."
-    PREFLIGHTVER=1.9.1
+    PREFLIGHTVER=1.9.4
     GOVER=1.22.1
 
     # The pre-compiled preflight binaries sometimes requires a newer
