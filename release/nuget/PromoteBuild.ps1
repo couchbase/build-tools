@@ -35,28 +35,33 @@ function Take-While() {
     }
 }
 
-Push-Location $PSScriptRoot
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $ErrorActionPreference = "Stop"
 
-    $Version31Up = -not $InVersion.StartsWith("1") -and -not $InVersion.StartsWith("2") -and -not $InVersion.StartsWith("3.0")
+    $Version31 = $InVersion.StartsWith("3.1")
     $buildlessVersion = $InVersion.Split("-")[0]
     $numericBuildNumber = $InVersion.Split("-")[1].TrimStart('b', '0')
 
     switch ($Product) {
         "couchbase-lite-net" {
-            if ($Version31Up) {
+            <#
+                Couchbase.Lite.Enterprise.Support.UWP and Couchbase.Lite.Support.UWP are removed in 3.2.0 and beyond.
+            #>
+            if ($Version31) {
                 $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.UWP","Couchbase.Lite.Support.WinUI","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.UWP","Couchbase.Lite.Enterprise.Support.WinUI"
                 $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
             } else {
-                $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.UWP","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.UWP"
-                $snupkg_names = ""
+                $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.WinUI","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.WinUI"
+                $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
             }
         }
         "couchbase-lite-net-extensions" {
             $package_names = "Couchbase.Lite.Extensions"
             $snupkg_names = "Couchbase.Lite.Extensions"
+        }
+        "couchbase-lite-net-vector-search" {
+            $package_names = "Couchbase.Lite.VectorSearch"
         }
         default {
             Write-Host "$Product is not supported."
