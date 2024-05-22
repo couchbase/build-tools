@@ -5,6 +5,10 @@ env
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${SCRIPT_DIR}/../utilities/shell-utils.sh"
 
+# Things we'll definitely need to be set
+chk_set SKIP_DUPLICATE_BUILD
+chk_set TOY_BUILD_MANIFESTS_REPO
+
 # Set and/or error-check build number. (This is the build number of the toy
 # build we're setting up, not the build number of the historic build manifest.)
 if [ ! -z "${BLD_NUM_ARG}" ]; then
@@ -18,6 +22,7 @@ if [ ! -z "${BLD_NUM_ARG}" ]; then
     fi
 else
     # Default is 50000 + the Jenkins job build number
+    chk_set BUILD_NUMBER
     TOY_BLD_NUM=$((BUILD_NUMBER + 50000))
 fi
 
@@ -32,7 +37,7 @@ elif [[ -n $GERRIT_TOPICS ]]; then
 fi
 
 # Prep the toy-build-manifests repo
-clean_git_clone ssh://github.com/couchbasebuild/toy-build-manifests
+clean_git_clone ${TOY_BUILD_MANIFESTS_REPO} toy-build-manifests
 
 # Two possible ways to be invoked: Standard toy build or Historic toy build.
 # MANIFEST_REPO is the switch between the two.
@@ -40,6 +45,10 @@ if [[ -n $MANIFEST_REPO ]]; then
     # Standard toy build - we are syncing from the main 'manifest' repo,
     # or a fork of it, so it's reasonable to attempt applying any Gerrit
     # changes to the 'manifest' repo.
+
+    # Delete any existing properies files, so later steps know we're on
+    # the "standard toy build" path
+    rm -f build.properties
 
     chk_set MANIFEST_FILE
 
@@ -75,7 +84,7 @@ if [[ -n $MANIFEST_REPO ]]; then
     repo init -m "${MANIFEST_FILE}" -g all --reference=~/reporef
     repo sync --jobs=24 --quiet --current
 else
-    # Historic toy build
+    # Historic toy build - this will create build.properties too
     "${SCRIPT_DIR}/../utilities/sync_historic_manifest" \
         "${PRODUCT}" "${RELEASE}" "${VERSION}" "${BLD_NUM}" ./src
 
@@ -123,16 +132,21 @@ fi
 # Load a few useful params from the properties file.
 eval $(sed -e 's/=\(.*\)/="\1"/' build.properties)
 
+# Read the manifest config from product-config.json, if any. We can use
+# repo's copy of the manifest repository. Would have been nice to check
+# this earlier, but we had to wait until now to ensure PRODUCT_PATH is
+# set. Also, this only makes sense if MANIFEST_FILE was set (ie, not a
+# historic build), but the jq path below will return an empty string
+# anyway if MANIFEST_FILE isn't set, so :shrug:
+PRODUCT_CONFIG_JSON="src/.repo/manifests/${PRODUCT_PATH}/product-config.json"
+if [ -e "${PRODUCT_CONFIG_JSON}" ]; then
+    MANIFEST_CONFIG=$(jq -r '.manifests."'${MANIFEST_FILE}'"' "${PRODUCT_CONFIG_JSON}")
+fi
+
 # Fail if the manifest attempts to use the 'module_projects' feature for
-# handling git submodules. We can use repo's copy of the manifest
-# repository. Would have been nice to check this earlier, but we had to
-# wait until now to ensure PRODUCT_PATH is set. Also, this only makes
-# sense if MANIFEST_FILE was set (ie, not a historic build), but the jq
-# path below will return an empty string anyway if MANIFEST_FILE isn't
-# set, so :shrug:
-PRODUCT_CONFIG="src/.repo/manifests/${PRODUCT_PATH}/product-config.json"
-if [ -e "${PRODUCT_CONFIG}" ]; then
-    output=$(jq -r '.manifests."'${MANIFEST_FILE}'" | select(.module_projects != null) | .[]' "${PRODUCT_CONFIG}")
+# handling git submodules.
+if [ ! -z "${MANIFEST_CONFIG}" ]; then
+    output=$(echo "${MANIFEST_CONFIG}" | jq 'select(.module_projects != null) | .[]')
     if [ ! -z "${output}" ]; then
         set +x
         echo
@@ -146,28 +160,17 @@ if [ -e "${PRODUCT_CONFIG}" ]; then
     fi
 fi
 
-# If SKIP_DUPLICATE_BUILD is set, exit early if there are no differences
+# If SKIP_DUPLICATE_BUILD is true, exit early if there are no differences
 # since the last toy build for the same product/release/version tuple.
 # This is mostly useful for regularly-scheduled toy builds like some
 # cbdeps; interactively-triggered toy builds will generally have
-# SKIP_DUPLICATE_BUILD unset.
+# SKIP_DUPLICATE_BUILD false.
 if ${SKIP_DUPLICATE_BUILD}; then
     pushd src
-    # This logic is copied from build_from_manifest.py and should
-    # probably be in a common location. That would allow the set of
-    # ignored projects to be configured per-product as well. Since this
-    # feature is primarily for regularly-occuring cbdeps builds from
-    # upstream sources, also skip changes in the build-tools project.
     prev_bld="../toy-build-manifests/${PRODUCT_PATH}/${RELEASE}/${VERSION}"
     if [ -e "${prev_bld}.xml" ]; then
-        set +e
-        diffs=$(
-            repo diffmanifests --raw "${prev_bld}.xml" \
-            | grep '^C ' \
-            | grep -v '^C (testrunner|product-metadata|product-texts|golang|mobile-testkit|build-tools)'
-        )
-        set -e
-        if [ -z "${diffs}" ]; then
+        if "${SCRIPT_DIR}/manifest-unchanged" \
+                --repo-sync . --build-manifest "${prev_bld}.xml"; then
             set +x
 
             # Read info from previous build; don't care about losing info

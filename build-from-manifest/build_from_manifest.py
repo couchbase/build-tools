@@ -269,6 +269,7 @@ class ManifestBuilder:
             self.manifest_config.get('jenkins_job', f'{self.product}-build')
         self.platforms = self.manifest_config.get('platforms', [])
 
+
     def set_build_parameters(self):
         """
         Determine various build parameters for given input manifest,
@@ -356,41 +357,30 @@ class ManifestBuilder:
 
             self.build_num = max(self.last_build_num + 1, self.start_build)
 
-    def generate_changelog(self):
+    def check_for_changes(self):
         """
-        Generate the CHANGELOG file from any changes that have been
-        found; if none are found and the build is not being forced,
-        write out the properties files and exit the program
+        Check if there have been changes since the previous build.
+
+        - If no changes (and not being forced), announce that fact;
+          create empty properties files; and exit.
+
+        - Otherwise, announce new build; generate the CHANGELOG file
+          from any changes that have been found; write out the
+          properties files.
         """
 
         if self.build_manifest_filename.exists():
-            output = run(['repo', 'diffmanifests', '--raw',
-                          self.build_manifest_filename],
-                         check=True, stdout=PIPE).stdout
-            # Strip out non-project lines as well as projects that we
-            # do not wish to trigger new builds. Note: the trailing space
-            # after the project names below is intentional, to prevent
-            # matching other projects that happen to start with the same
-            # letters as a project we wish to ignore.
-            lines = [
-                x for x in output.splitlines()
-                if not (
-                    x.startswith(b' ')
-                    or x.startswith(b'C testrunner ')
-                    or x.startswith(b'C product-metadata ')
-                    or x.startswith(b'C product-texts ')
-                    or x.startswith(b'C golang ')
-                    or x.startswith(b'C mobile-testkit ')
-                )
-            ]
-
-            if not lines:
+            chk_result = run([
+                f"{script_dir}/manifest-unchanged",
+                "--repo-sync", ".",
+                "--build-manifest", self.build_manifest_filename,
+            ])
+            if chk_result.returncode == 0:
                 if not self.force:
-                    print('*\n*\n*\n'
-                          f'***** No changes since last build {self.version}-'
-                          f'{self.last_build_num}; not executing '
-                          f'new build *****\n'
-                          '*\n*\n*\n')
+                    print('*\n*\n*\n***** No changes since '
+                          f'{self.product} {self.release} '
+                          f'build {self.version}-{self.last_build_num};'
+                          ' not executing new build *****\n*\n*\n*\n')
                     json_file = self.output_files['build-properties.json']
                     prop_file = self.output_files['build.properties']
 
@@ -402,10 +392,13 @@ class ManifestBuilder:
 
                     sys.exit(0)
                 else:
-                    print(f'No changes since last build {self.version}-'
-                          f'{self.last_build_num}, but forcing new '
-                          f'build anyway')
+                    print('No changes since last build but forcing new '
+                          'build anyway')
 
+            print('*\n*\n*\n***** Triggering build '
+                  f'{self.product} {self.release} '
+                  f'build {self.version}-{self.build_num} '
+                  '*****\n*\n*\n*\n')
             print('Saving CHANGELOG...')
             # Need to re-run 'repo diffmanifests' without '--raw'
             # to get pretty output
@@ -634,7 +627,7 @@ class ManifestBuilder:
         self.update_bm_repo_and_get_build_num()
 
         with pushd(self.product_path):
-            self.generate_changelog()
+            self.check_for_changes()
             commit_msg = self.update_build_manifest_annotations()
 
         self.push_manifest(commit_msg)

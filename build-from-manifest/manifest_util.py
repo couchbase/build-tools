@@ -6,7 +6,6 @@ import json
 import os
 import pprint
 import re
-import shutil
 import sys
 import xml.etree.ElementTree as ET
 
@@ -79,6 +78,7 @@ def get_metadata_for_products(manifest_dir):
                 manifests.update(prod_manifests)
 
     return manifests
+
 
 def _load_product_config(manifest_dir, product_path):
     """
@@ -168,6 +168,7 @@ def get_metadata_for_manifest(manifest_dir, manifest_path):
     metadata = config[manifest_path]
     _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_path, override_product)
     return metadata
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

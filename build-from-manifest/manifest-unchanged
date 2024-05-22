@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+
+# Utility to identify whether a synced manifest has differences from a
+# previous build manifest. Succeeds (exits with 0 status) if there are
+# no diffs.
+
+import argparse
+import contextlib
+import os
+import pathlib
+import re
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+from manifest_util import get_metadata_for_manifest
+
+# Context manager for handling a given set of code/commands
+# being run from a given directory on the filesystem
+@contextlib.contextmanager
+def pushd(new_dir):
+    old_dir = os.getcwd()
+    os.chdir(new_dir)
+    print(f"++ pushd {os.getcwd()}")
+
+    try:
+        yield
+    finally:
+        os.chdir(old_dir)
+        print(f"++ popd (pwd now: {os.getcwd()})")
+
+# Echo command being executed - helpful for debugging
+def run(cmd, **kwargs):
+    print("++", *cmd)
+    return subprocess.run(cmd, **kwargs)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-r", "--repo-sync", type=pathlib.Path, required=True,
+        help="Path to top of repo sync")
+    parser.add_argument(
+        "-m", "--build-manifest", type=pathlib.Path, required=True,
+        help="Path to previous build manifest to compare"
+    )
+    args = parser.parse_args()
+
+    repo_dir = args.repo_sync.absolute() / ".repo"
+    if not repo_dir.exists():
+        print(f"{repo_dir} does not exist!")
+        sys.exit(5)
+    build_manifest = args.build_manifest.absolute()
+    if not build_manifest.exists():
+        print(f"{build_manifest} does not exist!")
+        sys.exit(5)
+
+    # Kind of silly that this is the only way to introspect the name of the
+    # synced manifest
+    root_manifest = ET.parse(repo_dir / "manifest.xml")
+    manifest_path = root_manifest.find('./include').attrib['name']
+    manifest_config = get_metadata_for_manifest(
+        repo_dir / "manifests", manifest_path
+    )
+
+    # Create list of projects to ignore, then turn it into a regexp.
+    # Start with defaults to always ignore.
+    ignore_projects = [
+        'testrunner',
+        'product-metadata',
+        'product-texts',
+        'golang',
+        'mobile-testkit',
+    ]
+    ignore_projects.extend(manifest_config.get('ignore_projects', []))
+
+    # Strip out non-project lines as well as projects that we do not
+    # wish to trigger new builds. Note: the trailing space after the
+    # project names below is intentional, to prevent matching other
+    # projects that happen to start with the same letters as a project
+    # we wish to ignore.
+    ignore_re = re.compile(
+        r'^ |^C (' +
+        '|'.join(ignore_projects) +
+        r') '
+    )
+
+    with pushd(repo_dir):
+        output = run(
+            ['repo', 'diffmanifests', '--raw', build_manifest],
+            check=True, stdout=subprocess.PIPE
+        ).stdout.decode('utf-8')
+        lines = [
+            x for x in output.splitlines()
+            if not ignore_re.match(x)
+        ]
+
+    if len(lines) > 0:
+        print("Diffs found!")
+        sys.exit(1)
+
+    print("No diffs found!")
+    sys.exit(0)
