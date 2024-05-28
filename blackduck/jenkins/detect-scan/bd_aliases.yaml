@@ -55,9 +55,10 @@
     "jdk-17.0.7-ga": "jdk-17.0.7+7"
 
 # GRPC
-"4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c":
+"d720ec74-66da-4af3-a909-a1e799f0727f":
   bd-id-aliases:
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
+    - "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c"
 
 # libnsl
 "903a5281-80d6-454c-b18c-ac526e69ae2c":
