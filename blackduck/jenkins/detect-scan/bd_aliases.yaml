@@ -60,6 +60,11 @@
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
     - "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c"
 
+# PCRE
+"55d69c03-c8e9-4f39-af25-43f7b949b083":
+  bd-id-aliases:
+    - "8c9723be-a23f-4974-9645-54c471aed433"
+
 # libnsl
 "903a5281-80d6-454c-b18c-ac526e69ae2c":
   bd-id-aliases:
