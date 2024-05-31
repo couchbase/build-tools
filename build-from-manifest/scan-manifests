@@ -67,7 +67,6 @@ elif manifests[result].get("toy-build", False):
     trigger.write(f"MANIFEST_FILE={result}\n")
     trigger.write(f"MANIFEST_REPO={MANIFEST_PROJECT}\n")
     trigger.write(f"TRIGGER_BUILD=true\n")
-    trigger.write(f"AUTO_PUBLISH=true\n")
     trigger.write(f"SKIP_DUPLICATE_BUILD=true\n")
 
 else:

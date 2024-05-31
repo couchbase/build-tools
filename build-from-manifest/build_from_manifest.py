@@ -267,6 +267,8 @@ class ManifestBuilder:
 
         self.build_job = \
             self.manifest_config.get('jenkins_job', f'{self.product}-build')
+        self.build_job_parameters = \
+            self.manifest_config.get('jenkins_job_parameters', {})
         self.platforms = self.manifest_config.get('platforms', [])
 
 
@@ -502,25 +504,18 @@ class ManifestBuilder:
             'GO_VERSION': self.go_version,
             'FORCE': self.force
         }
+        # Append job parameters from product-config.json
+        properties.update(self.build_job_parameters)
 
         with open(self.output_files['build-properties.json'], 'w') as fh:
             json.dump(properties, fh, indent=2, separators=(',', ': '))
 
         with open(self.output_files['build.properties'], 'w') as fh:
-            plats = ' '.join(self.platforms)
-            fh.write(f'PRODUCT={self.product}\n'
-                     f'RELEASE={self.release}\n'
-                     f'PRODUCT_BRANCH={self.product_branch}\n'
-                     f'VERSION={self.version}\n'
-                     f'BLD_NUM={self.build_num}\n'
-                     f'PROD_NAME={self.prod_name}\n'
-                     f'PRODUCT_PATH={self.product_path}\n'
-                     f'MANIFEST={self.manifest}\n'
-                     f'PARENT={self.parent}\n'
-                     f'BUILD_JOB={self.build_job}\n'
-                     f'PLATFORMS={plats}\n'
-                     f'GO_VERSION={self.go_version}\n'
-                     f'FORCE={self.force}\n')
+            for key, value in properties.items():
+                if isinstance(value, list):
+                    fh.write(f'{key}={" ".join(value)}\n')
+                else:
+                    fh.write(f'{key}={value}\n')
 
     def create_tarball(self):
         """

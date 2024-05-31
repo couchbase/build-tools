@@ -197,6 +197,12 @@ TOY_BLD_NUM=${TOY_BLD_NUM}
 PATCH_VIA_GERRIT_OPTS=${OPTS}
 EOF
 
+# If the product-config.json specified additional build job parameters,
+# append them as well
+echo "$MANIFEST_CONFIG" | \
+jq -r '.jenkins_job_parameters | to_entries? | .[] | "\(.key)=\(.value)"' \
+>> build.properties
+
 # And stick the build-properties into git for remote toy builders
 pushd toy-build-manifests
 mkdir -p ${PRODUCT_PATH}/${RELEASE}
