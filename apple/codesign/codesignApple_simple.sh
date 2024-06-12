@@ -8,6 +8,7 @@
 SCRIPT_DIR=${0:A:h}
 
 SIGN_FLAGS="--force --timestamp --options=runtime  --verbose --entitlements ${SCRIPT_DIR}/cb.entitlement --preserve-metadata=identifier,requirements"
+PYTHON_SIGN_FLAGS="--force --timestamp --options=runtime  --verbose --entitlements ${SCRIPT_DIR}/python.entitlement --preserve-metadata=identifier,requirements"
 CERT_NAME="Developer ID Application: Couchbase, Inc. (N2Q372V7W2)"
 
 
@@ -51,7 +52,11 @@ function codesign_pkg
                 rm -rf META-INF
             fi
         elif [[ `file --brief "${file}"` =~ "Mach-O" ]]; then
-            codesign ${(z)SIGN_FLAGS} --sign ${CERT_NAME} "${file}"
+            if [[ `echo ${file} | grep "sgcollect_info"` ]]; then
+                codesign ${(z)PYTHON_SIGN_FLAGS} --sign "$CERT_NAME" "${file}"
+            else
+                codesign ${(z)SIGN_FLAGS} --sign ${CERT_NAME} "${file}"
+            fi
         fi
     done
 
