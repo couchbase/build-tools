@@ -122,11 +122,16 @@ case "${PRODUCT}" in
     couchbase-operator)
         # couchbase-operator's uploads include files starting with
         # "couchbase-autonomous-operator"
-        EXTRA_POSITIVE_WILDCARDS+='couchbase-autonomous-operator*'
+        EXTRA_POSITIVE_WILDCARDS+=('couchbase-autonomous-operator*')
         ;;
     couchbase-odbc-driver)
         # artifacts are named just "couchbase-odbc-*"
-        EXTRA_POSITIVE_WILDCARDS+='couchbase-odbc-*'
+        EXTRA_POSITIVE_WILDCARDS+=('couchbase-odbc-*')
+        ;;
+    couchbase-release)
+        # couchbase-release also includes installers for beta and staging.
+        # There's also beta-staging but that will be caught by beta-*.
+        EXTRA_POSITIVE_WILDCARDS+=('couchbase-beta-*' 'couchbase-staging-*')
         ;;
 esac
 
