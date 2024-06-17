@@ -70,7 +70,7 @@ def get_url_list(product, version, editions, staging):
   if product == 'couchbase-lite-java':
     exclude_regexes.extend([r'macos.zip$', r'windows.zip$', r'macos.zip.sha256$', r'windows.zip.sha256$'])
   if product == 'couchbase-lite-vector-search':
-    exclude_regexes.extend([r'android.*', r'apple.*', r'linux.*', r'windows.*'])
+    exclude_regexes.extend([r'android.*', r'apple.*', r'linux.*', r'macos.*', r'xcframework*', r'windows.*'])
   if product != 'couchbase-operator':
     # We upload this file for all k8s products, but only want to report the
     # URL for couchbase-operator
@@ -192,22 +192,10 @@ def get_product_download_urls(product, version):
           f"https://docs.couchbase.com/couchbase-lite/{majmin}/android/gs-install.html#kotlin-step-by-step-install"
         ]
       }
-    case "couchbase-lite-android-vector-search":
-      return {
-        "Couchbase Lite Android Vector Search": [
-          f"https://docs.couchbase.com/couchbase-lite/current/android/gs-install.html#java-step-by-step-install"
-        ]
-      }
     case "couchbase-lite-java":
       return {
         "Couchbase Lite Java": [
           f"https://docs.couchbase.com/couchbase-lite/{majmin}/java/gs-install.html"
-        ]
-      }
-    case "couchbase-lite-java-vector-search":
-      return {
-        "Couchbase Lite Android Vector Search": [
-          f"https://docs.couchbase.com/couchbase-lite/current/java/gs-install.html"
         ]
       }
     case "couchbase-lite-c":
@@ -217,6 +205,27 @@ def get_product_download_urls(product, version):
         ],
         "Couchbase Lite C for macOS": [
           f"https://docs.couchbase.com/couchbase-lite/{majmin}/c/gs-downloads.html"
+        ]
+      }
+    case "couchbase-lite-vector-search":
+      return {
+        "Couchbase Lite .Net Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/csharp/gs-install.html"
+        ],
+        "Couchbase Lite Android Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/android/gs-install.html"
+        ],
+        "Couchbase Lite C Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/c/gs-install.html"
+        ],
+        "Couchbase Lite Java Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/java/gs-install.html"
+        ],
+        "Couchbase Lite Objective-C Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/objc/gs-install.html"
+        ],
+        "Couchbase Lite Swift Vector Search": [
+          f"https://docs.couchbase.com/couchbase-lite/current/swift/gs-install.html"
         ]
       }
     case _:
