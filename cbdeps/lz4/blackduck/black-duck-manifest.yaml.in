@@ -1,0 +1,4 @@
+components:
+    lz4:
+        bd-id: 5ca46883-74f4-4b26-8864-fc1801deb37c
+        versions: [ "@@BD_VERSION@@" ]
