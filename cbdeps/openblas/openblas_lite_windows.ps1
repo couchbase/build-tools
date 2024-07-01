@@ -92,6 +92,9 @@ if($Arch -eq "arm64") {
     -DBUILD_WITHOUT_CBLAS=1 `
     -DCMAKE_BUILD_TYPE=Release `
     -DCMAKE_INSTALL_PREFIX="$InstallDir" `
+    -DBINARY=64 `
+    -DUSE_THREAD=0 `
+    -DUSE_LOCKING=1 `
     -S ..
 }
 
