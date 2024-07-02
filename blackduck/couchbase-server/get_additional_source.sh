@@ -46,7 +46,7 @@ create_analytics_poms() {
 # a reliable way to extract the CMake version from the source (because
 # CMake downloads themselves are inconsistent), so just hardcode a
 # recent CMake.
-CMAKE_VERSION=3.23.1
+CMAKE_VERSION=3.29.6
 NINJA_VERSION=1.10.2
 cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
 cbdep install -d "${WORKSPACE}/extra" ninja ${NINJA_VERSION}
