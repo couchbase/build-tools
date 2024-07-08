@@ -38,6 +38,7 @@
 "6d055c2b-f7d7-45ab-a6b3-021617efd61b":
   fallback-versions:
     "1.22.5": "1.22.4"
+    "1.21.12": "1.21.11"
 
 # Python cffi
 "a136afda-2456-41df-a8f4-2d74ef679b21":
