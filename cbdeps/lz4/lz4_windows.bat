@@ -18,3 +18,5 @@ cd %INSTALL_DIR%\lib
 rmdir /s /q pkgconfig
 cd ..
 rmdir /s /q share
+cd bin
+del *.exe
