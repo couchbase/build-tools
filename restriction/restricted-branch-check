@@ -36,8 +36,10 @@ def check_branch_in_manifest(manifest_filename):
     manifest_et = ET.parse(os.path.join("./manifest", manifest_filename))
     project_et = manifest_et.find("./project[@name='{}']".format(PROJECT))
     if project_et is None:
-        print("project {} not found".format(PROJECT))
-        return False
+        project_et = manifest_et.find("./extend-project[@name='{}']".format(PROJECT))
+        if project_et is None:
+            print("project {} not found".format(PROJECT))
+            return False
 
     # Compute the default branch for the manifest
     default_branch = "master"
