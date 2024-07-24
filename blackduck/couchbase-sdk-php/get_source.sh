@@ -45,7 +45,7 @@ TARBALL=
 case "$VERSION" in
     4.2.*)
         gem install --user-install --no-document nokogiri
-        ruby bin/package.rb
+        BUILD_NUMBER=0 ruby bin/package.rb
         TARBALL=$(ls -1 couchbase-*.tgz | head -1)
         mv $TARBALL ../
         ;;
@@ -61,8 +61,15 @@ popd
 if [[ ! -z "${TARBALL}" ]]
 then
     tar xf ${TARBALL}
+    TARBALL_CONTENTS_DIR=$(basename ${TARBALL} .tgz)
+    for MANIFEST in $(find . -name 'couchbase-sdk-php-black-duck-manifest.yaml')
+    do
+        cp ${MANIFEST} ${TARBALL_CONTENTS_DIR}
+    done
+
     rm ${TARBALL}
     rm -rf couchbase-php-client
-    mv couchbase-* couchbase-php-client
+    mv ${TARBALL_CONTENTS_DIR} couchbase-php-client
     cp package.xml couchbase-php-client/
+    rm -rf couchbase-php-client/src/deps
 fi
