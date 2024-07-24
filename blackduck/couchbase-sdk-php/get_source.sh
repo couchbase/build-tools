@@ -5,6 +5,12 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
+# There's no consistent place across versions to grab a cmake version from
+# the source, at time of writing 3.28.3 is the latest release
+CMAKE_VERSION=3.28.3
+cbdep install -d "${WORKSPACE}/extra" cmake ${CMAKE_VERSION}
+export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${PATH}"
+
 # current repo, do not remove:
 # github.com/couchbase/couchbase-php-client
 
