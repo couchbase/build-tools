@@ -1,20 +1,11 @@
 {
     "versions": {
-        "3.4.6": {
+        "3.5.3": {
             "__comment": "NOTE: this version points to the future release",
             "release": "main",
             "interval": 1440
         },
-        "3.4.5": {
-            "interval": 1440
-        },
-        "3.4.4": {
-            "interval": 1440
-        },
-        "3.3.0": {
-            "interval": 1440
-        },
-        "3.2.0": {
+        "3.5.2": {
             "interval": 1440
         }
     }

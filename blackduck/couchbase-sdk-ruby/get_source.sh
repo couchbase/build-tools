@@ -25,6 +25,8 @@ export PATH="${WORKSPACE}/extra/cmake-${CMAKE_VERSION}/bin:${PATH}"
 export GEM_HOME="${SCRIPT_ROOT}/.gem"
 export GEM_PATH="${GEM_HOME}"
 
+ruby --version
+
 pushd "${WORKDIR}"
 bundle config set --local path "${GEM_HOME}"
 ruby "${SCRIPT_ROOT}/get_source.rb" $VERSION $RELEASE
