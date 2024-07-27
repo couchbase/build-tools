@@ -164,6 +164,13 @@ class DockerTool:
                 f"ghcr.io/cb-vanilla/sync-gateway:"
                 f"{plain_version}-{self.edition}",
             ])
+        elif self.product == "couchbase-columnar":
+            self.imagenames.extend([
+                f"ghcr.io/cb-vanilla/couchbase-columnar:{self.version}",
+                f"ghcr.io/cb-vanilla/couchbase-columnar:{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/couchbase-columnar:{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/couchbase-columnar:{plain_version}",
+            ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
 
@@ -193,6 +200,9 @@ class DockerTool:
                 self.error_msg = "server-sandbox images must be 'enterprise'"
                 return
             self.imagenames.append(f"couchbase/server-sandbox:{self.version}")
+        elif self.product == "couchbase-columnar":
+            imagebase = "couchbase/couchbase-columnar"
+            self.imagenames.append(f"{imagebase}:{self.version}")
 
         if self.product != "server-sandbox":
             if edition_tag:
@@ -316,6 +326,10 @@ class DockerTool:
                 "single platform with --platform, or specify a filename with '%P' "
                 "to --docker-save"
             )
+        if self.product=="couchbase-columnar" and self.edition=="community":
+            return (
+                "couchbase-columnar does not support CE builds."
+            )
 
         return None
 
@@ -390,6 +404,8 @@ class DockerTool:
                     return "linux/amd64,linux/arm64"
                 else:
                     return "linux/amd64"
+            elif self.product == "couchbase-columnar":
+                return "linux/amd64,linux/arm64"
 
         # Otherwise, split platform arg on comma and replace any uname-
         # type architectures with Docker-type architectures
@@ -668,7 +684,7 @@ if __name__ == "__main__":
     )
     reqopts.add_argument(
         "-p", "--product", type=str, required=True,
-        choices=["couchbase-server", "sync-gateway", "server-sandbox"],
+        choices=["couchbase-server", "sync-gateway", "server-sandbox", "couchbase-columnar"],
         help="Product name"
     )
     reqopts.add_argument(
