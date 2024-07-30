@@ -133,10 +133,9 @@ function image_exists() {
 # copying one to the other will have no effect except possibly modifying
 # image digests due to updated timestamps, etc.
 function image_key() {
-    # Basically we just append the sha256 of the top-most layer of the
-    # amd64 image and the sha256 of the top-most layer of the arm64
-    # image. If this is not a multi-arch image, that's fine - one
-    # sha256 will be an empty string, but that's still unique.
+    # Basically we just append the key of the amd64 image and the key of
+    # the arm64 image. If this is not a multi-arch image, that's fine -
+    # one sha256 will be an empty string, but that's still unique.
     echo "$(image_arm64_key $1)-$(image_amd64_key $1)"
 }
 
@@ -146,12 +145,40 @@ function _image_arch_key() {
     image=$2
 
     output=()
-    output+=($(skopeo --override-arch ${arch} inspect docker://${image} \
-        | jq -r '.Architecture + " " + .Layers[-1]'))
+    # Several interesting things going on here.
+    #
+    # 1. `skopeo inspect` won't fail if you specify, say,
+    #    `--override-arch arm64` and the image is a single-arch amd64
+    #    image; it will just return the details of the amd64 image.
+    #    Since those details *do* include the arch, we capture that and
+    #    compare it to the requested arch. If they're not the same, we
+    #    just return an empty string key.
+    # 2. Docker uses "content-addressable IDs", which means they only
+    #    contain filesystem/metadata diffs. As such, it's quite possible
+    #    for two different images to share a layer SHA. One common way
+    #    this can occur is with the `ENTRYPOINT` directive - that only
+    #    affects metadata and has no timestamp information, so basically
+    #    *every* image that has the same `ENTRYPOINT ["foo"]` will share
+    #    the same layer SHA. Since `ENTRYPOINT` is frequently the last
+    #    directive in a Dockerfile, that means it's not at all uncommon
+    #    for two different images to share the same top layer. This is
+    #    unlike git, where if you see the same commit SHA in two places,
+    #    you can be completely sure that the entire history of those two
+    #    places is also identical.
+    #
+    # The upshot is that if we want to check to see if two images on a
+    # remote registry are "the same", we have to compare their entire
+    # set of layer SHAs. To do this we gather them all, sort them, and
+    # form our own sha256 checksum of that list.
+    output+=(
+        $(skopeo --override-arch ${arch} \
+        inspect docker://${image} \
+        --format '{{.Architecture}}{{range .Layers}} {{.}}{{end}}')
+    )
     if [ "${output[0]}" != "${arch}" ]; then
         echo ""
     else
-        echo "${output[1]/sha256:/}"
+        printf '%s\n' "${output[@]:1}" | sort | sha256sum | cut -c -64
     fi
 }
 

@@ -54,6 +54,11 @@ function tag_release {
     local BLD_NUM=$3
     local TAG=$4
 
+    if [ "${PRODUCT}" = "couchbase-elasticsearch-connector" ]; then
+        status "Opting out of tagging ${PRODUCT}"
+        return
+    fi
+
     curl --fail -LO http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}/${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml
 
     REVISION=$(xmllint --xpath "string(//project[@name=\"${PRODUCT}\"]/@revision)" ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml)
