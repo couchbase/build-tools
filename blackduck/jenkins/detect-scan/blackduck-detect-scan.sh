@@ -63,6 +63,7 @@ if [ ! -d "${venv}" ]; then
   python3 -m venv "${venv}"
 fi
 source "${venv}/bin/activate"
+pip3 install setuptools
 
 # Include the requirements for any of our own scripts we might run
 pip3 install -r "${DETECT_SCRIPT_DIR}/requirements.txt"
