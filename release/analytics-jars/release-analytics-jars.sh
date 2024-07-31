@@ -3,33 +3,39 @@
 RELEASE=$1
 VERSION=$2
 BLD_NUM=$3
+PRODUCT=$4
 
-# Download named build (use Ubuntu 20 - will need to update in far future
-# when we no longer support Ubuntu 20)
-curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o couchbase-server.deb ||
-  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/${RELEASE}/${BLD_NUM}/couchbase-server-enterprise_${VERSION}-${BLD_NUM}-debian10_amd64.deb -o couchbase-server.deb
+if [ "${PRODUCT}" = "couchbase-columnar" ]; then
+  JAR_PREFIX=columnar
+elif [ "${PRODUCT}" = "couchbase-server" ]; then
+  JAR_PREFIX=cbas
+else
+  echo PRODUCT must be 'couchbase-columnar' or 'couchbase-server' but was $PRODUCT
+  exit 1
+fi
+
+# Download named build (try linux, falling back to Ubuntu 20 then debian10)
+curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-linux_amd64.deb -o ${PRODUCT}.deb ||
+  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o ${PRODUCT}.deb ||
+  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-debian10_amd64.deb -o ${PRODUCT}.deb
 
 # Extract jar contents
-ar x couchbase-server.deb
-tar xf data.tar.xz --wildcards --no-wildcards-match-slash --strip-components 5 \
-  './opt/couchbase/lib/cbas/repo/*.jar'
-tar xf data.tar.xz --wildcards --no-wildcards-match-slash --strip-components 5 \
-  './opt/couchbase/lib/cbas/repo/jars/*.jar' || :
+ar x ${PRODUCT}.deb
+tar xf data.tar.xz --wildcards --strip-components 5 './opt/couchbase/lib/c*/repo/*.jar'
 
+# Create new jarball and checksum
+TARGET_NAME=${JAR_PREFIX}-jars-all-noarch-${VERSION}-${BLD_NUM}
 pushd repo
-if [ -f cbas-install-*.jar ]; then
-  # starting in 7.0.1, analytics utilizes a manifest jar for its classpath; extract that to determine the jars we need
-  # to include
-  # TODO(mblow): this will need to be reworked if we ever have jars with a space in the name...
-  unzip -p cbas-install-*.jar  META-INF/MANIFEST.MF | sed 's/^ /@@/g' | sed 's/@@@/#/g' | grep '\(^Class-Path\|^@@\)' \
-    | tr -d '\r' | tr -d '\n' | sed -e 's/@@//g' -e 's/^Class-Path: //' | xargs -n1 \
-    | tar cvzf ../analytics-jars-${VERSION}-${BLD_NUM}.tar.gz -T - cbas-install-*.jar
-else
-  tar cvzf ../analytics-jars-${VERSION}-${BLD_NUM}.tar.gz *.jar
-fi
+# TODO(mblow): this will need to be reworked if we ever have jars with a space in the name...
+unzip -p ${JAR_PREFIX}-install-*.jar  META-INF/MANIFEST.MF | sed 's/^ /@@/g' | sed 's/@@@/#/g' | grep '\(^Class-Path\|^@@\)' \
+  | tr -d '\r' | tr -d '\n' | sed -e 's/@@//g' -e 's/^Class-Path: //' | xargs -n1 \
+  | tar cvzf ../${TARGET_NAME}.tgz -T - ${JAR_PREFIX}-install-*.jar
 popd
+md5sum ${TARGET_NAME}.tgz | cut -c -32 > ${TARGET_NAME}.md5
 
 # Publish to S3
-aws s3 cp analytics-jars-${VERSION}-${BLD_NUM}.tar.gz \
-  s3://packages.couchbase.com/releases/${VERSION}/analytics-jars-${VERSION}-${BLD_NUM}.tar.gz \
-  --acl public-read
+for ext in tgz md5; do
+  aws s3 cp --acl public-read \
+  ${TARGET_NAME}.${ext} \
+    s3://packages.couchbase.com/couchbase-server/deps/${JAR_PREFIX}-jars/${VERSION}-${BLD_NUM}/${TARGET_NAME}.${ext}
+done
