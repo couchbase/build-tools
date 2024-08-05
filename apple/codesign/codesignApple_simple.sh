@@ -7,7 +7,7 @@
 
 SCRIPT_DIR=${0:A:h}
 
-SIGN_FLAGS="--force --timestamp --options=runtime  --verbose --entitlements ${SCRIPT_DIR}/cb.entitlement --preserve-metadata=identifier,requirements"
+SIGN_FLAGS="--force --deep --timestamp --options=runtime  --verbose --entitlements ${SCRIPT_DIR}/cb.entitlement --preserve-metadata=identifier,requirements"
 PYTHON_SIGN_FLAGS="--force --timestamp --options=runtime  --verbose --entitlements ${SCRIPT_DIR}/python.entitlement --preserve-metadata=identifier,requirements"
 CERT_NAME="Developer ID Application: Couchbase, Inc. (N2Q372V7W2)"
 
@@ -34,6 +34,7 @@ function codesign_pkg
 
     tmpdir=$(mktemp -d $(pwd)/tmp.XXXXXXXX)
     unzip -qq ${pkg} -d ${tmpdir}
+    apps=(${tmpdir}/*.app(N))
 
     echo "------- Codesigning binaries within the package -------"
     find ${tmpdir} -type f | while IFS= read -r file
@@ -61,6 +62,9 @@ function codesign_pkg
     done
 
     pushd ${tmpdir}
+    if [[ ${#apps[@]} -gt 0 ]]; then
+        codesign ${(z)SIGN_FLAGS} --sign ${CERT_NAME} *.app
+    fi
     zip --symlinks -r -X ../${pkg} *
     popd
 
