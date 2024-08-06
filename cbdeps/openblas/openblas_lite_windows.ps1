@@ -105,8 +105,8 @@ if($Arch -eq "arm64") {
     -DCMAKE_BUILD_TYPE=Release `
     -DCMAKE_INSTALL_PREFIX="$InstallDir" `
     -DBINARY=64 `
-    -DUSE_THREAD=0 `
-    -DUSE_LOCKING=1 `
+    -DUSE_THREAD=ON `
+    -DNUM_THREADS=128 `
     -S ..
 }
 
