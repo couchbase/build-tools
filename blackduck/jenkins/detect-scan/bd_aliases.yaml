@@ -75,3 +75,18 @@
 "48190a0a-604d-41eb-aadc-9c942ecdb6fd":
   bd-id-aliases:
     - "99ea2532-8ecf-4c21-ac5b-1b00740c80f5"
+
+# ca-certificates
+"530bae3a-a2ad-4bd6-810d-854fe6b57b9b":
+  fallback-versions:
+    "2024.07.04": "2024.02.02"
+
+# libgcc-ng
+"7fc4e9e4-a755-42d4-b0e3-ae2f2cc90728"
+  fallback-versions:
+    "14.1.0": "13.2.0"
+
+# libgomp
+"6e2c44eb-e153-4b09-9500-f61fda6353ac"
+  fallback-versions:
+    "14.1.0": "13.2.0"
