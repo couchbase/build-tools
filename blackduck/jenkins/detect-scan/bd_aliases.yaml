@@ -56,8 +56,9 @@
     "jdk-17.0.7-ga": "jdk-17.0.7+7"
 
 # GRPC
-"d720ec74-66da-4af3-a909-a1e799f0727f":
+"a66041df-2ef9-4ba9-b9e3-c8c4dc9ddf22":
   bd-id-aliases:
+    - "d720ec74-66da-4af3-a909-a1e799f0727f"
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
     - "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c"
 
