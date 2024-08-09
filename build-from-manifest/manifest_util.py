@@ -20,6 +20,16 @@ def remember_cwd():
     finally:
         os.chdir(curdir)
 
+def get_manifest_dir(manifest_repo):
+    """
+    Given a URL to a manifest repository, return the local path that
+    scan_manifests() will use to clone that repository
+    """
+    return os.path.join(
+        os.getcwd(),
+        "manifest",
+        re.sub(r'[:/& ?]', '_', manifest_repo)
+    )
 
 def scan_manifests(manifest_repo="ssh://git@github.com/couchbase/manifest"):
     """
@@ -30,11 +40,7 @@ def scan_manifests(manifest_repo="ssh://git@github.com/couchbase/manifest"):
     """
     # Sync manifest project into local directory based on mangled URL
     os.makedirs("manifest", exist_ok=True)
-    manifest_dir = os.path.join(
-        os.getcwd(),
-        "manifest",
-        re.sub(r'[:/& ?]', '_', manifest_repo)
-    )
+    manifest_dir = get_manifest_dir(manifest_repo)
 
     if not os.path.isdir(manifest_dir):
         check_call(["git", "clone", manifest_repo, manifest_dir])
@@ -116,6 +122,8 @@ def _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_pat
     """
     Extends a manifest-specific dict with additional metadata derived
     from the product path, product-config, and manifest contents.
+    Also saves the full manifest ElementTree root in the metadata with
+    the key "_manifest".
     metadata: input dict to extend
     manifest_dir: root of manifest repository checkout
     manifest_path: path (relative to manifest_dir) to a manifest.xml
@@ -146,6 +154,7 @@ def _append_manifest_metadata(metadata, manifest_dir, manifest_path, product_pat
     metadata['manifest_path'] = manifest_path
     metadata['prod_name'] = product.split('::')[-1]
     metadata['build_job'] = metadata.get('jenkins_job', f'{product}-build')
+    metadata['_manifest'] = root
 
 
 def get_metadata_for_manifest(manifest_dir, manifest_path):

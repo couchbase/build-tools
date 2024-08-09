@@ -5,9 +5,10 @@ import base64
 import os
 import sys
 import urllib
-import xml.etree.ElementTree as ET
 
 from jira_util import connect_jira, get_tickets
+from importmonkey import add_path
+add_path("../build-from-manifest")
 from manifest_util import scan_manifests
 
 """
@@ -28,12 +29,12 @@ OUTPUT = globals().copy()
 html_filename = "restricted.html"
 
 
-def check_branch_in_manifest(manifest_filename):
+def check_branch_in_manifest(meta):
     """
     Returns true if the PRODUCT/BRANCH are listed in the named manifest
     """
-    print("Checking manifest {}".format(manifest_filename))
-    manifest_et = ET.parse(os.path.join("./manifest", manifest_filename))
+    print(f"Checking manifest {meta['manifest_path']}")
+    manifest_et = meta["_manifest"]
     project_et = manifest_et.find("./project[@name='{}']".format(PROJECT))
     if project_et is None:
         project_et = manifest_et.find("./extend-project[@name='{}']".format(PROJECT))
@@ -57,7 +58,7 @@ def check_branch_in_manifest(manifest_filename):
     return True
 
 
-def can_bypass_restriction(ticket):
+def can_bypass_restriction(ticket, jira):
     """
     Given a Jira ticket ID, returns true if 'doc-change-only' and/or
     'test-change-only' labels are present, or false if neither are
@@ -69,19 +70,21 @@ def can_bypass_restriction(ticket):
         'analytics-compat-jars'
     ]
     try:
-        jira = connect_jira()
         jira_ticket = jira.issue(ticket)
         return any(label in bypass_labels for label in jira_ticket.raw['fields']['labels'])
     except:
-        failed_output_page(
-            "couldn't retrieve labels for ticket {}".format(ticket))
+        # If the above jira call failed, it was most likely due to the
+        # message naming a non-existent ticket eg. due to a typo or
+        # similar. We don't want to fail with an error about retrieving
+        # labels; just assume the non-existent ticket didn't have any of
+        # the approved labels.
+        return False
 
 
-def get_approved_tickets(approval_ticket):
+def get_approved_tickets(approval_ticket, jira):
     """
     Given a Jira approval ticket ID, return all linked ticket IDs
     """
-    jira = connect_jira()
     jira_ticket = jira.issue(approval_ticket)
     depends = [
         link.outwardIssue.key for link in jira_ticket.fields.issuelinks
@@ -102,18 +105,25 @@ def validate_change_in_ticket(meta):
     """
     approval_ticket = meta.get("approval_ticket")
     global COMMIT_MSG
-    # First ensure topic line mentions tickets, and pull them out.
-    topic = COMMIT_MSG.split('\n', 1)[0]
-    fix_tickets = get_tickets(topic)
+    # We require a ticket to be named either on the first line of the
+    # commit message OR in an Ext-ref: footer line. For the time being
+    # we don't enforce footers being at the end of the commit message;
+    # any line that starts with Ext-ref: will do.
+    msg_lines = ""
+    for i, line in enumerate(COMMIT_MSG.split('\n')):
+        if i == 0 or line.startswith("Ext-ref:"):
+            msg_lines += f"{line}\n"
+    fix_tickets = get_tickets(msg_lines)
     if len(fix_tickets) == 0:
         OUTPUT["REASON"] = "the commit message does not name a ticket"
         return False
 
     # Now get list of approved tickets from approval ticket, and ensure
     # all "fixed" tickets are approved.
-    approved_tickets = get_approved_tickets(approval_ticket)
+    jira = connect_jira()
+    approved_tickets = get_approved_tickets(approval_ticket, jira)
     for tick in fix_tickets:
-        if tick not in approved_tickets and not can_bypass_restriction(tick):
+        if tick not in approved_tickets and not can_bypass_restriction(tick, jira):
             # Ok, this fixed ticket isn't approved in approval ticket
             # nor does it contain a label for bypassing this check.
             # Populate the OUTPUT map for the HTML and email templates.
@@ -165,7 +175,7 @@ def failed_output_page(exc_message):
         sys.exit(6)
 
 
-def main():
+def real_main():
     # Command-line args
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--manifest-project", type=str,
@@ -198,7 +208,7 @@ def main():
                 ))
                 continue
 
-            if not check_branch_in_manifest(manifest):
+            if not check_branch_in_manifest(meta):
                 continue
 
             # Ok, this proposal is to a branch in a restricted manifest
@@ -247,13 +257,12 @@ def main():
         print("\n\n\n*********\nUNRESTRICTED{}: Branch is in no restricted "
               "manifests\n*********\n\n\n".format(silent))
 
-
-if __name__ == '__main__':
+def main():
     # This is a MAJOR hack right now to try to ensure something
     # is usefully printed by the program even if an unexpected
     # exception occurs; further refinement should check for
     # specific exceptions and handle appropriately as needed
     try:
-        main()
+        real_main()
     except Exception as exc:
         failed_output_page(sys.exc_info()[1])
