@@ -28,7 +28,7 @@ components:
         license-approved: true
     cffi:
         bd-id: 043e4252-a86b-4281-a1a3-a762fe0470de
-        versions: [ 1.16.0 ]
+        versions: [ 1.17.0 ]
     charset-normalizer:
         bd-id: 961db792-aeb0-450b-ba00-4f9b0afa6dda
         versions: [ 3.3.2 ]

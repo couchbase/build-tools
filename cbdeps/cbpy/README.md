@@ -70,12 +70,13 @@ For the moment at least, after the test packages are built and you're
 happy with them, there's one final manual step. Download each of the
 five .tgz packages to a directory somewhere, then run
 
-    verify-black-duck-manifest.py -v <CBPY VERSION> -d <PATH TO TGZs>
+    cd verify-black-duck-manifest
+    rye sync
+    rye run verify-black-duck-manifest -v <CBPY VERSION> -d <PATH TO TGZs>
 
 This will ensure that the conda environments created for the packages
 match the Black Duck manifest. For now it will only report problems,
-requiring you to manually fix the
-couchbase-server-black-duck-manifest.yaml file; this is to ensure that
-all changes are expected.
+requiring you to manually fix the blackduck/black-duck-manifest.yaml.in
+file; this is to ensure that all changes are expected.
 
 Once this is done, commit this last change, and you're ready to submit.

@@ -35,9 +35,6 @@ create_analytics_poms() {
   "${SCRIPT_DIR}/../scripts/create-maven-boms" \
     --outdir analytics-boms \
     --file analytics/cbas/cbas-install/target/bom.txt
-
-  # Delete all the built artifacts so BD doesn't scan them
-  rm -rf install
 }
 
 # Main script starts here - decide which action to take based on VERSION
@@ -58,6 +55,15 @@ mkdir "${BUILD_DIR}"
 pushd "${BUILD_DIR}"
 LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
 
+# Most cbdeps packages that have embedded black-duck-manifest.yaml files will
+# be under ${BUILD_DIR} and so will get picked up automatically. However, cbpy
+# gets unpacked into the install directory, which we will shortly delete. Copy
+# that file into ${BUILD_DIR} to keep it safe.
+CBPY_MANIFEST="${WORKSPACE}/src/install/lib/python/interp/cbpy-black-duck-manifest.yaml"
+if [ -e "${CBPY_MANIFEST}" ]; then
+  cp "${CBPY_MANIFEST}" .
+fi
+
 # Extract the set of Go versions from the build. We trust that 'python'
 # on the PATH is the venv set up by the top-level
 # blackduck-detect-scan.sh script, and in particular that it's a venv
@@ -77,6 +83,9 @@ export PATH="${WORKSPACE}/extra/go${GOMAX}/bin:${PATH}"
 popd
 
 create_analytics_poms
+
+# Delete all the built artifacts so BD doesn't scan them
+rm -rf install
 
 # If we find any go.mod files with zero "require" statements, they're probably one
 # of the stub go.mod files we introduced to make other Go projects happy. Black Duck
