@@ -84,6 +84,7 @@ properties = {
     "detect.project.version.name": "${VERSION}",
     "detect.blackduck.signature.scanner.memory": 10240,
     "detect.timeout": 3600,
+    "detect.accuracy.required": "NONE",
 }
 if args.dry_run:
     properties["detect.blackduck.signature.scanner.dry.run"] = "true"
