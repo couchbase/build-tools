@@ -26,13 +26,14 @@ fi
 rm -rf src/test
 rm -rf docs
 
+# Revert to older SBT until
+# https://community.synopsys.com/s/case/500Uh00000BseoYIAR/error-with-black-duck-detects-sbt-integration-with-recent-sbt-versions
+# is fixed.
+echo "sbt.version = 1.5.4" > project/build.properties
+
 # Install sbt
 SBT_VERSION=$(cat project/build.properties |grep "sbt.version" |awk -F '=' '{print $2}' |tr -d '[:space:]')
 wget https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz -O - |tar -xz -C ../../extra
-
-# Add dependency graph plugin required by blackduck
-echo '' >> project/plugins.sbt
-echo 'addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")' >> project/plugins.sbt
 
 # Blackduck doesn't support buildless scan of scala project as of 7.0.0
 # Hence, we need to build it before passing the project through the scanner.
