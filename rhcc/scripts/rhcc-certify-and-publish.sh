@@ -1,20 +1,17 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
 
 usage() {
-    echo "Usage: $0 -i IMAGE"
-    echo "   or: $0 -s -p PRODUCT -t INTERNAL_TAG -a <amd64|arm64> -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l] [-B]"
+    set +x
+    echo "Usage: $0 -p PRODUCT -t INTERNAL_TAG -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l] [-B]"
     echo
-    echo "With only -i, simply runs 'preflight' on the specified image."
-    echo
-    echo "With -s and the other arguments, handles the complete release-to-RHCC"
-    echo "process - pulls the staged image (presumed to exist on the internal"
-    echo "Docker registry with the correct name for PRODUCT and the specified"
-    echo "internal tag), uploads it to quay.io with the specified release tag(s),"
-    echo "runs preflight, and submits the preflight certification report to"
-    echo "RHCC. In this mode, -i is ignored."
+    echo "Handles the complete release-to-RHCC process - pulls the staged image"
+    echo "(presumed to exist on the internal Docker registry with the correct"
+    echo "name for PRODUCT and the specified internal tag), uploads it to quay.io"
+    echo "with the specified release tag(s), runs preflight, and submits the"
+    echo "preflight certification report to RHCC."
     echo
     echo "INTERNAL_TAG must exactly match a tag on build-docker.couchbase.com/cb-rhcc."
     echo
@@ -25,38 +22,28 @@ usage() {
     echo
     echo "This script will create the following tags on RHCC:"
     echo
-    echo "  <RELEASE_TAG_BASE>-<ARCH>"
-    echo "  <RELEASE_TAG_BASE>-<REBUILD_NUM>-<ARCH>"
-    echo "  <RELEASE_TAG_BASE>-rhcc-<ARCH>"
-    echo
-    echo "When ARCH is 'amd64', it will also create each of the above tags without"
-    echo "the -<ARCH> suffix."
+    echo "  <RELEASE_TAG_BASE>-<REBUILD_NUM>"
+    echo "  <RELEASE_TAG_BASE>"
+    echo "  <RELEASE_TAG_BASE>-rhcc"
     echo
     echo "  -B: build preflight from source"
     echo "  -l: also update :latest tag on RHCC"
     exit 1
 }
 
-SUBMIT="false"
 LATEST="false"
 BUILD_PREFLIGHT="false"
-while getopts :i:p:t:a:r:b:c:slBh opt; do
+while getopts :i:p:t:r:b:c:lBh opt; do
     case ${opt} in
-        i) IMAGE="$OPTARG"
-           ;;
         p) PRODUCT="$OPTARG"
            ;;
         t) INTERNAL_TAG="$OPTARG"
-           ;;
-        a) ARCH="$OPTARG"
            ;;
         r) RELEASE_TAG_BASE="$OPTARG"
            ;;
         c) CONFFILE="$OPTARG"
            ;;
         b) REBUILD_NUM="$OPTARG"
-           ;;
-        s) SUBMIT="true"
            ;;
         l) LATEST="true"
            ;;
@@ -80,15 +67,13 @@ mkdir -p ${WORKSPACE}/workdir
 cd ${WORKSPACE}/workdir
 
 function upload_image {
-    arch=$1
-    internal_image=$2
-    external_image=$3
+    local internal_image=$1
+    local external_image=$2
+
     status "Uploading ${internal_image} to ${external_image}..."
     skopeo copy \
-        --override-arch ${arch} \
+        --multi-arch all \
         --override-os linux \
-        --src-authfile ${HOME}/.docker/config.json \
-        --dest-authfile ${PFLT_DOCKERCONFIG} \
         docker://${internal_image} docker://${external_image}
 }
 
@@ -106,7 +91,7 @@ if [ -x "${PREFLIGHT_EXE}" ]; then
 elif ${BUILD_PREFLIGHT}; then
     status "Building preflight..."
     PREFLIGHTVER=1.9.4
-    GOVER=1.22.1
+    GOVER=1.22.5
 
     # The pre-compiled preflight binaries sometimes requires a newer
     # glibc than is available where this script runs. So we build it
@@ -133,75 +118,92 @@ else
     chmod 755 "${PREFLIGHT_EXE}"
 fi
 
-# Set everything up in the environment appropriately for preflight_image(),
-# including uploading image(s) if we're submitting
-if ${SUBMIT}; then
-    # If this is a real submit operation, look up appropriate product metadata
-    # and log in to RHCC.
-    chk_set CONFFILE
-    chk_set PRODUCT
-    chk_set INTERNAL_TAG
-    chk_set REBUILD_NUM
-    chk_set ARCH
-    chk_set RELEASE_TAG_BASE
+chk_set CONFFILE
+chk_set PRODUCT
+chk_set INTERNAL_TAG
+chk_set REBUILD_NUM
+chk_set RELEASE_TAG_BASE
 
-    # Read useful details from config json
-    product_path=".products.\"${PRODUCT}\""
-    image_basename=$(jq -r "${product_path}.image_basename" "${CONFFILE}")
-    project_id=$(jq -r "${product_path}.project_id" "${CONFFILE}")
+# Read useful details from config json
+product_path=".products.\"${PRODUCT}\""
+image_basename=$(jq -r "${product_path}.image_basename" "${CONFFILE}")
+project_id=$(jq -r "${product_path}.project_id" "${CONFFILE}")
 
-    # Additional details from config json that are only for this function
-    registry_key=$(jq -r "${product_path}.registry_key" "${CONFFILE}")
-    api_key=$(jq -r ".rhcc.api_key" "${CONFFILE}")
+# Derived value required for upload_image()
+internal_image=build-docker.couchbase.com/cb-rhcc/${image_basename}:${INTERNAL_TAG}
 
-    # Derived value required for upload_image()
-    INTERNAL_IMAGE=build-docker.couchbase.com/cb-rhcc/${image_basename}:${INTERNAL_TAG}
+# Additional private details from config json
+stop_xtrace
+registry_key=$(jq -r "${product_path}.registry_key" "${CONFFILE}")
+api_key=$(jq -r ".rhcc.api_key" "${CONFFILE}")
 
-    # Log in to quay.io, using custom config directory so only the RHCC
-    # credentials are in there (since the entire Docker configuration gets
-    # sent to Red Hat including all credentials).
-    stop_xtrace
-    status "Logging in to quay.io"
-    docker --config $(pwd)/dockerconfig login \
-        -u redhat-isv-containers+${project_id}-robot -p ${registry_key} \
-        quay.io
-    restore_xtrace
+# Set additional env vars so preflight can run
+export PFLT_CERTIFICATION_PROJECT_ID=${project_id}
+export PFLT_PYXIS_API_TOKEN=${api_key}
 
-    # Set env vars so preflight can run
-    export PFLT_CERTIFICATION_PROJECT_ID=${project_id}
-    export PFLT_DOCKERCONFIG=$(pwd)/dockerconfig/config.json
-    export PFLT_PYXIS_API_TOKEN=${api_key}
-    export EXTRA_PREFLIGHT_ARGS=-s
+# Log in to quay.io, storing the result to a custom config so only RHCC
+# credentials are in there (since preflight sends the entire Docker
+# configuration to Red Hat including all credentials). Use
+# REGISTRY_AUTH_FILE env var so that future skopeo commands will also
+# make use of it.
+status "Logging in to quay.io"
+export REGISTRY_AUTH_FILE=$(pwd)/docker-auth.json
+skopeo login \
+    -u redhat-isv-containers+${project_id}-robot -p ${registry_key} \
+    quay.io
 
-    # Upload all images - we have to do this first because preflight -s
-    # only works on an image already uploaded to quay.io.
-    for tag in ${RELEASE_TAG_BASE}-${REBUILD_NUM} ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
-        image_base=quay.io/redhat-isv-containers/${project_id}:${tag}
+# Also remember this docker auth file for preflight
+export PFLT_DOCKERCONFIG=${REGISTRY_AUTH_FILE}
+restore_xtrace
 
-        # Upload arch specific tags for all architectures
-        upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}-${ARCH}
+# See README.md for exhaustive details about why things are checked /
+# uploaded / preflighted in this order.
 
-        # Remember the first uploaded tag for running preflight.
-        [ -z "${EXTERNAL_IMAGE}" ] && EXTERNAL_IMAGE=${image_base}-${ARCH}
-
-        # Also upload amd64 images with generic, non arch specific tags
-        if [ "${ARCH}" = "amd64" ]; then
-            upload_image ${ARCH} ${INTERNAL_IMAGE} ${image_base}
-        fi
-    done
-
-else
-    # Just scanning some random image
-    chk_set IMAGE
-
-    EXTERNAL_IMAGE=${IMAGE}
-
-    # Seems like we need to set this to scan images outside scan.connect.redhat.com
-    export PFLT_DOCKERCONFIG=${HOME}/.docker/config.json
+# First ensure that the "new" tag doesn't already exist on RHCC.
+image_base=quay.io/redhat-isv-containers/${project_id}
+new_image_tag=${RELEASE_TAG_BASE}-${REBUILD_NUM}
+if [ -n "$(skopeo list-tags docker://${image_base} | jq --arg TAG ${new_image_tag} '.Tags[] | select(. == $TAG)' )" ]; then
+    error "ERROR: ${image_base}:${new_image_tag} already exists!!"
 fi
 
-# Run preflight on a specific remote image. Expects various PFLT_*
-# environment variables to have been set appropriately.
+# Now ensure that the "new" image we're uploading doesn't already exist
+# on RHCC.
+new_image_sha=$(skopeo inspect docker://${internal_image} | jq -r '.Digest')
+if image_exists ${image_base}@${new_image_sha}; then
+    error "ERROR: ${image_base}@${new_image_sha} already exists!!"
+fi
+
+# Now it should be safe to upload the new image to the new tag
+upload_image ${internal_image} ${image_base}:${new_image_tag}
+
+# Preflight the uploaded image so it is published
 echo
-status Running preflight on container ${EXTERNAL_IMAGE}...
-"${PREFLIGHT_EXE}" check container ${EXTERNAL_IMAGE} --platform ${ARCH} ${EXTRA_PREFLIGHT_ARGS}
+status "Running preflight on container ${image_base}:${new_image_tag}..."
+"${PREFLIGHT_EXE}" check container --submit ${image_base}:${new_image_tag}
+
+# Wait for auto-publish to succeed
+echo
+status Waiting for auto-publish...
+final_image=registry.connect.redhat.com/couchbase/${image_basename}:${new_image_tag}
+for i in {200..0}; do
+    # Temporarily unset REGISTRY_AUTH_FILE since it doesn't have the creds
+    # for registry.connect.redhat.com
+    if REGISTRY_AUTH_FILE= image_exists ${final_image}; then
+        status "Auto-publish succeeded!"
+        break
+    fi
+    if [ "${i}" == "0" ]; then
+        error "Auto-publish timed out!"
+    fi
+    status "Still waiting ($i)..."
+    sleep 3
+done
+
+# Finally, upload the (possibly-existing) :VERSION and :VERSION-rhcc tags.
+# This should, at a minimum, cause `docker pull` to work for those tags.
+echo
+status "Uploading remaining images"
+for tag in ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
+    upload_image ${internal_image} ${image_base}:${tag}
+
+done

@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 # This script is passed a PRODUCT, an INTERNAL_TAG, a PUBLIC_TAG, an
 # OPENSHIFT_BUILD number, and a true/false value LATEST.
@@ -111,40 +111,23 @@ if product_in_rhcc "${PRODUCT}" && [ "${OPENSHIFT_BUILD}" != "0" ]; then
 
     header Publishing ${internal_image} to ${external_base}...
 
-    # RHCC doesn't support publishing multi-arch images, so we check and
-    # publish each arch individually
-    for arch in amd64 arm64; do
-
-        # Give more meaningful message if particular arch doesn't even exist
-        internal_key=$(image_${arch}_key ${internal_image})
-        if [ -z "${internal_key}" ]; then
-            echo "${internal_image} has no ${arch} component, skipping publish"
-            continue
-        fi
-
-        status Checking current RHCC ${arch} image key...
-        if [ "${arch}" = "arm64" ]; then
-            external_key=$(image_arm64_key ${external_base}-arm64)
-        else
-            external_key=$(image_amd64_key ${external_base})
-        fi
-        if [ "${internal_key}" = "${external_key}" ]; then
-            status "Keys match, skipping copy!"
-            continue
-        fi
-
+    status Checking current RHCC ${arch} image key...
+    internal_key=$(image_key ${internal_image})
+    external_key=$(image_key ${external_base})
+    if [ "${internal_key}" = "${external_key}" ]; then
+        status "Keys match, skipping copy!"
+    else
         status "Keys don't match, performing copy"
         if ${LATEST}; then
             LATEST_ARG="-l"
         fi
-
         # Important to push the unique X.Y.Z-B version first, as that's the
         # one that rhcc-certify-and-publish.sh will attempt to preflight
         # check. When republishing, preflight will fail if asked to verify
         # an already-published tag.
-        ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh -s -B \
+        ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh -B \
             -c ${HOME}/.docker/rhcc-metadata.json \
-            -p ${PRODUCT} -t ${INTERNAL_TAG} -a ${arch} \
+            -p ${PRODUCT} -t ${INTERNAL_TAG} \
             -r ${PUBLIC_TAG} -b ${OPENSHIFT_BUILD} ${LATEST_ARG}
-    done
+    fi
 fi

@@ -5,6 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Basic help information
 function show_help {
+    set +x
     echo "Usage: $0 <options>"
     echo "Options:"
     echo "  -p : Product to build (e.g. couchbase-server) (Required)"
@@ -13,6 +14,7 @@ function show_help {
     echo "  -s : Build from staging repository (Optional, defaults to false)"
     echo "  -l : Pull build from latestbuilds, rather than download from S3"
     echo "       (Only works with most recent Server/SGW versions)"
+    echo "  -f : Force (don't use Docker build cache)"
     echo "  -n : Dry run (don't push to docker registries)"
     exit 0
 }
@@ -32,9 +34,10 @@ function multiarch() {
 STAGING=""
 DRYRUN=""
 FROM_LATESTBUILDS="false"
+FORCE="false"
 
 # Parse options and ensure required ones are there
-while getopts :p:v:b:slnh opt; do
+while getopts :p:v:b:slfnh opt; do
     case ${opt} in
         p) PRODUCT="$OPTARG"
            ;;
@@ -45,6 +48,8 @@ while getopts :p:v:b:slnh opt; do
         s) STAGING="-staging"
            ;;
         l) FROM_LATESTBUILDS="true"
+           ;;
+        f) FORCE="true"
            ;;
         n) DRYRUN="yes"
            ;;
@@ -145,6 +150,10 @@ else
     else
         TAG_SUFFIX="staging"
     fi
+fi
+
+if ${FORCE}; then
+    BUILD_ARGS+=" --no-cache"
 fi
 
 # Compute array of image names

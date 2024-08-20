@@ -149,16 +149,10 @@ build-image() {
 
     header "Building ${arches} ${org} image for ${short_product}:${tag}..."
 
-    # NOTE: We store the build cache in under a tag named ${VERSION}, rather
-    # than ${VERSION}-${BLD_NUM}. This is by design, so that old build cache
-    # can be garbage collected over time. Also, this ensures the build cache
-    # is already populated post-GA when we start doing regular rebuilds for
-    # security updates.
     docker buildx build \
         --platform "${arches}" \
         --ssh default --push --pull -f ${dockerfile} \
-        --cache-from ${internal_registry}/${org}-buildcache/${short_product}:${VERSION} \
-        --cache-to ${internal_registry}/${org}-buildcache/${short_product}:${VERSION} \
+        --no-cache \
         ${TAG_ARG} \
         --build-arg PROD_VERSION=${VERSION} \
         --build-arg PROD_BUILD=${BLD_NUM} \
