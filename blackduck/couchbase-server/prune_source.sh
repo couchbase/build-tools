@@ -52,7 +52,7 @@ rm -rf goproj/src/github.com/couchbase/indexing/secondary/docs
 find . -name rebar -print0 | xargs -0 rm -rf
 
 # General-purpose removal of test data, examples, docs, etc.
-find . -name analytics -prune -o -type d -name test\* -print0 | xargs -0 rm -rf
+find . -name analytics -prune -o -name regulator -prune -o -type d -name test\* -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name testdata -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name gtest -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name testing -print0 | xargs -0 rm -rf
