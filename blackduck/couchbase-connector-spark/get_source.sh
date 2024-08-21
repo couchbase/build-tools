@@ -31,6 +31,12 @@ rm -rf docs
 # is fixed.
 echo "sbt.version = 1.5.4" > project/build.properties
 
+# Seems like sbt's integration with ~/.m2 is buggy, leading to
+# partly-downloaded dependencies that break the next build. It would
+# like to use ~/.cache/coursier instead. Remove the line in build.sbt
+# which tells it to use ~/.m2.
+sed -i '/Resolver.mavenLocal/d' build.sbt
+
 # Install sbt
 SBT_VERSION=$(cat project/build.properties |grep "sbt.version" |awk -F '=' '{print $2}' |tr -d '[:space:]')
 wget https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz -O - |tar -xz -C ../../extra
