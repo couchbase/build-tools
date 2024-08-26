@@ -650,12 +650,26 @@ class UpdateComponents(ManifestWalker):
         if component_version_url is None:
             # Knowledgebase still doesn't know about the canonical version, so
             # the best we can do is pretend the manifest requested the fallback
-            # version.s
+            # version. But let's make sure the fallback version exists also.
+            logging.debug(f"Canonicalizing fallback version {fallback_version}")
+            canon_fallback_ver = self.canonicalize_version(
+                comp_name, comp_id, fallback_version, save_alts=True
+            )
+            component_version_url, final_ver = self.find_canonical_component_version(
+                comp_name, comp_id, canon_fallback_ver
+            )
+            if component_version_url is None:
+                logging.error(
+                    f"Tried fallback version {fallback_version} for "
+                    f"component {comp_name}, but it didn't exist either!!"
+                )
+                sys.exit(2)
+
             logging.info(
-                f"Using fallback version {fallback_version} "
+                f"Using fallback version {final_ver} "
                 f"for component {comp_name}"
             )
-            return fallback_version
+            return final_ver
 
         # If we got here, that means the BOM isn't referencing the canonical
         # version but that canonical version has appeared in the Knowledgebase!
