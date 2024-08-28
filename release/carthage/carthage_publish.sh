@@ -3,7 +3,7 @@
 declare -A CARTHAGE_PKGS
 case ${PRODUCT} in
     "couchbase-lite-vector-search")
-        CARTHAGE_PKGS["CouchbaseLite.json"]="${PRODUCT}_xcframework_${VERSION}.zip"
+        CARTHAGE_PKGS["CouchbaseLiteVectorSearch.json"]="${PRODUCT}_xcframework_${VERSION}.zip"
         ;;
     "couchbase-lite-ios")
         CARTHAGE_PKGS["CouchbaseLite-Enterprise.json"]="couchbase-lite-carthage-Enterprise-${VERSION}.zip"
