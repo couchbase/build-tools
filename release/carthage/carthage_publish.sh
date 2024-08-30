@@ -6,9 +6,9 @@ case ${PRODUCT} in
         CARTHAGE_PKGS["CouchbaseLiteVectorSearch.json"]="${PRODUCT}_xcframework_${VERSION}.zip"
         ;;
     "couchbase-lite-ios")
-        CARTHAGE_PKGS["CouchbaseLite-Enterprise.json"]="couchbase-lite-carthage-Enterprise-${VERSION}.zip"
+        CARTHAGE_PKGS["CouchbaseLite-Enterprise.json"]="couchbase-lite-carthage-enterprise-${VERSION}.zip"
         if [[ ${COMMUNITY} == "yes" ]]; then
-            CARTHAGE_PKGS["CouchbaseLite-Community.json"]="couchbase-lite-carthage-Community-${VERSION}.zip"
+            CARTHAGE_PKGS["CouchbaseLite-Community.json"]="couchbase-lite-carthage-community-${VERSION}.zip"
         fi
         ;;
     "*")
