@@ -541,14 +541,26 @@ class UpdateComponents(ManifestWalker):
         self, comp_name, comp_id, version, save_alts=False
     ):
         """
-        Given a version name for a specified component name, canonicalize that
-        version name. Normally this is just the version name unchanged, but a
-        few components have inconsistent version naming in the Knowledgebase
-        which leads to false matches/misses. We also strip a leading "v" because
-        a number of components in the Knowledgebase are inconsistent about this.
+        Given a version name for a specified component name,
+        canonicalize that version name. Normally this is just the
+        version name unchanged, but a few components have inconsistent
+        version naming in the Knowledgebase which leads to false
+        matches/misses.
+
+        Most of the canonicalizations are specific to certain
+        components. For instance, many "certifi" packages
+        (ca-certificates, etc.) use dates for versions, but
+        Knowledgebase is inconsistent about using YYYY.MM.DD or YYYY.M.D
+        for dates that have single-digit months or days. Our canonical
+        form uses the 0-padded two-digit form.
+
+        For all components, we also strip a leading "v" because a number
+        of components in the Knowledgebase are inconsistent about this.
 
         This will also save alternate canonical versions to
-        self.bd_alt_canonical_versions if "save_alts" is True.
+        self.bd_alt_canonical_versions if "save_alts" is True. These are
+        used by find_canonical_component_version() when looking up
+        component-versions in the Knowledgebase.
         """
 
         # Strip any leading "v" before any other possible heuristics
@@ -612,10 +624,11 @@ class UpdateComponents(ManifestWalker):
         self, comp_name, comp_id, version
     ):
         """
-        Given a canonical version name for a specified component, return the
-        version number that should be included in the input manifest - either
-        that canonical version name, or the fallback version name, if none of
-        the canonical options exist in the Knowledgebase.
+        Given a canonical version name for a specified component, return
+        the version number that should be included in the input manifest
+        - either that canonical version name, or the canonicalized
+        version of the fallback version name, if none of the canonical
+        options exist in the Knowledgebase.
         """
 
         fallback_version = self.bd_comp_version_fallbacks.get(
@@ -632,7 +645,7 @@ class UpdateComponents(ManifestWalker):
         if comp_data is not None:
             bom_has_canonical = version in comp_data["versions"]
 
-        # If the BOM already has a canonical version, return that
+        # If the BOM already has the canonical version, we don't need the fallback version.
         if bom_has_canonical:
             return version
 
@@ -644,18 +657,18 @@ class UpdateComponents(ManifestWalker):
         # cases, now we have to hit the Knowledgebase to see if the canonical
         # version name or any alt-canonical versions names have appeared since
         # the last time this script was run.
-        component_version_url, final_ver = self.find_canonical_component_version(
+        component_version_url = self.find_canonical_component_version(
             comp_name, comp_id, version
         )
         if component_version_url is None:
             # Knowledgebase still doesn't know about the canonical version, so
             # the best we can do is pretend the manifest requested the fallback
-            # version. But let's make sure the fallback version exists also.
+            # version. But let's make sure the fallback version exists first.
             logging.debug(f"Canonicalizing fallback version {fallback_version}")
             canon_fallback_ver = self.canonicalize_version(
                 comp_name, comp_id, fallback_version, save_alts=True
             )
-            component_version_url, final_ver = self.find_canonical_component_version(
+            component_version_url = self.find_canonical_component_version(
                 comp_name, comp_id, canon_fallback_ver
             )
             if component_version_url is None:
@@ -665,30 +678,34 @@ class UpdateComponents(ManifestWalker):
                 )
                 sys.exit(2)
 
+            # OK, the fallback version DOES exist. It's possible it
+            # exists as a different spelling; however, we always want to
+            # store the *canonical* version in manfists and BOMs, so
+            # comparisons work right. Return that canonical spelling.
             logging.info(
-                f"Using fallback version {final_ver} "
+                f"Using canonical fallback version {canon_fallback_ver} "
                 f"for component {comp_name}"
             )
-            return final_ver
+            return canon_fallback_ver
 
         # If we got here, that means the BOM isn't referencing the canonical
         # version but that canonical version has appeared in the Knowledgebase!
-        # Return the discovered version.
-        return final_ver
+        # Return the canonical version.
+        return version
 
 
     def find_canonical_component_version(
         self, comp_name, comp_id, version
     ):
         """
-        Given a canonical version name for a specified component (which is
-        presumed not to exist in the Knowledgebase), see whether the
-        Knowledgebase knows about it or any alternate canonical version names.
-        This will require hitting the Knowledgebase REST API repeatedly, so it
-        should only be called when strictly necessary.
+        Given a canonical version name for a specified component (which
+        is presumed not to exist in the Knowledgebase), see whether the
+        Knowledgebase knows about it or any alternate canonical version
+        names. This will require hitting the Knowledgebase REST API
+        repeatedly, so it should only be called when strictly necessary.
 
-        Returns a tuple of (the discovered component_version_url, the discovered
-        version name) or (None, None) if nothing was found.
+        Returns the discovered component_version_url, or None if nothing
+        was found.
         """
 
         # Try the canonical version first
@@ -696,14 +713,14 @@ class UpdateComponents(ManifestWalker):
             comp_name, comp_id, version
         )
         if component_version_url is not None:
-            return (component_version_url, version)
+            return component_version_url
 
         # Does this version have any potential alts?
         key = f"{comp_id}::{version}"
         alt_vers = self.bd_alt_canonical_versions.get(key, None)
         if alt_vers is None:
             # No known alt-canonical versions
-            return (None, None)
+            return None
 
         # See if any of the alt canonical versions are in the Knowledgebase.
         logging.debug(
@@ -718,9 +735,9 @@ class UpdateComponents(ManifestWalker):
                 logging.debug(f"Didn't find alt-canonical version {alt_ver}")
             else:
                 logging.info(f"Found alt-canonical version {alt_ver}!")
-                return (component_version_url, alt_ver)
+                return component_version_url
 
-        return (None, None)
+        return None
 
 
     def add_component_version(self, comp_name, comp_id, version):
@@ -737,7 +754,7 @@ class UpdateComponents(ManifestWalker):
 
         # First, try to find the canonical version name or any alt-canonical
         # version names in the Knowledgebase
-        component_version_url, _ = self.find_canonical_component_version(
+        component_version_url = self.find_canonical_component_version(
             comp_name, comp_id, version
         )
 
@@ -767,6 +784,9 @@ class UpdateComponents(ManifestWalker):
                 f"Please add a new entry in bd_aliases.yaml that maps this "
                 f"new canonical ID to the older ID {comp_id}.\n\n\n\n"
             )
+
+        # OK, finally add the component-version to the project-version
+        # (unless dryrun is set).
         pv_components_url = self.hub.get_link(self.project_version, "components")
         if self.dryrun:
             logging.info("DRYRUN: not updating Black Duck")
