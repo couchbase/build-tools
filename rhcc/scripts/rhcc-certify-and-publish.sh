@@ -5,7 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 usage() {
     set +x
-    echo "Usage: $0 -p PRODUCT -t INTERNAL_TAG -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l] [-B]"
+    echo "Usage: $0 -p PRODUCT -t INTERNAL_TAG -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l] [-B] [-f]"
     echo
     echo "Handles the complete release-to-RHCC process - pulls the staged image"
     echo "(presumed to exist on the internal Docker registry with the correct"
@@ -28,12 +28,15 @@ usage() {
     echo
     echo "  -B: build preflight from source"
     echo "  -l: also update :latest tag on RHCC"
+    echo "  -f: force - skip some safety checks when uploading image (may be necessary"
+    echo "      when retrying upload after preflight failure)"
     exit 1
 }
 
 LATEST="false"
 BUILD_PREFLIGHT="false"
-while getopts :i:p:t:r:b:c:lBh opt; do
+SAFETY_CHECKS="true"
+while getopts :i:p:t:r:b:c:lBfh opt; do
     case ${opt} in
         p) PRODUCT="$OPTARG"
            ;;
@@ -48,6 +51,8 @@ while getopts :i:p:t:r:b:c:lBh opt; do
         l) LATEST="true"
            ;;
         B) BUILD_PREFLIGHT="true"
+           ;;
+        f) SAFETY_CHECKS="false"
            ;;
         h) usage
            ;;
@@ -90,7 +95,7 @@ if [ -x "${PREFLIGHT_EXE}" ]; then
     status "Using existing preflight binary"
 elif ${BUILD_PREFLIGHT}; then
     status "Building preflight..."
-    PREFLIGHTVER=1.9.4
+    PREFLIGHTVER=1.10.0
     GOVER=1.22.5
 
     # The pre-compiled preflight binaries sometimes requires a newer
@@ -159,18 +164,23 @@ restore_xtrace
 # See README.md for exhaustive details about why things are checked /
 # uploaded / preflighted in this order.
 
-# First ensure that the "new" tag doesn't already exist on RHCC.
+# Determine the tag and SHA for this image.
 image_base=quay.io/redhat-isv-containers/${project_id}
 new_image_tag=${RELEASE_TAG_BASE}-${REBUILD_NUM}
-if [ -n "$(skopeo list-tags docker://${image_base} | jq --arg TAG ${new_image_tag} '.Tags[] | select(. == $TAG)' )" ]; then
-    error "ERROR: ${image_base}:${new_image_tag} already exists!!"
-fi
-
-# Now ensure that the "new" image we're uploading doesn't already exist
-# on RHCC.
 new_image_sha=$(skopeo inspect docker://${internal_image} | jq -r '.Digest')
-if image_exists ${image_base}@${new_image_sha}; then
-    error "ERROR: ${image_base}@${new_image_sha} already exists!!"
+
+# Some safety checks. These can be skipped with -f.
+if "${SAFETY_CHECKS}"; then
+    # First ensure that the "new" tag doesn't already exist on RHCC.
+    if [ -n "$(skopeo list-tags docker://${image_base} | jq --arg TAG ${new_image_tag} '.Tags[] | select(. == $TAG)' )" ]; then
+        error "ERROR: ${image_base}:${new_image_tag} already exists!!"
+    fi
+
+    # Now ensure that the "new" image we're uploading doesn't already exist
+    # on RHCC.
+    if image_exists ${image_base}@${new_image_sha}; then
+        error "ERROR: ${image_base}@${new_image_sha} already exists!!"
+    fi
 fi
 
 # Now it should be safe to upload the new image to the new tag
