@@ -12,7 +12,7 @@ def parse_src_input(input):
     tree = etree.parse(input)
 
     input_lock_src = {}
-    result_dict = tree.iterfind("//project")
+    result_dict = tree.iterfind(".//project")
 
     for result in result_dict:
         project = result.get('name')
@@ -26,7 +26,7 @@ def parse_src_input(input):
 
     return input_lock_src
 
-def main(args):
+def lock_to_sha(args):
     sha_src_dict = parse_src_input(args.sha_src)
     master_only = args.master_only
 
@@ -41,7 +41,7 @@ def main(args):
 
     # Determine VERSION annotation
     product_version = "0.0.0"
-    version_element = tree.find("//annotation[@name='VERSION']")
+    version_element = tree.find(".//annotation[@name='VERSION']")
     if version_element is not None:
         product_version = version_element.get("value", product_version)
 
@@ -51,6 +51,7 @@ def main(args):
     sha_regex = re.compile(r'\b([a-f0-9]{40})\b')
 
     updated_projects = 0
+    projects_on_version_branch = 0
     for result in result_dict:
         project = result.get('name')
         path = result.get('path', project)
@@ -68,8 +69,9 @@ def main(args):
         # not to skip it)
         if revision == product_version and not args.lock_version_branches:
             logging.debug(
-                f"Project {project} already locked "
+                f"Project {project} already set "
                 f"to version branch '{product_version}'")
+            projects_on_version_branch += 1
             continue
         # If master-only is specified and project isn't on master/main,
         # skip it. Note: we don't care if the manifest specifies a
@@ -101,12 +103,17 @@ def main(args):
     tree.write(args.output, encoding='UTF-8',
                xml_declaration=True, pretty_print=True)
     logging.info(f"{updated_projects} projects locked")
+    if projects_on_version_branch > 0:
+        logging.info(
+            f"{projects_on_version_branch} projects left on {product_version} "
+            f"git branch (--lock-version-branches to override)"
+        )
     logging.info(f"Output manifest has been generated here: {args.output}")
     if updated_projects == 0:
         logging.warning("manifest unchanged!")
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Create an updated manifest by locking projects to SHAs sourced from a build manifest"
     )
@@ -165,4 +172,4 @@ if __name__ == "__main__":
         level=logging.DEBUG if args.debug else logging.INFO
     )
 
-    main(args)
+    lock_to_sha(args)
