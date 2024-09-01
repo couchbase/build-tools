@@ -5,22 +5,18 @@ import re
 
 def connect_jira():
   """
-  Uses private files in ~/.ssh to create a connection to Couchbase Jira. Uses
-  Python Jira library. See
-  https://developer.atlassian.com/jiradev/jira-apis/jira-rest-apis/jira-rest-api-tutorials/jira-rest-api-example-oauth-authentication
-
-  Expected files:
-    build_jira.pem - Private key registered with Jira Application
-    build_jira.json - JSON block with "access_token", "access_token_secret",
-       and "consumer_key" fields as generated per above URL
+  Uses cloud-jira-creds.json in ~/.ssh to authenticate to jira cloud.
+  cloud-jira-creds.json contains:
+      username
+      apitoken
+      url
+      cloud=true
   """
-
-  with open("{}/.ssh/build_jira.pem".format(os.environ["HOME"]), "r") as key_cert_file:
-    key_cert_data = key_cert_file.read()
-  with open("{}/.ssh/build_jira.json".format(os.environ["HOME"]), "r") as oauth_file:
-    oauth_dict = json.load(oauth_file)
-  oauth_dict["key_cert"] = key_cert_data
-  jira = JIRA({"server": "https://issues.couchbase.com"}, oauth=oauth_dict)
+  cloud_jira_creds_file = f'{os.environ["HOME"]}/.ssh/cloud-jira-creds.json'
+  cloud_jira_creds = json.loads(open(cloud_jira_creds_file).read())
+  jira = JIRA(cloud_jira_creds['url'], basic_auth=(
+              f"{cloud_jira_creds['username']}",
+              f"{cloud_jira_creds['apitoken']}"))
   return jira
 
 def get_tickets(message):
