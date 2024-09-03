@@ -9,16 +9,15 @@ import config
 
 class JiraRestApi:
     def __init__(self):
-        creds_file = str(Path.home()) + '/.ssh/jira-creds.json'
-        if Path(creds_file).exists():
-            jira_creds = json.loads(open(creds_file).read())
+        cloud_creds_file = str(Path.home()) + '/.ssh/cloud-jira-creds.json'
+        if Path(cloud_creds_file).exists():
+            cloud_jira_creds = json.loads(open(cloud_creds_file).read())
         else:
-            sys.exit('Unable to locate jira-creds.json')
+            sys.exit('Unable to locate cloud-jira-creds.json')
 
-        self.jira = JIRA(server=jira_creds['url'],
-                         # Self-Hosted Jira (e.g. Server): the PAT token
-                         token_auth=jira_creds['apitoken'],
-                         )
+        self.jira = JIRA(cloud_jira_creds['url'], basic_auth=(
+                         f"{cloud_jira_creds['username']}",
+                         f"{cloud_jira_creds['apitoken']}"))
 
     # Text field search returns tickets containing text, not exact matches. i.e.
     # Search of "AWS JDK" in component field returns any ticket contains either word in the field
@@ -39,7 +38,7 @@ class JiraRestApi:
     def search_issue(self, jira_proj_key, bd_comp,
                      bd_comp_ver, bd_proj, bd_proj_ver):
         search_str = (f'project={jira_proj_key} and BD_COMPONENT~"\\"{bd_comp}\\"" and BD_COMP_VERSION~"'
-                      f'{bd_comp_ver}" and BD_PROJECT~"{bd_proj}" and BD_PROJ_VERSION~"{bd_proj_ver}"')
+                      f'{bd_comp_ver}" and BD_PROJECT~"\\"{bd_proj}\\"" and BD_PROJ_VERSION~"{bd_proj_ver}"')
         issues = self.jira.search_issues(search_str)
         for issue in issues:
             if (getattr(issue.fields, config.JIRA["BD_COMPONENT"]) == bd_comp) and (getattr(
