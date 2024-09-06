@@ -2,6 +2,7 @@
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
+PROFILE=$4
 VERSION=$6
 ARCH=$8
 BD_MANIFEST=$9
@@ -67,20 +68,22 @@ else
     download_openblas
 
     # Build with GCC 13 for latest hardware compatibility
-    export CMAKE_CXX_COMPILER=/opt/gcc-13.2.0/bin/g++
-    export CMAKE_C_COMPILER=/opt/gcc-13.2.0/bin/gcc
+    export CXX=/opt/gcc-13.2.0/bin/g++
+    export CC=/opt/gcc-13.2.0/bin/gcc
 fi
 
-# Build
-cd "${ROOT_DIR}/faiss"
-cmake -B build \
+# Build. The PROFILE is passed as FAISS_OPT_LEVEL, so legal values are
+# "generic" and "avx2".
+cd "${ROOT_DIR}"
+cmake -B build -S "${ROOT_DIR}/faiss" \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
     -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DFAISS_ENABLE_C_API=ON \
+    -DFAISS_OPT_LEVEL=${PROFILE} \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" -DCMAKE_INSTALL_LIBDIR=lib \
     -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=ON
 cd build
-make -j8 install
+make -j8 install VERBOSE=1
 
 # Don't want pkgconfig
 cd "${INSTALL_DIR}/lib"

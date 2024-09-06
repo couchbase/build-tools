@@ -1,17 +1,39 @@
 #!/usr/bin/env bash
 
-set -ex
+set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source ${SCRIPT_DIR}/../../utilities/shell-utils.sh
 
+# This is only for interactive use; when running on Jenkins, this script
+# still expects to find all of these variables set in the environment.
+usage() {
+    echo "Usage: $0 -p PRODUCT -r RELEASE -v VERSION -b BLD_NUM -a ARCH -f PLATFORM -l PROFILE"
+    exit 1
+}
+while getopts "p:r:v:b:a:f:l:h?" opt; do
+    case $opt in
+        p) PRODUCT=$OPTARG;;
+        r) RELEASE=$OPTARG;;
+        v) VERSION=$OPTARG;;
+        b) BLD_NUM=$OPTARG;;
+        a) ARCH=$OPTARG;;
+        f) PLATFORM=$OPTARG;;
+        l) PROFILE=$OPTARG;;
+        h|?) usage;;
+        *) echo "Invalid argument $opt"
+           usage;;
+    esac
+done
+
+
 chk_set PRODUCT
-chk_set PLATFORM
-chk_set PROFILE
 chk_set RELEASE
 chk_set VERSION
 chk_set BLD_NUM
 chk_set ARCH
+chk_set PLATFORM
+chk_set PROFILE
 
 # One special-case for cross-compiling Windows; it always wants to be
 # arch "amd64". build-one-cbdep.bat enforces this, so we also do it

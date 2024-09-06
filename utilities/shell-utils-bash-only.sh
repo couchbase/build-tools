@@ -42,7 +42,7 @@ function annot_from_manifest {
     default_value=$2
     # Try to extract the annotation using "repo" if available, otherwise
     # "xmllint" on "manifest.xml". If neither tool works, die!
-    if [[ "${OSTYPE}" =~ msys|cygwin ]] && test -d .repo && command -v repo > /dev/null; then
+    if [[ "${OSTYPE}" =~ linux|msys|cygwin ]] && test -d .repo && command -v repo > /dev/null; then
         DEP_VERSION=$(repo forall build -c 'echo $REPO__'${annot} 2> /dev/null)
     elif test -e manifest.xml && command -v xmllint > /dev/null; then
         # This version expects "manifest.xml" in the current directory, from
