@@ -96,8 +96,6 @@ couchbase-server)
     expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
     expected+=(${PRODUCT}-community_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
     expected+=(${PRODUCT}-community_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
-    expected+=(${PRODUCT}-tools_${VERSION}-${BLD_NUM}-macos_x86_64.zip)
-    expected+=(${PRODUCT}-tools_${VERSION}-${BLD_NUM}-macos_arm64.zip)
     ;;
 couchbase-operator)
     expected+=(couchbase-autonomous-operator_${VERSION}-${BLD_NUM}-kubernetes-macos-amd64.zip)
@@ -151,6 +149,21 @@ for pkg in $needed; do
         if curl --head --silent --fail $candidate_url &> /dev/null;
         then
             urls[${pkg}]=${candidate_url}
+            # For Server Enterprise, add tools package(s) to the list
+            # After 7.6.3, tools package is split into admin-tools and dev-tools.
+            # If tools zip doesn't exist, we assume 7.6.4; add admin-tools|dev-tools instead.
+            if [[ ${pkg} = "couchbase-server-enterprise"* ]]; then
+                tools_pkg=${${pkg:r}//enterprise/tools}.zip
+                if curl --head --silent --fail ${BLD_DIR}/${tools_pkg} &> /dev/null;
+                then
+                    urls[${tools_pkg}]=${BLD_DIR}/${tools_pkg}
+                else
+                    admin_tools_pkg=${${pkg:r}//enterprise_/admin-tools-}.zip
+                    dev_tools_pkg=${${pkg:r}//enterprise_/dev-tools-}.zip
+                    urls[${admin_tools_pkg}]=${BLD_DIR}/${admin_tools_pkg}
+                    urls[${dev_tools_pkg}]=${BLD_DIR}/${dev_tools_pkg}
+                fi
+            fi
             break
         fi
     done
@@ -160,7 +173,6 @@ for pkg in $needed; do
         exit 0
     fi
 done
-
 # Ok, we have stuff to do! Download all unsigned files to their *final*
 # filenames in a new 'dist' directory. Yes, this means we'll download a
 # Server unsigned .zip file with a .dmg filename; we'll fix that up next.

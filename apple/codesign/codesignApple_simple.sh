@@ -40,7 +40,7 @@ function codesign_pkg
     find ${tmpdir} -type f | while IFS= read -r file
     do
         ##binaries in jars have to be signed.
-        if [[ "${file}" =~ ".jar" ]]; then
+        if [[ "${file}" = *".jar" ]]; then
             libs=$(jar -tf "${file}" | grep ".jnilib\|.dylib")
             if [[ ! -z ${libs} ]]; then
                 for lib in ${libs}; do
