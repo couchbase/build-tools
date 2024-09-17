@@ -1,0 +1,27 @@
+[project]
+name = "check-builds"
+version = "0.1.0"
+description = "Check that builds produced desired artifacts"
+authors = [
+    { name = "Couchbase Build Team", email = "build-team@couchbase.com" }
+]
+dependencies = ["Jinja2", "PyYAML", "cbbuild-database>=0.8.1"]
+readme = "README.md"
+requires-python = ">= 3.10, <3.11"
+
+[project.scripts]
+check-builds = "check_builds.check_builds_prog:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/check_builds"]

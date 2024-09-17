@@ -1,3 +1,0 @@
-git+https://github.com/couchbase/python-couchbase-commons@v0.5.1#egg=cbbuild-database&subdirectory=cbbuild-database
-Jinja2==3.0.1
-PyYAML==5.4.1

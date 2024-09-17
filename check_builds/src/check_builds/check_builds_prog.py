@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import smtplib
+import subprocess
 import sys
 import time
 
@@ -30,6 +31,11 @@ logger.setLevel(logging.INFO)
 
 ch = logging.StreamHandler()
 logger.addHandler(ch)
+
+# Echo command being executed - helpful for debugging
+def run(cmd, **kwargs):
+    print("++", *cmd)
+    return subprocess.run(cmd, **kwargs)
 
 
 def generate_mail_body(lb_url, missing):
@@ -77,14 +83,14 @@ def main():
     or not
     """
 
+    util_dir = Path(__file__).parent.parent.parent.parent / "utilities"
+
     parser = argparse.ArgumentParser(
         description='Update documents in build database'
     )
     parser.add_argument('-c', '--config', dest='check_build_config',
                         help='Configuration file for build database loader',
                         default='check_builds.ini')
-    parser.add_argument('metadata_dir', type=Path,
-                        help='Path to product-metadata directory')
     parser.add_argument('-n', '--dryrun', action='store_true',
                         help="Only check, don't update database or send email")
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -94,12 +100,13 @@ def main():
     if args.verbose:
         logger.setLevel(logging.DEBUG)
     dryrun = args.dryrun
-    metadata_dir = args.metadata_dir
+    metadata_dir = Path.cwd() / 'repos' / 'product-metadata'
     if not metadata_dir.exists():
-        logger.error(
-            f'product-metadata path {metadata_dir} does not exist'
-        )
-        sys.exit(1)
+        run([
+            util_dir / "clean_git_clone",
+            "https://github.com/couchbase/product-metadata",
+            metadata_dir
+        ])
 
     # Check configuration file information
     check_build_config = configparser.ConfigParser()
@@ -124,7 +131,7 @@ def main():
 
     miss_info = check_build_config['missing_builds']
     miss_required_keys = [
-        'receivers', 'lb_base_dir', 'lb_base_url', 'smtp_server'
+        'receivers', 'lb_base_dir', 'lb_base_url', 'smtp_server', 'delay'
     ]
 
     if any(key not in miss_info for key in miss_required_keys):
@@ -152,7 +159,7 @@ def main():
     #     latestbuilds (mounted via NFS)
     #   - Check to see if any files in needed list aren't in current list:
     #      - If not, mark build complete and continue
-    #      - Else if there are and build age is over 2 hours, check to
+    #      - Else if there are and build age is over `delay` hours, check to
     #        see if email's been sent previously and send notification
     #        if not, marking email as sent
     #      - And if there are and build age is also over 12 hours, mark
@@ -204,15 +211,16 @@ def main():
             dryrun or build.set_metadata('builds_complete', 'complete')
             continue
 
-        if build_age > 2 * 60 * 60:  # 2 hours
-            logger.info("Still incomplete after 2 hours; missing files:")
+        hours = int(miss_info['delay'])
+        if build_age > hours * 60 * 60:
+            logger.info(f"Still incomplete after {hours} hours; missing files:")
             for missing in missing_files:
                 logger.info(f"    - {missing}")
             if not build.metadata.setdefault('email_notification', False):
                 curr_bld = \
                     f'{build.product}-{build.version}-{build.build_num}'
                 message = {
-                    'subject': f'Build {curr_bld} not complete after 2 hours',
+                    'subject': f'Build {curr_bld} not complete after {hours} hours',
                     'body': generate_mail_body(lb_url, missing_files)
                 }
                 receivers = miss_info['receivers'].split(',')
@@ -221,7 +229,7 @@ def main():
             else:
                 logger.info("Email previously sent")
         else:
-            logger.info("Incomplete but less than 2 hours old")
+            logger.info(f"Incomplete but less than {hours} hours old")
 
         if build_age > 12 * 60 * 60:  # 12 hours
             logger.info("Build incomplete after 12 hours - marking incomplete")
