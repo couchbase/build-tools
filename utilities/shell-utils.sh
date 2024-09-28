@@ -201,6 +201,16 @@ function image_amd64_key() {
 # centralized Go version management (github.com/couchbaselabs/golang).
 function gover_from_manifest {
 
+    # This functionality is duplicated in the golang repo, so if that
+    # is available, use it directly.
+    if [ -x golang/util/get-go-ver.sh ]; then
+        golang/util/get-go-ver.sh
+        return
+    fi
+
+    # Leave this duplicate code here for now, to support products using
+    # older versions of that repo
+
     # This is unfortunately spelled two different ways in different
     # products' manifests (CBD-5117), and fixing that would be
     # potentially disruptive, so just look for either. As far as I know
@@ -212,32 +222,39 @@ function gover_from_manifest {
     fi
 
     # If the manifest doesn't specify *anything*, do nothing.
-    if [ ! -z "${GOVERSION}" ]; then
-        # Ok, there's some GOVERSION specified. To ensure we don't break when
-        # building older product versions that aren't using the centralized
-        # Go version management, if GOVERSION is a fully-specified minor
-        # version (eg. "1.18.3"), just use it as-is.
-        if [[ ! ${GOVERSION} =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            # Ok, GOVERSION is a major-only version (eg. "1.18"). Look up the
-            # currently supported Go minor version from the 'golang'
-            # repository. If the repository isn't there, go grab it.
-            if [ ! -d golang ]; then
-                GOLANGSHA=$(xmllint \
-                    --xpath 'string(//project[@name="golang"]/@revision)' \
-                    manifest.xml)
-                git clone https://github.com/couchbaselabs/golang
-                git -C golang checkout ${GOLANGSHA} &>/dev/null
-            fi
-            # At this point we know the project has "opted in" to
-            # the centralized Go version management, therefore it is an error
-            # if the specified major version is not supported.
-            GOVERFILE=golang/versions/${GOVERSION}.txt
-            if [ ! -e "${GOVERFILE}" ]; then
-                echo "Specified GOVERSION ${GOVERSION} is not supported!!" >&2
-                exit 5
-            fi
-            GOVERSION=$(cat ${GOVERFILE})
+    if [ -z "${GOVERSION}" ]; then
+        return
+    fi
+
+    # If it's SUPPORTED_NEWER/OLDER, determine corresponding major version.
+    if [[ ${GOVERSION} =~ SUPPORTED_(NEWER|OLDER) ]]; then
+        GOVERSION=$(cat golang/versions/${GOVERSION}.txt)
+    fi
+
+    # Ok, there's some GOVERSION specified. To ensure we don't break when
+    # building older product versions that aren't using the centralized
+    # Go version management, if GOVERSION is a fully-specified minor
+    # version (eg. "1.18.3"), just use it as-is.
+    if [[ ! ${GOVERSION} =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
+        # Ok, GOVERSION is a major-only version (eg. "1.18"). Look up the
+        # currently supported Go minor version from the 'golang'
+        # repository. If the repository isn't there, go grab it.
+        if [ ! -d golang ]; then
+            GOLANGSHA=$(xmllint \
+                --xpath 'string(//project[@name="golang"]/@revision)' \
+                manifest.xml)
+            git clone https://github.com/couchbaselabs/golang
+            git -C golang checkout ${GOLANGSHA} &>/dev/null
         fi
+        # At this point we know the project has "opted in" to
+        # the centralized Go version management, therefore it is an error
+        # if the specified major version is not supported.
+        GOVERFILE=golang/versions/${GOVERSION}.txt
+        if [ ! -e "${GOVERFILE}" ]; then
+            echo "Specified GOVERSION ${GOVERSION} is not supported!!" >&2
+            exit 5
+        fi
+        GOVERSION=$(cat ${GOVERFILE})
     fi
 
     echo ${GOVERSION}
