@@ -1,0 +1,4 @@
+components:
+    aws-sdk-cpp:
+        bd-id: fd6e7844-7e25-4df0-af14-fcdb4b0bfe8d
+        versions: [ "@@BD_VERSION@@" ]
