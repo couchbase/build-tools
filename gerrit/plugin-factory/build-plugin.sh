@@ -13,6 +13,7 @@ PLUGIN_MAJOR_VERSION=${PLUGIN_MAJOR_VERSION:-$GERRIT_MAJOR_VERSION}
 
 function clone_plugin() {
     cd /gerrit/plugins
+    rm -rf ${PLUGIN}
     git clone https://gerrit.googlesource.com/plugins/${PLUGIN}
     cd ${PLUGIN}
     if [ -z "${PLUGIN_MINOR_VERSION}" ]
@@ -23,6 +24,9 @@ function clone_plugin() {
     fi
     [ -z "${PLUGIN_BRANCH}" ] && PLUGIN_BRANCH=$(git branch -a | sort -V | grep -e "remotes/origin/stable-${PLUGIN_MAJOR_VERSION}\.${PLUGIN_MINOR_VERSION}$" | tail -n1 | sed 's/.*\///')
     echo "PLUGIN_BRANCH: ${PLUGIN_BRANCH}"
+    if [ -z "${PLUGIN_BRANCH}" ]; then
+        PLUGIN_BRANCH=master
+    fi
     git checkout ${PLUGIN_BRANCH}
 }
 
