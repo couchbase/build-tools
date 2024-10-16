@@ -1,36 +1,20 @@
-Scripts here are used to create/update jira tickets from blackduck notifications
+vulnerability_tickets_check.py is used to create/update jira tickets.
 
-Jenkins job: http://server.jenkins.couchbase.com/job/jira-blackduck-integration
-Target build agent: zz-lightweight
-Jira Project: https://issues.couchbase.com/projects/VULN/summary
-Jira bot account information is stored in lastpass
+The following Jenkins job is setup to run this script:
+* https://server.jenkins.couchbase.com/job/jira_updates_for_blackduck_vulnerabilities
+**  blackduck-detect-scan kicks off this job by passing in product name and version.
+    It compares vulnerabilities of BOM against existing tickets in Jira's VULN project;
+    create/update/close tickets accordingly
 
-Setup:
-    * Python 3.7+ is required
-    * Run pip -r requirements.txt to install required python packages
-
-    These files already exist on the build agent.
-    * Create ~/.ssh/jira-creds.json, which contains login information for jira
-        {
-            "username":
-            "apitoken":
-            "url":
-        }
-    * Create ~/.ssh/blackduck-creds.json, which contains login infomation for blackduck
-        {
-            "username":
-            "password":
-            "url":
-        }
+**  A daily cron is setup to run this job against blackduck journals.
+    It goes through all the projects and versions; looks for journal
+    entries of new vulnerabilities and update corresponding Jira tickets.
 
 Usage:
-    python3 blackduck_to_jira.py -p ${project} -n "${previous_run}"
-
+    python3 vulnerability_tickets_check.py scan -p ${PRODUCT} -v ${VERSION}
     i.e.
-    python3 blackduck_to_jira.py -p couchbase-server -n "2022-05-09 20:05:01"
-    python3 blackduck_to_jira.py -p couchbase-server
+    python3 vulnerability_tickets_check.py -p couchbase-server -v 7.6.4
 
-    * Currently, blackduck retains 30 days of notifications.  Without --newer (-n),
-      the script will process all of them.  It is a good idea to not use "--newer"
-      on the first run.  Subsequently, it is desired to pass in "--newer" option to
-      skip the older notifications that were already processed.
+    python3 vulnerability_tickets_check.py knownledgebase -d ${start_date}
+    i.e. python3 vulnerability_tickets_check.py knownledgebase -d 2024-10-10
+         This goes through journal entries starting from 2024-10-10 until today 
