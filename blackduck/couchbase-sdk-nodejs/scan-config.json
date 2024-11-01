@@ -1,8 +1,14 @@
 {
     "versions": {
-        "4.4.1": {
+        "4.4.4": {
             "__comment": "NOTE: this version points to the future release",
             "release": "master",
+            "interval": 1440
+        },
+        "4.4.3": {
+            "interval": 1440
+        },
+        "4.4.2": {
             "interval": 1440
         }
     }
