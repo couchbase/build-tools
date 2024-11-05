@@ -1,9 +1,17 @@
-#!/bin/sh -ex
+#!/bin/sh -e
 
 PRODUCT=$1
 shift
 RELEASE=$1
 shift
+
+if [ "${DEBUG}" = "true" ]; then
+    DEBUG="--debug"
+fi
+
+if [ "${PROJECT}" != "" ]; then
+    PROJECT="--project ${PROJECT}"
+fi
 
 reporef_dir=/data/reporef
 metadata_dir=/data/metadata
@@ -82,6 +90,8 @@ failed=0
 for previous_manifest in $(cat previous-manifests.txt); do
     echo "Checking ${previous_manifest}"
     PYTHONUNBUFFERED=1 find_missing_commits \
+        $DEBUG \
+        $PROJECT \
         --manifest_repo ${manifest_repo} \
         --reporef_dir ${reporef_dir} \
         -i ok-missing-commits.txt \

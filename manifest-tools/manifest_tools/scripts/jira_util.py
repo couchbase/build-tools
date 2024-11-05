@@ -25,7 +25,7 @@ def get_tickets(message):
   projects like ASTERIXDB.
   """
 
-  foreign = ['ASTERIXDB']
+  foreign = ['ASTERIXDB', 'BP']
   return (
     x.group(0) for x in re.finditer("([A-Z]{2,9})-[0-9]{1,6}", message)
       if x.group(1) not in foreign
