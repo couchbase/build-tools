@@ -1,7 +1,0 @@
-blackduck
-requests==2.20.0
-python-dateutil>=2.8.0
-pandas
-terminaltables
-pytz
-timestring

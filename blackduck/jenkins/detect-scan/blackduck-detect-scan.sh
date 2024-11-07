@@ -32,15 +32,6 @@ function clean_up() {
 }
 trap clean_up EXIT
 
-# Arrange for cbdep to be on the PATH for everyone
-CBDEP_DIR="${WORKSPACE}/extra/cbdep"
-mkdir -p "${CBDEP_DIR}"
-if [ ! -x "${CBDEP_DIR}/cbdep" ]; then
-    curl -L -o "${CBDEP_DIR}/cbdep" http://downloads.build.couchbase.com/cbdep/cbdep.linux
-    chmod 755 "${CBDEP_DIR}/cbdep"
-fi
-export PATH="${CBDEP_DIR}:${PATH}"
-
 # Disable analytics
 # https://community.synopsys.com/s/article/How-to-disable-Phone-Home-when-running-Detect
 export SYNOPSYS_SKIP_PHONE_HOME=true
@@ -56,17 +47,15 @@ mkdir -p "${SRC_DIR}"
 rm -rf "${SRC_DIR}"/[A-z]*
 cd "${SRC_DIR}"
 
-# Prep a virtualenv - we need this below if any black duck manifests are found
-# and also for installing packages via pip where required e.g. sdk-ruby
+# Prep a virtualenv for use by project scripts, eg.
+# couchbase-sdk-columnar-python/get_source.sh.
+# Some day maybe those scripts should handle their own, maybe if they need
+# control over the python version...
 venv="${PROD_DIR}/.venv"
-if [ ! -d "${venv}" ]; then
-  python3 -m venv "${venv}"
-fi
+rm -rf "${venv}"
+uv venv --python 3.11 --python-preference only-managed "${venv}"
 source "${venv}/bin/activate"
-pip3 install setuptools
-
-# Include the requirements for any of our own scripts we might run
-pip3 install -r "${DETECT_SCRIPT_DIR}/requirements.txt"
+python -m ensurepip --upgrade --default-pip
 
 # If the product doesn't have a bespoke get_source.sh, then look up the
 # build manifest and sync that
@@ -130,8 +119,9 @@ find . -name .repo -print0 | xargs -0 rm -rf
 
 # Prune source that we will "manually" enter into Black Duck
 echo "Pruning any source directories referenced by Black Duck manifests"
-"${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
-  -p ${PRODUCT} -v ${VERSION} --operation prune --src-root "${WORKSPACE}"
+uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
+  "${DETECT_SCRIPT_DIR}/update-manual-manifest.py" -d \
+    -p ${PRODUCT} -v ${VERSION} --operation prune --src-root "${WORKSPACE}"
 
 # Product-specific script for pruning unwanted sources
 if [ -x "${PROD_DIR}/prune_source.sh" ]; then
@@ -157,11 +147,12 @@ if [ -f "${WORKSPACE}/bd-venv/activate" ]; then
 fi
 
 # Invoke scan script
-python3 -u "${DETECT_SCRIPT_DIR}/run-scanner" \
-  ${DRY_RUN_ARG} \
-  ${CONFIG_ARG} \
-  --token ~/.ssh/blackduck-api-token \
-  --pdf
+uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
+  python -u "${DETECT_SCRIPT_DIR}/run-scanner" \
+    ${DRY_RUN_ARG} \
+    ${CONFIG_ARG} \
+    --credentials ~/.ssh/blackduck-creds.json \
+    --pdf
 
 # If we're in bd-venv, we want to get back into ${venv} for upcoming Python
 # calls (since that's where blackduck and dictdiffer live)
@@ -179,15 +170,17 @@ fi
 
 # If there's product-specific manual Black Duck manifests, load that as well
 echo "Loading product-specific Black Duck manifests"
-"${DETECT_SCRIPT_DIR}/update-manual-manifest" -d \
-      --credentials ~/.ssh/blackduck-creds.json \
-      --operation update --src-root "${WORKSPACE}" \
-      -p ${PRODUCT} -v ${VERSION}
+uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
+  "${DETECT_SCRIPT_DIR}/update-manual-manifest.py" -d \
+    --credentials ~/.ssh/blackduck-creds.json \
+    --operation update --src-root "${WORKSPACE}" \
+    -p ${PRODUCT} -v ${VERSION}
 
 # setup parent/sub project dependency if sub-project.json exists
 if [ -f "${PROD_DIR}/sub-project.json" ]; then
-  "${DETECT_SCRIPT_DIR}/add_subproject.py" \
-    ${PRODUCT} \
-    ${VERSION} \
-    ${PROD_DIR}/sub-project.json
+  uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
+    "${DETECT_SCRIPT_DIR}/add_subproject.py" \
+      ${PRODUCT} \
+      ${VERSION} \
+      ${PROD_DIR}/sub-project.json
 fi

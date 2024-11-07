@@ -1,0 +1,15 @@
+[project]
+name = "check-licenses"
+version = "0.1.0"
+description = "Verifies licenses are approved"
+authors = [
+    { name = "Couchbase Build Team", email = "build-team@couchbase.com" }
+]
+# The Blackduck lib doesn't like Python 3.12+ yet
+requires-python = ">=3.11, <3.12"
+dependencies = [
+    "blackduck",
+    "requests",
+    "python-dateutil>=2.8.0",
+    "mdutils"
+]

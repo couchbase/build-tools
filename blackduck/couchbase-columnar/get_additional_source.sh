@@ -32,9 +32,10 @@ create_analytics_poms() {
   popd
 
   mkdir -p analytics-boms
-  "${SCRIPT_DIR}/../scripts/create-maven-boms" \
-    --outdir analytics-boms \
-    --file analytics/cbas/cbas-install/target/bom.txt
+  uv run --project "${SCRIPT_DIR}/../scripts" --quiet \
+    "${SCRIPT_DIR}/../scripts/create-maven-boms.py" \
+      --outdir analytics-boms \
+      --file analytics/cbas/cbas-install/target/bom.txt
 }
 
 # Main script starts here - decide which action to take based on VERSION
@@ -64,16 +65,14 @@ if [ -e "${CBPY_MANIFEST}" ]; then
   cp "${CBPY_MANIFEST}" .
 fi
 
-# Extract the set of Go versions from the build. We trust that 'python'
-# on the PATH is the venv set up by the top-level
-# blackduck-detect-scan.sh script, and in particular that it's a venv
-# which has PyYAML in it.
+# Extract the set of Go versions from the build.
 GO_MANIFEST="${WORKSPACE}/src/couchbase-columnar-black-duck-manifest.yaml"
 GOVER_FILE=$(ls tlm/couchbase-server-*-go-versions.yaml)
-"${SCRIPT_DIR}/../scripts/build-go-manifest.py" \
-  --go-versions "${GOVER_FILE}" \
-  --output "${GO_MANIFEST}" \
-  --max-ver-file max-go-ver.txt
+uv run --project "${SCRIPT_DIR}/../scripts" --quiet \
+  "${SCRIPT_DIR}/../scripts/build-go-manifest.py" \
+    --go-versions "${GOVER_FILE}" \
+    --output "${GO_MANIFEST}" \
+    --max-ver-file max-go-ver.txt
 
 # Also install the maximum Golang version and put it on PATH for later
 GOMAX=$(cat max-go-ver.txt)

@@ -6,23 +6,16 @@ SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/generate-reports"
 
 # Required to push back to git
 GIT_DIR="${WORKSPACE}/product-metadata/${PRODUCT_PATH}/blackduck/${VERSION}"
-git clone ssh://git@github.com/couchbase/product-metadata.git product-metadata
+"${WORKSPACE}/build-tools/utilities/clean_git_clone" ssh://git@github.com/couchbase/product-metadata.git product-metadata
 mkdir -p ${GIT_DIR}
-
-# Install required Blackduck modules
-
-cd ${SCRIPT_DIR}
-python3 -m venv .venv
-source .venv/bin/activate
-pip3 install --upgrade pip
-pip3 install -r requirements.txt
 
 OUTPUT_DIR=${WORKSPACE}/output
 mkdir -p ${OUTPUT_DIR}
 
 # Call Black Duck API to generate output files
+cd ${SCRIPT_DIR}
 set +e
-./download-reports.py \
+uv run download-reports.py \
     ${PRODUCT} ${VERSION} ${BLD_NUM} \
     -c ~/.ssh/blackduck-creds.json \
     --output-dir ${OUTPUT_DIR}
@@ -67,18 +60,24 @@ EOF
     exit 5
 }
 
+# Insert any extra notices files.
+mkdir -p "${WORKSPACE}/temp"
+ADDITIONAL_NOTICES="${WORKSPACE}/temp/additional-notices.txt"
+rm -f "${ADDITIONAL_NOTICES}"
+touch "${ADDITIONAL_NOTICES}"
+if [ -e ${PROD_DIR}/additional-notices.txt ]; then
+    cat "${PROD_DIR}/additional-notices.txt" >> "${ADDITIONAL_NOTICES}"
+fi
+for file in $(find ${WORKSPACE}/src -type f -name ${PRODUCT}-additional-notices.txt); do
+    cat "${file}" >> "${ADDITIONAL_NOTICES}"
+done
+
 # Delete Phase and Distribution lines from notices.txt, and insert
 # product-specific additional information (if any)
-if [ -e ${PROD_DIR}/additional-notices.txt ]; then
-    ADD_FILE=${PROD_DIR}/additional-notices.txt
-else
-    ADD_FILE=${SCRIPT_DIR}/empty-file.txt
-fi
-
 sed -i -e "
     1,10 {
         /^Phase: / {
-            r ${ADD_FILE}
+            r ${ADDITIONAL_NOTICES}
             d
         }
         /^Distribution: / d
@@ -87,11 +86,13 @@ sed -i -e "
 
 # Push back to GitHub
 git add .
-git config --global push.default simple
+git config push.default simple
 git diff --quiet && git diff --staged --quiet || git commit \
     -m "Updated Black Duck metadata for ${PRODUCT} ${VERSION}-${BLD_NUM}" \
     --author='Couchbase Build Team <build-team@couchbase.com>'
-git push
+if ! $SKIP_GIT_PUSH; then
+    git push
+fi
 popd
 
 exit $retval

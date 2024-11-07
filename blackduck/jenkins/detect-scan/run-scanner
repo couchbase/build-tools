@@ -15,8 +15,8 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument('--config', '-c',
                     help='Config JSON file containing Detect options')
-parser.add_argument('--token', '-t', required=True,
-                    help='File containing Hub API token')
+parser.add_argument('--credentials', '-r', required=True,
+                    help='File containing Black Duck Hub credentials')
 parser.add_argument('--pdf', action='store_true',
                     help='Generate PDF of results')
 parser.add_argument('--dry-run', '-n', action='store_true',
@@ -24,8 +24,8 @@ parser.add_argument('--dry-run', '-n', action='store_true',
 args = parser.parse_args()
 
 # Read input config files
-with open(args.token, "r") as t:
-    token = t.read().rstrip()
+with open(args.credentials, "r") as t:
+    creds = json.load(t)
 if args.config is not None:
     with open(args.config, "r") as c:
         config = json.load(c)
@@ -77,8 +77,8 @@ if not os.path.exists(detect_jar):
 # Start with default properties, then update with config-file-provided
 # ones; this allows config file to override defaults
 properties = {
-    "blackduck.api.token": token,
-    "blackduck.url": "https://blackduck.build.couchbase.com/",
+    "blackduck.api.token": creds["token"],
+    "blackduck.url": creds["url"],
     "blackduck.trust.cert": "true",
     "detect.project.name": "${PRODUCT}",
     "detect.project.version.name": "${VERSION}",

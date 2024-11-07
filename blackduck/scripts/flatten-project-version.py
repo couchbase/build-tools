@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import json
 import logging
 import pprint
 import requests
@@ -216,11 +217,9 @@ if __name__ == "__main__":
     )
     parser.add_argument('-d', '--debug', action='store_true',
         help="Produce debugging output")
-    parser.add_argument('-u', '--url', required=True,
-        help="Black Duck Hub URL")
-    parser.add_argument('-t', '--tokenfile', required=True,
+    parser.add_argument('-r', '--credentials', required=True,
         type=argparse.FileType('r'),
-        help="File containing Black Duck API token")
+        help="File containing Black Duck Hub credentials")
     parser.add_argument('-p', '--project', required=True,
         help="project from Black Duck server")
     parser.add_argument('-v', '--version', required=True,
@@ -242,9 +241,11 @@ if __name__ == "__main__":
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
+    with open(args.credentials) as f:
+        creds = json.load(f)
     flattener = BlackDuckFlatten(
-        args.url,
-        args.tokenfile.read().rstrip(),
+        creds["url"],
+        creds["token"],
         args.project,
         args.version,
         args.dryrun

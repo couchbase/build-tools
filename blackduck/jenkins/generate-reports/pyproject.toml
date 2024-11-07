@@ -1,0 +1,18 @@
+[project]
+name = "generate-reports"
+version = "0.1.0"
+description = "Generates and downloads reports from Black Duck"
+authors = [
+    { name = "Couchbase Build Team", email = "build-team@couchbase.com" }
+]
+# The Blackduck lib doesn't like Python 3.12+ yet
+requires-python = ">=3.11, <3.12"
+dependencies = [
+    "blackduck",
+    "requests",
+    "python-dateutil>=2.8.0",
+    "pandas",
+    "terminaltables",
+    "pytz",
+    "timestring"
+]
