@@ -524,6 +524,11 @@ class ManifestBuilder:
         information, and only copy the .git directory if specified.
         """
 
+        # Exit early if requested to skip tarball creation
+        if not self.manifest_config.get('create_source_tarball', True):
+            print(f'Skipping creation of source.tar.gz')
+            return
+
         tarball_filename = self.output_files['source.tar']
         targz_filename = self.output_files['source.tar.gz']
 
