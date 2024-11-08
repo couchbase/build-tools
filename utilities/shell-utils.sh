@@ -15,9 +15,11 @@ function chk_set {
 }
 
 function header() {
+    echo
     echo ":::::::::::::::::::::::::::::"
     echo ":: $@"
     echo ":::::::::::::::::::::::::::::"
+    echo
 }
 
 function status() {

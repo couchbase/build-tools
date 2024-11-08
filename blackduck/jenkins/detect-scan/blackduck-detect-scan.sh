@@ -91,15 +91,6 @@ else
     echo
 fi
 
-# If the build database knows about this build, update the blackduck metadata
-DBAPI_PATH=products/${PRODUCT}/releases/${RELEASE}/versions/${VERSION}/builds/${BLD_NUM}
-status=$(curl -s -w "%{http_code}" --head -o /dev/null \
-    http://dbapi.build.couchbase.com:8000/v1/${DBAPI_PATH})
-if [ "${status}" = "200" ]; then
-    curl -d '{"blackduck_scan": true}' -X POST -H "Content-Type: application/json" \
-        http://dbapi.build.couchbase.com:8000/v1/${DBAPI_PATH}/metadata
-fi
-
 # Product-specific script for getting additional sources
 if [ -f "${GET_ADDITIONAL_SOURCE_SCRIPT}" ]; then
   run_script "${GET_ADDITIONAL_SOURCE_SCRIPT}" ${RELEASE} ${VERSION} ${BLD_NUM}

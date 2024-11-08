@@ -21,6 +21,13 @@ export SKIP_GIT_PUSH=${SKIP_GIT_PUSH-false}
 # This will run at the end of the script no matter what, and update the
 # build database according to the `success` value
 update_builddb() {
+
+  # Exit early if this product isn't manifest-driven
+  if [ ! -d "${WORKSPACE}/build-manifests/${PRODUCT}" ]; then
+    header "Product ${PRODUCT} is not manifest-driven, so not updating build database"
+    exit
+  fi
+  
   builddb_doc="${PRODUCT}-${VERSION}-${BLD_NUM}"
   header "Updating Build Database metadata for ${builddb_doc}: blackduck_scan=${scan_status}"
 
