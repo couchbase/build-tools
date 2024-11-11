@@ -12,7 +12,8 @@ export GONOSUMDB="github.com/prometheus/node_exporter"
 
 # Get all node versions mentioned in build-and-deliver-predev action and install the latest
 export NODE_VERSIONS=$(grep -oP '(?<=node-version: )\S+' couchbase-cloud/.github/workflows/build-and-deliver-predev.yml | sed 's/"//g' | sort -V)
-cbdep install -d "${WORKSPACE}/extra" nodejs $(echo "${NODE_VERSIONS}" | tail -n 1)
+NODE_VER=$(echo "${NODE_VERSIONS}" | tail -n 1)
+cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
 
 # Ensure go + node are pathed
 export PATH="${WORKSPACE}/extra/go${GO_VER}/bin:${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
