@@ -13,6 +13,8 @@ from subprocess import check_call
 parser = argparse.ArgumentParser(
     description='Run Synopsis Detect scanner for Black Duck'
 )
+parser.add_argument('--python-venv', required=True,
+                     help="Path to Python venv to use for Python/Pip Detector")
 parser.add_argument('--config', '-c',
                     help='Config JSON file containing Detect options')
 parser.add_argument('--credentials', '-r', required=True,
@@ -111,18 +113,20 @@ for prop, value in properties.items():
         "--" + prop + "=" + string.Template(str(value)).safe_substitute(os.environ)
     )
 
-# Special sauce for Python - needs to use a specific bd-venv which must
-# have been pre-installed with all dependencies
+# Special sauce for Python - needs to use a separate venv which must
+# have been pre-installed with all dependencies. Individual products
+# should populate this in their get_additional_source.sh script. The
+# venv was created by blackduck-detect-scan.sh and passed in to us.
 # https://synopsys.atlassian.net/wiki/spaces/INTDOCS/pages/631276245/Package+Manager+Information#The-Pip-detector
-source_root = os.path.join(os.environ.get("WORKSPACE", "."), "src")
-venv_path = os.path.join(source_root, "..", "bd-venv")
-if os.path.isdir(venv_path):
-    detect_args.extend([
-        "--detect.pip.path=" + os.path.join(venv_path, "bin", "pip"),
-        "--detect.python.path=" + os.path.join(venv_path, "bin", "python")
-    ])
+venv_path=args.python_venv
+detect_args.extend([
+    "--detect.pip.path=" + os.path.join(venv_path, "bin", "pip"),
+    "--detect.python.path=" + os.path.join(venv_path, "bin", "python")
+])
+os.environ["VIRTUAL_ENV"] = venv_path
 
 # Iterate through code paths, calling scanner
+source_root = os.path.join(os.environ.get("WORKSPACE", "."), "src")
 first_path = True
 for i, path in enumerate(config.get("source_paths", ['.']), start=1):
     suffix = f"-{i}" if i > 1 else ""

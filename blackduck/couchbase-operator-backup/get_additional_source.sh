@@ -4,20 +4,10 @@ RELEASE=$1
 
 # Grab the most recent supported version of go to use when finding the version
 # cbbackupmgr was built with and running the scan
-#
-# Note: we're in a venv and about to jump into a second, so write the path
-# change to _OLD_VIRTUAL_PATH to trick `activate` into doing what we want.
-#
-# If we were to write directly to PATH, `activate` would overwrite it with the
-# contents of _OLD_VIRTUAL_PATH which was set when the outer venv was activated
-# and does not include our change. Similarly, if we write to PATH *after*
-# activating bd-venv below, when that env deactivates, _OLD_VIRTUAL_PATH (set
-# at the time of activation) will be flipped in, reversing our modification.
-export _OLD_VIRTUAL_PATH="$(${WORKSPACE}/build-tools/blackduck/jenkins/util/go-path-latest.sh):$PATH"
 
-# Create "bd-venv" in *parent* directory - run-scanner looks for this
-python3 -m venv ../bd-venv
-. ../bd-venv/bin/activate
+# Install python requirements - the main scripts have ensured that there's
+# an empty venv activated for us to populate, and that this same venv will
+# be used by Detect
 pip install -r couchbase-operator-backup/requirements.txt
 
 # Since we're about to run "repo" again, need to kill existing .repo dir

@@ -142,6 +142,7 @@ uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
   python -u "${DETECT_SCRIPT_DIR}/run-scanner" \
     ${DRY_RUN_ARG} \
     ${CONFIG_ARG} \
+    --python-venv ${venv} \
     --credentials ~/.ssh/blackduck-creds.json \
     --pdf
 
