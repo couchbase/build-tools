@@ -324,8 +324,20 @@ class ManifestBuilder:
                 with pushd(".repo/repo"):
                     run(['git', 'status'], check=True, stdout=PIPE)
 
-            run(['repo', 'init', '-u', str(top_dir / 'manifest'), '-g', 'all',
-                 '-m', str(self.manifest)], check=True)
+            repo_init = [
+                'repo', 'init', '-u', str(top_dir / 'manifest'),
+                '-g', 'all', '-m', str(self.manifest)
+            ]
+
+            # Another workaround for a git repository with a branch name
+            # containing an illegal utf-8 character - the --depth option
+            # prevents repo from trying to sync all branches (CBD-6118).
+            # Since we know we aren't going create a source tarball anyway,
+            # might as well save some time and use --depth=1.
+            if str(self.manifest).startswith('model-serving-agent'):
+                repo_init += ['--depth', '1']
+
+            run(repo_init, check=True)
             run(['repo', 'sync', '--jobs=6', '--force-sync'], check=True)
 
     def update_bm_repo_and_get_build_num(self):
