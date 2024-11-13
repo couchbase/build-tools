@@ -128,7 +128,7 @@ upload()
     echo
 
     # Upload EE first
-    aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl public-read --exclude "*" --include "*enterprise*" --include "*Enterprise*" --include "*ee*" --exclude "CBLTestServer*" --exclude "test-reports*" --exclude "analysis-reports*" --exclude "testserver*"
+    aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl public-read --exclude "*" --include "*enterprise*" --include "*Enterprise*" --include "*ee*" --exclude "CBLTestServer*" --exclude "test-reports*" --exclude "analysis-reports*" --exclude "testserver*" --exclude "test-log*"
 
     # Upload CE files
     case ${COMMUNITY} in
@@ -139,7 +139,7 @@ upload()
 
     if [[ ! -z $ACL ]]; then
         echo "Community builds are uploaded in $ACL mode ..."
-        aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl $ACL --exclude "*enterprise*" --exclude "*Enterprise*" --exclude "*ee*" --exclude "CBLTestServer*" --exclude "test-reports*" --exclude "analysis-reports*" --exclude "testserver*"
+        aws s3 sync ${UPLOAD_TMP_DIR} ${S3_DIR}/ --acl $ACL --exclude "*enterprise*" --exclude "*Enterprise*" --exclude "*ee*" --exclude "CBLTestServer*" --exclude "test-reports*" --exclude "analysis-reports*" --exclude "testserver*" --exclude "test-log*"
     else
         echo "Community builds are not uploaded..."
     fi

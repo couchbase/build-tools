@@ -183,28 +183,37 @@ def get_product_download_urls(product, version):
           f"https://www.nuget.org/packages/Couchbase.Lite/{version}"
         ]
       }
+    case "couchbase-lite-ios":
+      return {
+        "Objective C": [
+          f"https://docs.couchbase.com/couchbase-lite/current/objc/gs-install.html"
+        ],
+        "Swift": [
+          f"https://docs.couchbase.com/couchbase-lite/current/swift/gs-install.html"
+        ]
+      }
     case "couchbase-lite-android":
       return {
         "Couchbase Lite Android Java": [
-          f"https://docs.couchbase.com/couchbase-lite/{majmin}/android/gs-install.html#java-step-by-step-install"
+          f"https://docs.couchbase.com/couchbase-lite/current/android/gs-install.html#java-step-by-step-install"
         ],
         "Couchbase Lite Android Kotlin": [
-          f"https://docs.couchbase.com/couchbase-lite/{majmin}/android/gs-install.html#kotlin-step-by-step-install"
+          f"https://docs.couchbase.com/couchbase-lite/current/android/gs-install.html#kotlin-step-by-step-install"
         ]
       }
     case "couchbase-lite-java":
       return {
         "Couchbase Lite Java": [
-          f"https://docs.couchbase.com/couchbase-lite/{majmin}/java/gs-install.html"
+          f"https://docs.couchbase.com/couchbase-lite/current/java/gs-install.html"
         ]
       }
     case "couchbase-lite-c":
       return {
         "Couchbase Lite C for Linux": [
-          f"https://docs.couchbase.com/couchbase-lite/{majmin}/c/gs-downloads.html"
+          f"https://docs.couchbase.com/couchbase-lite/current/c/gs-downloads.html"
         ],
         "Couchbase Lite C for macOS": [
-          f"https://docs.couchbase.com/couchbase-lite/{majmin}/c/gs-downloads.html"
+          f"https://docs.couchbase.com/couchbase-lite/current/c/gs-downloads.html"
         ]
       }
     case "couchbase-lite-vector-search":

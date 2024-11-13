@@ -28,12 +28,15 @@ done
 if [[ ${DRYRUN} == 'false' ]]; then
     for fl in ${!CARTHAGE_PKGS[@]}; do
         aws s3 cp $fl s3://packages.couchbase.com/releases/${PRODUCT}/carthage/${fl} --acl public-read || exit 1
+        echo "${fl}:"
+        cat ${fl}
+        echo ""
     done
-else 
+else
     echo "Dryrun mode is on.  Print Json content instead of publishing to s3"
     for fl in ${!CARTHAGE_PKGS[@]}; do
         echo "${fl}:"
         cat ${fl}
         echo ""
-    done    
-fi    
+    done
+fi
