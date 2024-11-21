@@ -6,7 +6,7 @@ PLATFORM=$3
 
 JIT_OPTIONS="--enable-jit"
 
-CBPY_VER=7.5.0-cb3
+NCURSES_VER=6.4-1
 OPENSSL_VER=3.1.4-1
 
 pushd erlang
@@ -31,37 +31,27 @@ case "$PLATFORM" in
         # (see CBD-4513, CBD-5389)
         JIT_OPTIONS="--disable-jit"
         ;;
-    *)
-        # We'll be using libtinfo.so.6 from cbpy since it's being built
-        # into couchbase-server already - some old distros come with
-        # ncurses5, some new ones come only with ncurses 6. By using
-        # cbpy's version we don't need to worry about any of that.
-        rm -rf ../cbdeps/cbpy
-        mkdir -p ../cbdeps/cbpy
-        pushd ../cbdeps/cbpy
-        curl -LO https://packages.couchbase.com/couchbase-server/deps/cbpy/${CBPY_VER}/cbpy-${PLATFORM}-$(uname -m)-${CBPY_VER}.tgz
-        tar xf cbpy*  --wildcards "*tinfo*"
-        popd
+    linux)
+        # erlang requires libtinfo/terminfo from ncurses
+        cbdep --platform ${PLATFORM} install -C -d ${ROOT_DIR}/cbdeps ncurses ${NCURSES_VER}
 
-        # The libtinfo libraries above have a non-existent hardcoded path to the
-        # terminfo content, however we can override this with an environment
-        # variable when running erl
-        sed -i "/BINDIR=.*/a export TERMINFO_DIRS=\${ROOTDIR}/../python/interp/lib/terminfo" erts/etc/unix/erl.src.src
+        # Ensure erl knows where to find the terminfo content
+        sed -i "/BINDIR=.*/a export TERMINFO_DIRS=\${ROOTDIR}/../terminfo" erts/etc/unix/erl.src.src
 
-        # We use LDFLAGS to ensure we find the libtinfo from cbpy. We also set
-        # two rpaths, this is because we trigger an install script during the
-        # server install, and this script copies several binaries into a new
+        # We use LDFLAGS to ensure we find libtinfo. We also set two rpaths,
+        # this is because we trigger an install script during the server
+        # install, and this script copies several binaries into a new
         # location. By providing both rpaths here we avoid the need to modify
-        # the rpaths of the copied binaries post copy.
-        LDFLAGS="-L${ROOT_DIR}/cbdeps/cbpy/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../..:\$$\ORIGIN/../../..:\$$\ORIGIN/../../../..:\$$\ORIGIN/../../../../..'
+        # the rpaths of the binaries post copy.
+        LDFLAGS="-L${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../..:\$$\ORIGIN/../../..:\$$\ORIGIN/../../../..:\$$\ORIGIN/../../../../..'
 
         # We need to provide an rpath for the crypto lib
         SSL_RPATH=--with-ssl-rpath="\$$\ORIGIN/../../../../.."
 
         # During build, erlang's going to create a bootstrap compiler and
         # build some stuff with that, so we need to tell it where to
-        # find our cbpy libtinfo
-        export LD_LIBRARY_PATH="${ROOT_DIR}/cbdeps/cbpy/lib:$LD_LIBRARY_PATH"
+        # find libtinfo
+        export LD_LIBRARY_PATH="${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib:$LD_LIBRARY_PATH"
         ;;
 esac
 
@@ -95,12 +85,10 @@ if [ "${PLATFORM}" = "macosx" ]; then
     install_name_tool -add_rpath @loader_path/../../.. \
         ${ERTS_DIR}/bin/beam.smp
 elif [ "${PLATFORM}" = "linux" ]; then
-    # We bundle the final libtinfo symlinks here (although the target won't
-    # actually exist until cbpy is present in the build)
+    # Bundle libtinfo/terminfo
     pushd ${INSTALL_DIR}/lib
-    ln -s ./python/interp/lib/libtinfo.so.6 libtinfo.so
-    ln -s ./python/interp/lib/libtinfo.so.6 libtinfo.so.6
-    ln -s ./python/interp/lib/libtinfo.so.6 libtinfo.so.6.3
+    cp -a ${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib/libtinfo* .
+    cp -aL ${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib/terminfo .
     popd
 fi
 

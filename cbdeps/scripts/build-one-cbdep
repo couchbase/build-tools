@@ -8,10 +8,13 @@ source ${SCRIPT_DIR}/../../utilities/shell-utils.sh
 # This is only for interactive use; when running on Jenkins, this script
 # still expects to find all of these variables set in the environment.
 usage() {
-    echo "Usage: $0 -p PRODUCT -r RELEASE -v VERSION -b BLD_NUM -a ARCH -f PLATFORM -l PROFILE"
+    echo "Usage: $0 -p PRODUCT -r RELEASE -v VERSION -b BLD_NUM -a ARCH -f PLATFORM -l PROFILE [-i]"
     exit 1
 }
-while getopts "p:r:v:b:a:f:l:h?" opt; do
+
+INSTALL=false
+
+while getopts "p:r:v:b:a:f:l:ih?" opt; do
     case $opt in
         p) PRODUCT=$OPTARG;;
         r) RELEASE=$OPTARG;;
@@ -20,12 +23,12 @@ while getopts "p:r:v:b:a:f:l:h?" opt; do
         a) ARCH=$OPTARG;;
         f) PLATFORM=$OPTARG;;
         l) PROFILE=$OPTARG;;
+        i) INSTALL=true;;
         h|?) usage;;
         *) echo "Invalid argument $opt"
            usage;;
     esac
 done
-
 
 chk_set PRODUCT
 chk_set RELEASE
@@ -127,6 +130,6 @@ cd ${INSTALL_DIR}
 tar zcf ${PKG_DIR}/${TARBALL_NAME} .
 md5sum ${PKG_DIR}/${TARBALL_NAME} > ${PKG_DIR}/${MD5_NAME}
 
-if [ "$1" == "install" ]; then
+if ${INSTALL}; then
     cp -p ${PKG_DIR}/* ~/.cbdepscache
 fi
