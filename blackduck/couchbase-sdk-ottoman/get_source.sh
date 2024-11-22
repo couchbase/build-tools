@@ -15,4 +15,8 @@ then
 else
     echo "No tag $TAG, assuming master"
 fi
+
+# remove directory that is not part of the released product
+rm -rf docusaurus
+
 popd
