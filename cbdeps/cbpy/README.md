@@ -47,3 +47,7 @@ parse a raw `requirements.txt` file, so the `couchbase-server` and
 `cb-requirements.txt` file to be left in the source directory as just
 `requirements.txt`. Black Duck can then process this file and include
 all Python dependencies in the corresponding reports.
+
+For reporting the version of Python itself in Black Duck, we still
+include a template `black-duck-manifest.yaml.in` which will packaged as
+`cbpy-black-duck-manifest.yaml` in the final package.
