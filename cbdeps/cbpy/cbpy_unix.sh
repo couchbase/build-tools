@@ -14,19 +14,8 @@ VERSION=$6
 
 # cbpy version == included python version
 PYTHON_VERSION=${VERSION}
-MINIFORGE_VERSION=24.1.2-0
+UV_VERSION=0.5.2
 SRC_DIR=${ROOT_DIR}/build-tools/cbdeps/cbpy
-
-# Clear positional parameters so "activate" works in a moment
-set --
-
-# "conda" being a shell function makes the bash -x output impossible to
-# follow, so work around it
-doconda() {
-    set +x
-    conda "$@"
-    set -x
-}
 
 if [ $(uname -s) = "Darwin" ]; then
     platform=macosx-$(uname -m)
@@ -34,77 +23,42 @@ else
     platform=linux-$(uname -m)
 fi
 
-# Install and activate Miniforge3
-cbdep install -d . miniforge3 ${MINIFORGE_VERSION}
-set +x
-echo "+ <activating conda>"
-# This is how to 'activate' conda without needing to modify .bashrc, etc.
-source ./miniforge3-${MINIFORGE_VERSION}/etc/profile.d/conda.sh
-conda activate base
-set -x
+# Install UV
+cbdep install -d . uv ${UV_VERSION}
+export PATH=$(pwd)/uv-${UV_VERSION}/bin:${PATH}
 
-# Create and activate a builder environment, with our desired version of
-# python and the latest compatible conda-build/conda-pack/conda-verify.
-# It's important to build our local packages in an environment with the
-# same versin of python that we will bundle in cbpy, and this is the
-# safest way to achieve that.
-doconda create -y -n builder python=${PYTHON_VERSION} conda-build conda-pack conda-verify
-conda activate builder
+# Ask UV to install python
+uv python install ${PYTHON_VERSION}
 
-# Build our local packages and stubs per platform.
-for subdir in ${platform} all stubs
-do
-    if [ -d "${SRC_DIR}/conda-pkgs/${subdir}" ]
-    then
-        doconda build --output-folder "./conda-pkgs" "${SRC_DIR}/conda-pkgs/${subdir}/*"
-    fi
-done
+# Copy that python installation to INSTALL_DIR, and remove the magic
+# file that prevents `uv pip` from manipulating it
+cp -a $(dirname $(uv python find ${PYTHON_VERSION}))/.. ${INSTALL_DIR}
+find ${INSTALL_DIR} -name EXTERNALLY-MANAGED -delete
+PYTHON=${INSTALL_DIR}/bin/python3
 
-# Create cbpy environment with all our dependencies
-doconda create -y -n cbpy \
-    -c ./conda-pkgs -c conda-forge \
-    --override-channels --strict-channel-priority \
-    python=${PYTHON_VERSION} \
-    --file "${SRC_DIR}/cb-dependencies.txt" \
-    --file "${SRC_DIR}/cb-dependencies-${platform}.txt" \
-    --file "${SRC_DIR}/cb-stubs.txt"
+# Compile our requirements.txt into a locked form - save this file in the
+# installation directory for use by Black Duck
+REQ_FILE=${INSTALL_DIR}/lib/cb-requirements.txt
+uv pip compile --python ${PYTHON} --universal "${SRC_DIR}/cb-dependencies.txt" > ${REQ_FILE}
 
-# Remove gmp (pycryptodome soft dep)
-if doconda list -n cbpy gmp | grep gmp
-then
-    doconda remove -n cbpy gmp -y --force
-fi
+# Remove pip and setuptools from cbpy
+uv pip uninstall --python ${PYTHON} pip setuptools
 
-# Pack cbpy and then unpack into final dir
-doconda pack -n cbpy --output cbpy.tar
-mkdir -p "${INSTALL_DIR}"
-tar xf cbpy.tar -C "${INSTALL_DIR}"
-rm cbpy.tar
-
-# Save the environment for future reference
-pushd "${INSTALL_DIR}"
-mkdir env
-doconda list -n cbpy > env/environment-${platform}.txt
-doconda env export -n cbpy > env/environment-${platform}.yml
-
-# Deactivate builder environment, then base environment
-doconda deactivate
-doconda deactivate
+# Install our desired dependencies
+uv pip install --python ${PYTHON} --no-build -r ${REQ_FILE}
 
 # Prune installation
-find . -depth -type d -name tests -exec rm -rf \{} \;
-find . -depth -type d -name info -exec rm -rf \{} \;
-rm -rf compiler_compat conda-meta include \
-    lib/cmake lib/pkgconfig \
-    lib/itcl* lib/tcl* lib/tk* \
-    lib/python*/idlelib lib/python*/lib2to3 \
-    lib/python*/tkinter \
-    share/doc share/info share/man \
-    $(uname -m)-conda*
-cd bin
-rm [0-9a-or-z]* pydoc* py*config
+cd ${INSTALL_DIR}
+rm -rf include share
+find . -type d -name __pycache__ -print0 | xargs -0 rm -rf
 
-popd
+cd ${INSTALL_DIR}/bin
+rm -f 2to3* idle* natsort normalizer pydoc*
+
+cd ${INSTALL_DIR}/lib
+rm -rf itcl* pkgconfig tcl* tk* Tix*
+
+cd ${INSTALL_DIR}/lib/python*/site-packages
 
 # Quick installation test
 "${INSTALL_DIR}/bin/python" "${SRC_DIR}/test_cbpy.py"

@@ -69,10 +69,20 @@ cmake \
 # Most cbdeps packages that have embedded black-duck-manifest.yaml files will
 # be under ${BUILD_DIR} and so will get picked up automatically. However, cbpy
 # gets unpacked into the install directory, which we will shortly delete. Copy
-# that file into ${BUILD_DIR} to keep it safe.
+# that file into ${BUILD_DIR} to keep it safe, if it exists.
 CBPY_MANIFEST="${WORKSPACE}/src/install/lib/python/interp/cbpy-black-duck-manifest.yaml"
 if [ -e "${CBPY_MANIFEST}" ]; then
   cp "${CBPY_MANIFEST}" .
+fi
+
+# Newer cbpy packages have a locked requirements.txt file that Black
+# Duck can parse directly. If that exists, copy it to the source
+# directory. Either way, ensure no other requirements.txt files are
+# present.
+find "${WORKSPACE}" -type f -name requirements.txt -delete
+CBPY_REQS="${WORKSPACE}/src/install/lib/python/interp/lib/cb-requirements.txt"
+if [ -e "${CBPY_REQS}" ]; then
+  cp "${CBPY_REQS}" "${WORKSPACE}/src/requirements.txt"
 fi
 
 # Extract the set of Go versions from the build. If the Go version

@@ -20,40 +20,13 @@ the manifest VERSION.
 
 # Adding new packages or updating package versions
 
-Simply edit the file cb-dependencies.txt to specify new dependencies
-that are required on all platforms. If there are some which are
-platform-specific, edit one or more of the five cb-dependencies-*.txt
-files for the specific platform/arch(es) you need.
+Simply edit the file cb-dependencies.txt to specify new dependencies.
+This is a normal pip requirements.txt-style file, so you can use
+specifiers like
 
-# Custom packages
+    gnureadline; platform_system != 'Windows'
 
-If there is a package we need that isn't available in conda-forge, we
-can create a conda package recipe in a directory under conda-pkgs/all.
-This at a minimum requires a file named "meta.yaml" which describes how
-to build the package. See the link below for additional information:
-
-https://docs.conda.io/projects/conda-build/en/latest/resources/define-metadata.html
-
-Also place these dependencies in cb-dependencies.txt, with the correct
-version number.
-
-For platform-specific packages, you can create a subdirectory under
-conda-pkgs with the name linux-x86_64, linux-aarch64, macosx-x86_64,
-macosx-arm64, or windows-amd64, and put the package subdirectory under
-there. In that case, also add the dependency name and version to the
-corresponding cb-dependencies-xxxxxx.txt file.
-
-# Stubbed packages
-
-We have a few packages that we stub out, generally because something we
-require depends on them but we don't actually need/want to ship them
-(often due to suspect licensing conditions). In that case, we can create
-a "fake" conda package in a directory under conda-pkgs/stubs. The recipe
-format is the same as above, although most of the information is left
-blank.
-
-In this case, also add the dependency name and version to
-cb-dependencies-stubs.txt.
+for any platform-dependent packages.
 
 # Building packages
 
@@ -64,19 +37,13 @@ option "A" (be sure to check the TRIGGER_BUILD option), and specify your
 Gerrit change(s) at the bottom. This will create toy build packages with
 a build number above 50000 on latestbuilds.
 
-# Updating Black Duck manifest
+# Note on Black Duck
 
-For the moment at least, after the test packages are built and you're
-happy with them, there's one final manual step. Download each of the
-five .tgz packages to a directory somewhere, then run
-
-    cd verify-black-duck-manifest
-    rye sync
-    rye run verify-black-duck-manifest -v <CBPY VERSION> -d <PATH TO TGZs>
-
-This will ensure that the conda environments created for the packages
-match the Black Duck manifest. For now it will only report problems,
-requiring you to manually fix the blackduck/black-duck-manifest.yaml.in
-file; this is to ensure that all changes are expected.
-
-Once this is done, commit this last change, and you're ready to submit.
+The Unix cbpy builds include a `cb-requirements.txt` file, which
+contains the locked versions of all dependencies used (including any
+platform-specific ones). Black Duck has a "buildless" detector which can
+parse a raw `requirements.txt` file, so the `couchbase-server` and
+`couchbase-columnar` `get_additional_source.sh` scripts arrange for that
+`cb-requirements.txt` file to be left in the source directory as just
+`requirements.txt`. Black Duck can then process this file and include
+all Python dependencies in the corresponding reports.

@@ -90,6 +90,7 @@ properties = {
 }
 if args.dry_run:
     properties["detect.blackduck.signature.scanner.dry.run"] = "true"
+    properties["detect.diagnostic"] = "true"
     properties["detect.cleanup"] = "false"
 elif args.pdf:
     # This argument makes the job wait until the scan is fully uploaded

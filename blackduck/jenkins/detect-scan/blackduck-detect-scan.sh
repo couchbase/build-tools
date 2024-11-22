@@ -132,11 +132,6 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
   rm -rf ~/blackduck/runs/*
 fi
 
-# If there's a bd-venv, make sure we're in it for the scan
-if [ -f "${WORKSPACE}/bd-venv/activate" ]; then
-  source "${WORKSPACE}/bd-venv/activate"
-fi
-
 # Invoke scan script
 uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
   python -u "${DETECT_SCRIPT_DIR}/run-scanner" \
@@ -145,12 +140,6 @@ uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
     --python-venv ${venv} \
     --credentials ~/.ssh/blackduck-creds.json \
     --pdf
-
-# If we're in bd-venv, we want to get back into ${venv} for upcoming Python
-# calls (since that's where blackduck and dictdiffer live)
-if [ -f "${WORKSPACE}/bd-venv/activate" ]; then
-  source "${venv}/bin/activate"
-fi
 
 # Copy up dry-run archives
 if [ "x${DRY_RUN}" = "xtrue" ]; then
