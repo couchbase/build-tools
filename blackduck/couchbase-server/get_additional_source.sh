@@ -83,6 +83,10 @@ find "${WORKSPACE}" -type f -name requirements.txt -delete
 CBPY_REQS="${WORKSPACE}/src/install/lib/python/interp/lib/cb-requirements.txt"
 if [ -e "${CBPY_REQS}" ]; then
   cp "${CBPY_REQS}" "${WORKSPACE}/src/requirements.txt"
+else
+  # If there's no locked requirements.txt, we need to create one
+  # or else Detect complains
+  touch "${WORKSPACE}/src/requirements.txt"
 fi
 
 # Extract the set of Go versions from the build. If the Go version
