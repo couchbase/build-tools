@@ -146,7 +146,7 @@ for dir in secondary/protobuf; do
     mkdir -p goproj/src/github.com/couchbase/indexing/${dir}
     touch goproj/src/github.com/couchbase/indexing/${dir}/foo.go
 done
-for dir in auditevent flatbuf/cfg flatbuf/header flatbuf/payload flatbuf/response parser version; do
+for dir in auditevent flatbuf/cfg flatbuf/cfgv2 flatbuf/header flatbuf/header_v2 flatbuf/payload flatbuf/response parser version; do
     mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
     touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
 done
