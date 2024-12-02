@@ -241,8 +241,7 @@ if __name__ == "__main__":
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    with open(args.credentials) as f:
-        creds = json.load(f)
+    creds = json.load(args.credentials)
     flattener = BlackDuckFlatten(
         creds["url"],
         creds["token"],
