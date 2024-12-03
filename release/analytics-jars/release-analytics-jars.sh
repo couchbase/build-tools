@@ -33,9 +33,12 @@ unzip -p ${JAR_PREFIX}-install-*.jar  META-INF/MANIFEST.MF | sed 's/^ /@@/g' | s
 popd
 md5sum ${TARGET_NAME}.tgz | cut -c -32 > ${TARGET_NAME}.md5
 
-# Publish to S3
+# Publish to S3 and internal release mirror
+CBDEPS_DIR=${JAR_PREFIX}-jars/${VERSION}-${BLD_NUM}
 for ext in tgz md5; do
+  mkdir -p /releases/cbdeps/${CBDEPS_DIR}
+  cp ${TARGET_NAME}.${ext} /releases/cbdeps/${CBDEPS_DIR}/${TARGET_NAME}.${ext}
   aws s3 cp --acl public-read \
-  ${TARGET_NAME}.${ext} \
-    s3://packages.couchbase.com/couchbase-server/deps/${JAR_PREFIX}-jars/${VERSION}-${BLD_NUM}/${TARGET_NAME}.${ext}
+    ${TARGET_NAME}.${ext} \
+    s3://packages.couchbase.com/couchbase-server/deps/${CBDEPS_DIR}/${TARGET_NAME}.${ext}
 done
