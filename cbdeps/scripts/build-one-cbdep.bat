@@ -50,6 +50,9 @@ set INSTALL_DIR=%ROOT_DIR%\install
 rmdir /s /q %INSTALL_DIR%
 mkdir %INSTALL_DIR% || goto error
 
+rem Create META directory for cbdeps-specific metadata
+mkdir %INSTALL_DIR%\META
+
 rem When compiling V8, Gyp expects the TMP variable to be set
 set TMP=C:\Windows\Temp
 rem Default value for source_root (ignored but must be set)

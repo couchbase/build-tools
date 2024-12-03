@@ -93,11 +93,22 @@ INSTALL_DIR=${ROOT_DIR}/install
 rm -rf ${INSTALL_DIR}
 mkdir -p ${INSTALL_DIR}
 
+# Create META directory for any cbdeps-specific metadata
+mkdir ${INSTALL_DIR}/META
+
+# If this is a Go-built cbdeps package, save the Go version used.
+# Note: this isn't replicated in build-one-cbdep.bat, because Go
+# cbdeps for Windows are generally cross-compiled on Linux.
+gover=$(gover_from_manifest)
+if [ -n "${gover}" ]; then
+    echo "${gover}" > ${INSTALL_DIR}/META/go-version.txt
+fi
+
 # We tuck the black-duck-manifest, if any, into the Linux x86_64 package
 # since that's where the BD scans run.
 if [ "${PLATFORM}" == "linux" -a "${ARCH}" == "x86_64" ]; then
-    BD_MANIFEST="${INSTALL_DIR}/blackduck/${PROD_NAME}-black-duck-manifest.yaml"
-    mkdir "${INSTALL_DIR}/blackduck"
+    BD_MANIFEST="${INSTALL_DIR}/META/blackduck/${PROD_NAME}-black-duck-manifest.yaml"
+    mkdir "${INSTALL_DIR}/META/blackduck"
 
     # If the package has a simple one-component BD manifest template,
     # substitute in the version. The manifest may specify an alternative
