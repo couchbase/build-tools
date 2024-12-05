@@ -38,6 +38,11 @@ chk_set ARCH
 chk_set PLATFORM
 chk_set PROFILE
 
+# Ensure linker generates build-ids on linux
+if [ "${PLATFORM}" == "linux" ]; then
+    export CFLAGS="-Wl,--build-id"
+fi
+
 # One special-case for cross-compiling Windows; it always wants to be
 # arch "amd64". build-one-cbdep.bat enforces this, so we also do it
 # here.
@@ -142,5 +147,6 @@ tar zcf ${PKG_DIR}/${TARBALL_NAME} .
 md5sum ${PKG_DIR}/${TARBALL_NAME} > ${PKG_DIR}/${MD5_NAME}
 
 if ${INSTALL}; then
+    mkdir -p ~/.cbdepscache
     cp -p ${PKG_DIR}/* ~/.cbdepscache
 fi

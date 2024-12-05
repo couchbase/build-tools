@@ -14,8 +14,6 @@ PACKAGE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OPENBLAS_VERSION=$(annot_from_manifest OPENBLAS_VERSION)
 LLVM_OPENMP_VERSION=$(annot_from_manifest LLVM_OPENMP_VERSION)
 
-
-
 function build_openmp() {
     mkdir "${ROOT_DIR}/openmp"
     pushd "${ROOT_DIR}/openmp"
@@ -81,7 +79,8 @@ cmake -B build -S "${ROOT_DIR}/faiss" \
     -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DFAISS_ENABLE_C_API=ON \
     -DFAISS_OPT_LEVEL=${PROFILE} \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" -DCMAKE_INSTALL_LIBDIR=lib \
-    -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=ON
+    -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_INSTALL_RPATH='$ORIGIN'
 cd build
 make -j8 install VERBOSE=1
 
