@@ -3,6 +3,7 @@
 INSTALL_DIR=$1
 ROOT_DIR=$2
 PROFILE=$4
+VERSION=$6
 
 cd ${ROOT_DIR}/icu/icu4c/source
 ./runConfigureICU --enable-debug Linux/gcc
@@ -17,3 +18,7 @@ rm -rf sbin
 rm -rf share
 cd lib
 rm -f libicuio* libicutest* libicutu*
+
+for file in libicu*.so.${VERSION}; do
+    chrpath -r '$ORIGIN' ${file}
+done
