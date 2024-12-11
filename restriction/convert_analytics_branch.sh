@@ -13,7 +13,7 @@ case ${UPSTREAM_BRANCH} in
   stabilization-b057463c08) echo "7.1.4";;
   stabilization-0020a08254) echo "7.2.2";;
   stabilization-40cfb8705b) echo "7.2.5";;
-  stabilization-6a10f3f81d) echo "7.6.3";;
+  stabilization-6a10f3f81d) echo "7.6.2";;
   stabilization-c8b0f90c72) echo "7.6.4";;
   log4jfix-22d4e6a278) echo "6.6.4";;
   log4jfix-5e11053887) echo "7.0.3";;
