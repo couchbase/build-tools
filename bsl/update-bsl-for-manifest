@@ -1,14 +1,16 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source ${SCRIPT_DIR}/../utilities/shell-utils.sh
 
 usage() {
-    echo "Usage: $(basename $0) -m MANIFEST [ -u MANIFEST_REPO ] [ -p PROJECT1,PROJECT2,... ] [-n] [-f] [-l]"
+    echo "Usage: $(basename $0) { -m MANIFEST [ -u MANIFEST_REPO ] | -r /path/to/repo } [ -p PROJECT1,PROJECT2,... ] [-n] [-f] [-l]"
     echo "  -p - comma-separated list of projects to update (default is all 'bsl' projects)"
     echo "  -n - dry run; report any possible problems but don't push changes"
-    echo "  -f - force change existing BSL licenses to VERSION (will NOT overwrite PRODUCT)"
     echo "  -l - license only; do not update source code header comments"
+    echo "  -m - manifest file to use in manifest repo"
+    echo "  -u - manifest repo to use (default is github.com/couchbase/manifest)"
+    echo "  -r - path to repo to update; cannot be specified with -m or -u"
     exit 1
 }
 
@@ -17,17 +19,22 @@ get_metadata() {
     cmd='echo ${REPO__'${1}'}'
     result=$(repo forall build -c "${cmd}")
     if [ -z "${result}" ]; then
-        error "Manifest ${MANIFEST} is missing ${1} annotation!"
+        if [ -z "${2}" ]; then
+            error "Manifest is missing ${1} annotation!"
+        else
+            result="${2}"
+        fi
     fi
     echo "${result}"
 }
 
 MANIFEST_REPO=https://github.com/couchbase/manifest
+MANIFEST=
+REPO=
 DRY_RUN_ARG=
-FORCE_ARG=
 LICENSE_ONLY_ARG=
 PROJECTS_ARG=
-while getopts ":u:m:p:nfl" opt; do
+while getopts ":u:m:r:p:nl" opt; do
     case ${opt} in
         u)
             MANIFEST_REPO=${OPTARG}
@@ -35,14 +42,14 @@ while getopts ":u:m:p:nfl" opt; do
         m)
             MANIFEST=${OPTARG}
             ;;
+        r)
+            REPO=${OPTARG}
+            ;;
         p)
             PROJECTS_ARG=${OPTARG//,/ }
             ;;
         n)
             DRY_RUN_ARG=-n
-            ;;
-        f)
-            FORCE_ARG=-f
             ;;
         l)
             LICENSE_ONLY_ARG=-l
@@ -57,30 +64,46 @@ while getopts ":u:m:p:nfl" opt; do
     esac
 done
 
-chk_set MANIFEST
+if [ -n "${MANIFEST}" ]; then
+    if [ -n "${REPO}" ]; then
+        error "Either -m or -r (not both) must be specified"
+    fi
+    # Sync manifest locally, if no repo provided
+    status Syncing manifest ${MANIFEST}...
+    REPO=${MANIFEST//\//_}
+    if [ -d ${REPO} ]; then
+        cd ${REPO}
+        repo forall -c 'git clean -dfx && git reset --hard'
+    else
+        mkdir ${REPO}
+        cd ${REPO}
+    fi
+    repo init --no-repo-verify -u ${MANIFEST_REPO} -m ${MANIFEST} -g bsl,name:build
+    repo sync --jobs=8
+    status Done syncing
+    echo
+else
+    if [ -z "${REPO}" ]; then
+        error "Either -m or -r (not both) must be specified"
+    fi
+    cd ${REPO}
+fi
 
-# Sync manifest locally
-status Syncing manifest ${MANIFEST}...
-MANIFEST_DIR=${MANIFEST//\//_}
-mkdir -p ${MANIFEST_DIR}
-cd ${MANIFEST_DIR}
-repo init --no-repo-verify -u ${MANIFEST_REPO} -m ${MANIFEST} -g bsl,build
-repo sync --jobs=8
-repo forall -c 'git clean -dfx && git reset --hard'
-status Done syncing
-echo
 
 # Extract metadata from manifest
 PRODUCT=$(get_metadata BSL_PRODUCT)
 VERSION=$(get_metadata BSL_VERSION)
 CHANGE_DATE=$(get_metadata BSL_CHANGE_DATE)
+MAIN_OK=$(get_metadata BSL_MAIN_OK false)
 
-status
-status Updating BSL license to $PRODUCT Version $VERSION, change date $CHANGE_DATE
-status
+if [ "${MAIN_OK}" = "true" ]; then
+    MAIN_OK_ARG=-m
+fi
+
+header Updating BSL license to $PRODUCT Version $VERSION, change date $CHANGE_DATE
 repo forall -v -g bsl -p ${PROJECTS_ARG} -c \
     "${SCRIPT_DIR}/update-bsl-for-repo" \
-        ${DRY_RUN_ARG} ${FORCE_ARG} ${LICENSE_ONLY_ARG} \
+        ${DRY_RUN_ARG} ${LICENSE_ONLY_ARG} ${MAIN_OK_ARG} \
         -p "${PRODUCT}" \
         -v "${VERSION}" \
         -d "${CHANGE_DATE}"

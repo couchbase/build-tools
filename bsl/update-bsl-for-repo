@@ -3,37 +3,36 @@
 # Checks and updates a single repository's BSL license.
 #
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source ${SCRIPT_DIR}/../utilities/shell-utils.sh
+
 # Exit conditions
 
-# BSL license already exists, but is for different product and/or version
+# BSL license already exists, but is for different product
 ERR_WRONG_LICENSED_WORK=2
 
 # BSL license information needs updating, but project is locked to SHA
 ERR_PROJECT_LOCKED=3
 
-# Dry-run completed with problems (one of the above conditions)
-ERR_PROBLEMS_FOUND=5
-
-
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-source ${SCRIPT_DIR}/../utilities/shell-utils.sh
+# BSL license information needs updating, but project is on main/master branch
+ERR_MAIN_BRANCH=4
 
 usage() {
-    echo "Usage: $(basename $0) -p PRODUCT -v VERSION -d CHANGE_DATE [-n] [-f] [-l]"
+    echo "Usage: $(basename $0) -p PRODUCT -v VERSION -d CHANGE_DATE [-n] [-u] [-l]"
     echo "  -n - dry run; report any possible problems but don't push changes"
-    echo "  -f - force change existing BSL licenses to VERSION (will NOT overwrite PRODUCT)"
     echo "  -l - licenses only; do not update source code header comments"
+    echo "  -m - allow changes to main/master/unstable branch (normally only updates release branches)"
     exit 1
 }
 
 # Default values for arguments - Overriding REPOSITORY and BRANCH via options
 # is only for testing/debugging.
 DRY_RUN=false
-FORCE=false
 UPDATE_COMMENTS=true
+ALLOW_MAIN=false
 REPOSITORY=${REPO_PROJECT}
 BRANCH=${REPO_RREV}
-while getopts ":p:v:d:r:b:c:nfl" opt; do
+while getopts ":p:v:d:r:b:c:mnl" opt; do
     case ${opt} in
         p)
             PRODUCT=${OPTARG}
@@ -53,11 +52,11 @@ while getopts ":p:v:d:r:b:c:nfl" opt; do
         c)
             cd "${OPTARG}"
             ;;
+        m)
+            ALLOW_MAIN=true
+            ;;
         n)
             DRY_RUN=true
-            ;;
-        f)
-            FORCE=true
             ;;
         l)
             UPDATE_COMMENTS=false
@@ -93,10 +92,7 @@ LIC_DIR=licenses
 BSL_LIC=${LIC_DIR}/BSL-Couchbase.txt
 APACHE_LIC=${LIC_DIR}/APL2.txt
 TOP_LIC=LICENSE.txt
-PROBLEMS=false
 
-echo
-echo
 status Checking repository $(pwd)
 
 # Delete ALL top-level existing license files (our LICENSE.txt will be
@@ -112,30 +108,55 @@ mkdir -p ${LIC_DIR}
 cp "${SCRIPT_DIR}/assets/APL2.txt" ${APACHE_LIC}
 git add ${APACHE_LIC}
 
-# If BSL license already exists, ensure it is for correct product/version.
+# If BSL license already exists, ensure it is for correct product/version/change date.
+# Keep track of whether we will need to change anything.
+NEEDS_CHANGE=false
 if [ -e ${BSL_LIC} ]; then
     WORK_LINE_RE="^Licensed Work:  (.*) Version (.*)"
-    current_work_line=$(egrep "${WORK_LINE_RE}" ${BSL_LIC})
+    current_work_line=$(grep -E "${WORK_LINE_RE}" ${BSL_LIC})
     [[ "${current_work_line}" =~ ${WORK_LINE_RE} ]]
     current_product=${BASH_REMATCH[1]}
     current_version=${BASH_REMATCH[2]}
 
     if [ "${current_product}" != "${PRODUCT}" ]; then
         status Current BSL Product is ${current_product}, not ${PRODUCT}!
-        ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
-        PROBLEMS=true
+        exit ${ERR_WRONG_LICENSED_WORK}
     fi
 
     if [ "${current_version}" != "${VERSION}" ]; then
-        if ${FORCE}; then
-            status Current BSL Version is ${current_version} - will overwrite with ${VERSION}!
-        else
-            status Current BSL Version is ${current_version}, not ${VERSION}!
-            ${DRY_RUN} || exit ${ERR_WRONG_LICENSED_WORK}
-            PROBLEMS=true
-        fi
+        status Current BSL Version is ${current_version} - will overwrite with ${VERSION}
+        NEEDS_CHANGE=true
+    fi
+
+    CHANGE_LINE_RE="^Change Date:  (.*)"
+    current_change_line=$(grep -E "${CHANGE_LINE_RE}" ${BSL_LIC})
+    [[ "${current_change_line}" =~ ${CHANGE_LINE_RE} ]]
+    current_change_date=${BASH_REMATCH[1]}
+
+    if [ "${current_change_date}" != "${CHANGE_DATE}" ]; then
+        status Current BSL Change Date is ${current_change_date} - will overwrite with ${CHANGE_DATE}
+        NEEDS_CHANGE=true
     fi
 fi
+
+# Now check the manifest for certain problems, if we know we need to
+# make changes
+if ${NEEDS_CHANGE}; then
+    # Make sure that there's an upstream branch to push to; if this project
+    # is locked to a SHA, there's a problem
+    if [[ ${BRANCH} =~ ^[0-9a-f]{40}$ ]]; then
+        status "ERROR: ${REPOSITORY} has licence changes but is locked to SHA ${BRANCH}!"
+        exit ${ERR_PROJECT_LOCKED}
+    fi
+
+    if ! ${ALLOW_MAIN} && [[ "${BRANCH}" == "main" || "${BRANCH}" == "master" || "${BRANCH}" == "unstable" ]]; then
+        status "ERROR: ${REPOSITORY} has licence changes but is on '${BRANCH}' branch!"
+        status "Add annotation 'BSL_MAIN_OK' = 'true' to the manifest to allow this."
+        exit ${ERR_MAIN_BRANCH}
+    fi
+fi
+
+# Alright, all error checking done! Now we can make changes.
 
 # Create/Overwrite BSL license to fix Work and Change Date
 cat "${SCRIPT_DIR}/assets/BSL-Couchbase.txt.tmpl" \
@@ -153,30 +174,15 @@ fi
 
 # If we made any changes, commit them (or report if dry-run)
 if [ -z "$(git status --porcelain)" ]; then
-    status "${REPOSITORY} repository clean!"
+    status "${REPOSITORY} repository clean - no BSL changes necessary!"
 else
-    # Make sure that there's an upstream branch to push to; if this project
-    # is locked to a SHA, there's a problem
-    if [[ ${BRANCH} =~ ^[0-9a-f]{40}$ ]]; then
-        status "${REPOSITORY} has licence changes but is locked to SHA!"
-        ${DRY_RUN} || exit ${ERR_PROJECT_LOCKED}
-        PROBLEMS=true
-    fi
-
     if ${DRY_RUN}; then
-        status "${REPOSITORY} has the following changes to commit:"
+        status "${REPOSITORY} has the following changes to commit (will be reset):"
         git status --short
-        git reset --hard &> /dev/null
+        git reset --hard >& /dev/null
     else
         status "Committing BSL changes to repository ${REPOSITORY}:"
-        git commit -am "BSL License updates - ${PRODUCT} Version ${VERSION}"
-        git push ssh://review.couchbase.org:29418/${REPOSITORY} HEAD:refs/for/${BRANCH}
+        git commit -am "CBD-6163: BSL License updates - ${PRODUCT} Version ${VERSION}"
+        git push ssh://review.couchbase.org:29418/${REPOSITORY} "HEAD:refs/for/${BRANCH}%topic=bsl_updates"
     fi
 fi
-
-# We still want dry runs to exit with error condition if something was problematic
-${PROBLEMS} && {
-    status "Problems found - exiting with error code ${ERR_PROBLEMS_FOUND}"
-    exit ${ERR_PROBLEMS_FOUND}
-}
-exit 0
