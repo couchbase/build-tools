@@ -148,9 +148,10 @@ ln -f -s /Applications ${PKG_DIR}
 rm -rf $WC_DMG
 echo "Copying template..."
 gzcat "${TEMPLATE_DMG_GZ}" > ${WC_DMG}
-echo "Resizing DMG to 2G..."
+DMG_SIZE=$(du -sh ${PKG_DIR}/Couchbase\ Server.app |awk '{print $1}')
+echo "Resizing DMG to ${DMG_SIZE}..."
 echo "It may need to be resized again if ditto errors out with No space left on device".
-hdiutil resize -size 2G ${WC_DMG}
+hdiutil resize -size ${DMG_SIZE} ${WC_DMG}
 #
 echo "Mounting template to working image..."
 mkdir -p ${WC_DIR}
