@@ -40,7 +40,7 @@ chk_set PROFILE
 
 # Ensure linker generates build-ids on linux
 if [ "${PLATFORM}" == "linux" ]; then
-    export CFLAGS="-Wl,--build-id"
+    export LDFLAGS="-Wl,--build-id"
 fi
 
 # One special-case for cross-compiling Windows; it always wants to be
