@@ -26,10 +26,21 @@ tar xf data.tar.xz --wildcards --strip-components 5 './opt/couchbase/lib/c*/repo
 # Create new jarball and checksum
 TARGET_NAME=${JAR_PREFIX}-jars-all-noarch-${VERSION}-${BLD_NUM}
 pushd repo
+
+INSTALLER_JAR=${JAR_PREFIX}-install-${VERSION}.jar
+INSTALLER_JAR_ALT=${JAR_PREFIX}-install-${VERSION}-${BLD_NUM}.jar
+if [ ! -f "${INSTALLER_JAR}" ]; then
+  if [ ! -f "${INSTALLER_JAR_ALT}" ]; then
+    echo "Cannot locate installer jar (tried ${INSTALLER_JAR} and ${INSTALLER_JAR_ALT})"
+    exit 1
+  else
+    INSTALLER_JAR=${INSTALLER_JAR_ALT}
+  fi
+fi
 # TODO(mblow): this will need to be reworked if we ever have jars with a space in the name...
-unzip -p ${JAR_PREFIX}-install-*.jar  META-INF/MANIFEST.MF | sed 's/^ /@@/g' | sed 's/@@@/#/g' | grep '\(^Class-Path\|^@@\)' \
+unzip -p ${INSTALLER_JAR} META-INF/MANIFEST.MF | sed 's/^ /@@/g' | sed 's/@@@/#/g' | grep '\(^Class-Path\|^@@\)' \
   | tr -d '\r' | tr -d '\n' | sed -e 's/@@//g' -e 's/^Class-Path: //' | xargs -n1 \
-  | tar cvzf ../${TARGET_NAME}.tgz -T - ${JAR_PREFIX}-install-*.jar
+  | tar cvzf ../${TARGET_NAME}.tgz -T - ${INSTALLER_JAR}
 popd
 md5sum ${TARGET_NAME}.tgz | cut -c -32 > ${TARGET_NAME}.md5
 
