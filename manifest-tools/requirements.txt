@@ -1,4 +1,22 @@
-dulwich == 0.19.15
-jira == 2.0.0
-lxml == 4.5.0
-thefuzz == 0.22.1
+certifi==2024.8.30
+cffi==1.17.1
+charset-normalizer==3.4.0
+cryptography==44.0.0
+defusedxml==0.7.1
+dulwich==0.19.15
+idna==3.10
+jira==2.0.0
+lxml==4.5.0
+oauthlib==3.2.2
+packaging==24.2
+pbr==6.1.0
+pycparser==2.22
+PyJWT==2.10.1
+rapidfuzz==3.10.1
+requests==2.32.3
+requests-oauthlib==2.0.0
+requests-toolbelt==1.0.0
+six==1.16.0
+slack-sdk==3.33.4
+thefuzz==0.22.1
+urllib3==2.2.3

@@ -1,20 +1,98 @@
 #!/bin/sh -e
 
-PRODUCT=$1
-shift
-RELEASE=$1
-shift
+show_help(){
+    echo "Usage: $0 [options]"
+    echo
+    echo "Options:"
+    echo "  --product <product>                The product to check"
+    echo "  --project <project/s>              Comma separated list of projects to check"
+    echo "  --first-manifest <first_manifest>  The first manifest (optional)"
+    echo "  --last-manifest <last_manifest>    The last manifest (optional)"
+    echo "  --test-email <user@domain.com>     Send all slack messages to this user for testing (use with --notify)"
+    echo "  --notify                           Send slack notifications to users"
+    echo "  --debug                            Enable debug output"
+    echo "  --show-matches                     Show matched commits as well as unmatched"
+    echo "  --no-sync                          Do not synchronise repositories (useful for debugging)"
+    echo "  -h, --help                         Display this help and exit"
+}
 
-if [ "${DEBUG}" = "true" ]; then
-    DEBUG="--debug"
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
 fi
 
-if [ "${PROJECT}" != "" ]; then
-    PROJECT="--project ${PROJECT}"
+ARGS=$(getopt -o h -l help,product:,project:,first-manifest:,last-manifest:,test-email:,show-matches,no-sync,notify,debug -- "$@")
+
+if [ $? -ne 0 ]; then
+    echo "Failed to parse arguments"
+    exit 1
+fi
+
+eval set -- "$ARGS"
+
+SYNC=true
+
+while true; do
+    case "$1" in
+        -h|--help)
+            echo "Usage: $0 [--product <product>] [--project <project/s>] [--first-manifest <first_manifest>] [--last-manifest <last_manifest>] [--test-email <user@domain.com>] [--show-matches] [--notify] [--no-sync] [--debug]"
+            exit 0
+            ;;
+        --product)
+            PRODUCT=$2
+            shift 2
+            ;;
+        --project)
+            PROJECT="--project $2"
+            shift 2
+            ;;
+        --first-manifest)
+            FIRST_MANIFEST="--first_manifest $2"
+            shift 2
+            ;;
+        --last-manifest)
+            LAST_MANIFEST="--last_manifest $2"
+            shift 2
+            ;;
+        --test-email)
+            TEST_EMAIL="--test_email $2"
+            shift 2
+            ;;
+        --notify)
+            NOTIFY="--notify"
+            shift
+            ;;
+        --debug)
+            DEBUG="-d"
+            shift
+            ;;
+        --show-matches)
+            SHOW_MATCHES="--show_matches"
+            shift
+            ;;
+        --no-sync)
+            SYNC=false
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+if [ "$PRODUCT" = "" ]; then
+    echo "ERROR: --product is required"
+    exit 1
 fi
 
 reporef_dir=/data/reporef
 metadata_dir=/data/metadata
+manifests_dir=/data/manifests
 
 # Update reporef. Note: This script requires /home/couchbase/reporef
 # to exist in two places, with that exact path:
@@ -28,78 +106,69 @@ metadata_dir=/data/metadata
 # Docker *host*.
 if [ -z "$(ls -A $reporef_dir)" ]
 then
-  echo "reporef dir is empty"
-  exit 1
+    cd "${reporef_dir}"
+    if [ ! -e .repo ]; then
+        # This only pre-populates the reporef for Server git code. Might be able
+        # to do better in future.
+        echo "Initialising repo in ${reporef_dir}..."
+        repo init -u ssh://git@github.com/couchbase/manifest -g all -m branch-master.xml
+    fi
 fi
 
-cd "${reporef_dir}"
-
-if [ ! -e .repo ]; then
-    # This only pre-populates the reporef for Server git code. Might be able
-    # to do better in future.
-    repo init -u ssh://git@github.com/couchbase/manifest -g all -m branch-master.xml
-fi
-repo sync --jobs=6 > /dev/null
-
-cd "${metadata_dir}"
-
-# This script also expects a /home/couchbase/check_missing_commits to be
-# available on the Docker host, and mounted into the Jenkins agent container
-# at /data/metadata, for basically the same reasons as above.
-# Note: I tried initially to use a named Docker volume for this
-# to avoid needing to create the directory on the host; however, Docker kept
-# changing the ownership of the mounted directory to root in that case.
-
-rm -rf product-metadata
-git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
-
-release_dir=product-metadata/${PRODUCT}/missing_commits/${RELEASE}
-if [ ! -e "${release_dir}" ]; then
-    echo "Cannot run check for unknown release ${RELEASE}!"
-    exit 1
-fi
-
-# Sync Gateway annoyingly has a different layout and repository for manifests
-# compared to the rest of the company. In particular they re-use "default.xml"
-# changing the release name, which is hard for us to track. Therefore we just
-# hard-code default.xml here. It would take more effort to handle checking for
-# missing commits in earlier releases.
-if [ "x${PRODUCT}" = "xsync_gateway" ]; then
+if [ "$PRODUCT" = "sync_gateway" ]; then
+    manifest_dir="${manifests_dir}/sync_gateway"
     manifest_repo=ssh://git@github.com/couchbase/sync_gateway
-    current_manifest=manifest/default.xml
-    echo
-    echo
-    echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    echo "ALERT: product is sync_gateway, so forcing manifest to default.xml"
-    echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    echo
 else
+    manifest_dir="${manifests_dir}/manifest"
     manifest_repo=ssh://git@github.com/couchbase/manifest
-    current_manifest=${PRODUCT}/${RELEASE}.xml
+fi
+
+if ${SYNC}; then
+    cd ${manifests_dir}
+    echo "Cloning manifest repo ${manifest_repo}..."
+    rm -rf ${manifest_dir}
+    git clone ${manifest_repo} > /dev/null
+
+    cd "${reporef_dir}"
+    echo "Syncing manifest"
+
+    # Run a repo sync, ensuring that any lines containing the text "Bad configuration option: setenv" are suppressed
+    repo sync --jobs=6 -q 2>&1 | grep -v "Bad configuration option: setenv" || :
+
+    cd "${metadata_dir}"
+
+    # This script also expects a /home/couchbase/check_missing_commits to be
+    # available on the Docker host, and mounted into the Jenkins agent container
+    # at /data/metadata, for basically the same reasons as above.
+    # Note: I tried initially to use a named Docker volume for this
+    # to avoid needing to create the directory on the host; however, Docker kept
+    # changing the ownership of the mounted directory to root in that case.
+
+    rm -rf product-metadata
+    echo "Cloning product-metadata repo..."
+    git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
 fi
 
 echo
-echo "Checking for missing commits in release ${RELEASE}...."
+echo "Checking for missing commits in ${PRODUCT}...."
 echo
 
 cd ${release_dir}
 
-set +ex
 failed=0
 
-for previous_manifest in $(cat previous-manifests.txt); do
-    echo "Checking ${previous_manifest}"
-    PYTHONUNBUFFERED=1 find_missing_commits \
-        $DEBUG \
-        $PROJECT \
-        --manifest_repo ${manifest_repo} \
-        --reporef_dir ${reporef_dir} \
-        -i ok-missing-commits.txt \
-        -m merge-projects.txt \
-        ${PRODUCT} \
-        ${previous_manifest} \
-        ${current_manifest}
-    failed=$(($failed + $?))
-done
+PYTHONUNBUFFERED=1 find_missing_commits \
+    $DEBUG \
+    $SHOW_MATCHES \
+    $NOTIFY \
+    $TEST_EMAIL \
+    $PROJECT \
+    $FIRST_MANIFEST \
+    $LAST_MANIFEST \
+    --manifest_repo ${manifest_repo} \
+    --reporef_dir ${reporef_dir} \
+    --manifest_dir ${manifest_dir} \
+    ${PRODUCT}
+failed=$(($failed + $?))
 
 exit $failed
