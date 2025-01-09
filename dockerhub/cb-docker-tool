@@ -164,12 +164,17 @@ class DockerTool:
                 f"ghcr.io/cb-vanilla/sync-gateway:"
                 f"{plain_version}-{self.edition}",
             ])
+        elif self.product == "couchbase-edge-server":
+            self.imagenames.extend([
+                f"build-docker.couchbase.com/cb-vanilla/edge-server:{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/edge-server:{plain_version}",
+            ])
         elif self.product == "couchbase-columnar":
             self.imagenames.extend([
-                f"ghcr.io/cb-vanilla/couchbase-columnar:{self.version}",
-                f"ghcr.io/cb-vanilla/couchbase-columnar:{plain_version}",
-                f"build-docker.couchbase.com/cb-vanilla/couchbase-columnar:{self.version}",
-                f"build-docker.couchbase.com/cb-vanilla/couchbase-columnar:{plain_version}",
+                f"ghcr.io/cb-vanilla/columnar:{self.version}",
+                f"ghcr.io/cb-vanilla/columnar:{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/columnar:{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/columnar:{plain_version}",
             ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
@@ -201,7 +206,10 @@ class DockerTool:
                 return
             self.imagenames.append(f"couchbase/server-sandbox:{self.version}")
         elif self.product == "couchbase-columnar":
-            imagebase = "couchbase/couchbase-columnar"
+            imagebase = "couchbase/columnar"
+            self.imagenames.append(f"{imagebase}:{self.version}")
+        elif self.product == "couchbase-edge-server":
+            imagebase = "couchbase/edge-server"
             self.imagenames.append(f"{imagebase}:{self.version}")
 
         if self.product != "server-sandbox":
@@ -239,6 +247,12 @@ class DockerTool:
                 f"latestbuilds/{self.product.replace('-','_')}/{version}/"
                 f"{bldnum}/{sgw_filename}",
                 f"SYNC_GATEWAY_PACKAGE_FILENAME={sgw_filename}"
+            ])
+        elif self.product == "couchbase-edge-server":
+            self.add_templateoverrides([
+                "CB_RELEASE_URL="
+                "http://latestbuilds.service.couchbase.com/builds/"
+                f"latestbuilds/{self.product}/{version}/{bldnum}"
             ])
         else:
             self.add_templateoverrides([
@@ -406,6 +420,8 @@ class DockerTool:
                     return "linux/amd64"
             elif self.product == "couchbase-columnar":
                 return "linux/amd64,linux/arm64"
+            elif self.product == "couchbase-edge-server":
+                return "linux/amd64"
 
         # Otherwise, split platform arg on comma and replace any uname-
         # type architectures with Docker-type architectures
@@ -684,7 +700,7 @@ if __name__ == "__main__":
     )
     reqopts.add_argument(
         "-p", "--product", type=str, required=True,
-        choices=["couchbase-server", "sync-gateway", "server-sandbox", "couchbase-columnar"],
+        choices=["couchbase-server", "sync-gateway", "server-sandbox", "couchbase-columnar", "couchbase-edge-server"],
         help="Product name"
     )
     reqopts.add_argument(
