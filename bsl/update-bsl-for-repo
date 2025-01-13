@@ -81,19 +81,67 @@ if [ ! -e ".git" ]; then
     usage
 fi
 
-# Special sauce for projects that upload changes to different branches
+status Checking repository $(pwd)
+
+# Ensure we leave the repository in the same state we found it; prevents
+# some problems when we re-use a repo sync later
+ORIG_SHA=$(git rev-parse HEAD)
+trap 'git reset --hard &> /dev/null && git checkout ${ORIG_SHA} &> /dev/null' EXIT
+
+# Branch name that will be used if this ends up needing a Github PR
+PR_BRANCH=feature/bsl-${VERSION}
+
+# Function containing the logic for creating a PR, since it's a bit much
+# to include inline later
+create_pr() {
+    chk_set REPO__BSL_REVIEWERS
+    chk_set GH_TOKEN
+    status "Pushing to GitHub"
+    git push --force --set-upstream ssh://git@github.com/${REPO_REMOTE}/${REPOSITORY} ${PR_BRANCH}
+
+    # See if a PR already exists for our branch
+    pr_url=$(
+        gh pr status --repo github.com/${REPO_REMOTE}/${REPOSITORY} \
+        --json headRefName,state,url \
+        --jq '.createdBy.[]
+            | select(.headRefName == "${PR_BRANCH}")
+            | select (.state == "OPEN")
+            | .url'
+    )
+    if [ -z "${pr_url}" ]; then
+        status "Creating GitHub PR"
+        gh pr create --base ${BRANCH} --head ${PR_BRANCH} --fill --reviewer "${REPO__BSL_REVIEWERS}"
+    else
+        status "Existing PR found for ${PR_BRANCH}: ${pr_url}"
+    fi
+}
+
+#
+# Main logic begins here
+#
+
+# For projects that upload to a dest-branch, create a local branch with
+# that name
 if [ ! -z "${REPO_DEST_BRANCH}" ]; then
     status ${REPOSITORY} uploads to ${REPO_DEST_BRANCH} branch, switching...
-    git checkout "${REPO_DEST_BRANCH}"
+    git checkout -B "${REPO_DEST_BRANCH}" ${REPO_REMOTE}/${REPO_DEST_BRANCH}
     BRANCH=${REPO_DEST_BRANCH}
+else
+    status Checking out local branch ${BRANCH}...
+    git checkout -B "${BRANCH}" ${REPO_REMOTE}/${REPO_RREV}
+fi
+
+# If this will target a GitHub PR, additionally create a PR branch and
+# switch to that; however, leave ${BRANCH} naming the target branch
+if [ "${REPO__BSL_REVIEW}" == "github-pr" ]; then
+    status "Creating local branch '${PR_BRANCH}' for GitHub PR"
+    git checkout -B ${PR_BRANCH} ${REPO_REMOTE}/${BRANCH}
 fi
 
 LIC_DIR=licenses
 BSL_LIC=${LIC_DIR}/BSL-Couchbase.txt
 APACHE_LIC=${LIC_DIR}/APL2.txt
 TOP_LIC=LICENSE.txt
-
-status Checking repository $(pwd)
 
 # Delete ALL top-level existing license files (our LICENSE.txt will be
 # replaced next)
@@ -172,17 +220,31 @@ if ${UPDATE_COMMENTS}; then
 fi
 [ -f ".copyrightignore" ] && git add .copyrightignore
 
-# If we made any changes, commit them (or report if dry-run)
+# If we made any changes, commit them and push to Gerrit / GitHub PR (or
+# just report if dry-run)
 if [ -z "$(git status --porcelain)" ]; then
     status "${REPOSITORY} repository clean - no BSL changes necessary!"
 else
     if ${DRY_RUN}; then
-        status "${REPOSITORY} has the following changes to commit (will be reset):"
+        status "${REPOSITORY} (${BRANCH}) has the following changes to commit (will be reset):"
         git status --short
         git reset --hard >& /dev/null
     else
-        status "Committing BSL changes to repository ${REPOSITORY}:"
+        status "Committing BSL changes to repository ${REPOSITORY} (${BRANCH}):"
         git commit -am "CBD-6163: BSL License updates - ${PRODUCT} Version ${VERSION}"
-        git push ssh://review.couchbase.org:29418/${REPOSITORY} "HEAD:refs/for/${BRANCH}%topic=bsl_updates"
+
+        case "${REPO__BSL_REVIEW}" in
+            "github-pr")
+                create_pr
+                ;;
+            "")
+                status "Pushing to Gerrit"
+                git push ssh://review.couchbase.org:29418/${REPOSITORY} "HEAD:refs/for/${BRANCH}%topic=bsl_updates,r=build-team@couchbase.com"
+                ;;
+            *)
+                error "Unknown BSL review system: ${REPO__BSL_REVIEW}"
+                exit 1
+                ;;
+        esac
     fi
 fi

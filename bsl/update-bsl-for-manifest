@@ -100,10 +100,14 @@ if [ "${MAIN_OK}" = "true" ]; then
     MAIN_OK_ARG=-m
 fi
 
-header Updating BSL license to $PRODUCT Version $VERSION, change date $CHANGE_DATE
+header "$MANIFEST: Ensuring BSL license is $PRODUCT Version $VERSION, change date $CHANGE_DATE"
 repo forall -v -g bsl -p ${PROJECTS_ARG} -c \
     "${SCRIPT_DIR}/update-bsl-for-repo" \
         ${DRY_RUN_ARG} ${LICENSE_ONLY_ARG} ${MAIN_OK_ARG} \
         -p "${PRODUCT}" \
         -v "${VERSION}" \
         -d "${CHANGE_DATE}"
+header "$MANIFEST: Done checking BSL license"
+echo
+echo
+echo
