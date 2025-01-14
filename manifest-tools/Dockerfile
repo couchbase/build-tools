@@ -1,6 +1,6 @@
 FROM python:3.9-buster
 
-ENV repo_release=v1.13.9.2
+ENV repo_release=v2.50
 
 ENV git_user_name="Couchbase Build Team"
 ENV git_user_email="build-team@couchbase.com"
