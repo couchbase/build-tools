@@ -103,10 +103,10 @@ create_pr() {
     pr_url=$(
         gh pr status --repo github.com/${REPO_REMOTE}/${REPOSITORY} \
         --json headRefName,state,url \
-        --jq '.createdBy.[]
-            | select(.headRefName == "${PR_BRANCH}")
-            | select (.state == "OPEN")
-            | .url'
+        --jq ".createdBy.[]
+            | select(.headRefName == \"${PR_BRANCH}\")
+            | select (.state == \"OPEN\")
+            | .url"
     )
     if [ -z "${pr_url}" ]; then
         status "Creating GitHub PR"
