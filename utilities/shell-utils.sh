@@ -270,7 +270,7 @@ function gover_from_manifest {
 }
 
 # Functions for interacting with the Build Database REST API.
-# https://hub.internal.couchbase.com/confluence/display/CR/Build+Database+REST+API
+# https://confluence.issues.couchbase.com/wiki/spaces/CR/pages/2405402249/Build+Database+REST+API
 DBAPI_BASE=http://dbapi.build.couchbase.com:8000/v1
 
 

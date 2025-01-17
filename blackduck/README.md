@@ -2,4 +2,4 @@ jenkins/ directory contains scripts for the various Jenkins jobs.
 Other subdirectories are product-specific configuration and scripts for
 doing scans on those products.
 
-https://hub.internal.couchbase.com/confluence/display/CR/Blackduck+Scanning+Process
+https://confluence.issues.couchbase.com/wiki/spaces/CR/pages/2405403571/Blackduck+Scanning+Process
