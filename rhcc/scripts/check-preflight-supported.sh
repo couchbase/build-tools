@@ -38,6 +38,7 @@ elif [[ "${upstream_highest_version}" =~ $version_regex ]]; then
         git remote add cbgerrit ssh://${GERRIT_USER}@review.couchbase.org:29418/build-tools
         git commit -am "Bump preflight to ${upstream_highest_version}"
         git push cbgerrit HEAD:refs/for/master
+        exit 1
     else
         echo "No action taken, an existing with the expected subject line is already present:"
         for change in $(echo $existing_changes | jq ".[]._number"); do
