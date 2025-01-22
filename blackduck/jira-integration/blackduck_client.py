@@ -108,7 +108,7 @@ class BlackduckClient:
             comp_dict['cves'] = ','.join(
                 sorted(set(x['cve_name'] for x in comp_entries)))
             comp_dict['links'] = '\n'.join(set(
-                f"{x['severity']}: [[{x['cve_name']}|{x['cve_link']}]]" for x in comp_entries))
+                f"{x['severity']}:[[{x['cve_name']}|{x['cve_link']}]]" for x in comp_entries))
             grouped_entries.append(comp_dict)
 
         return grouped_entries
