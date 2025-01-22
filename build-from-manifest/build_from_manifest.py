@@ -304,9 +304,18 @@ class ManifestBuilder:
             product_dir.mkdir(parents=True)
 
         with pushd(product_dir):
+            # Clean out all files and directories in the top-level other
+            # than the .repo directory, to ensure the repo sync is
+            # clean. Also remove `.repo/manifests`, to force it to sync
+            # the local `manifest` directory fresh. This works around an
+            # esoteric problem with local git clones and `--depth 1`
+            # below.
             top_level = [
                 f for f in pathlib.Path().iterdir() if str(f) != '.repo'
             ]
+            manifests_dir = pathlib.Path('.repo/manifests')
+            if manifests_dir.exists():
+                top_level += [manifests_dir]
 
             child: Union[str, Path]
             for child in top_level:
