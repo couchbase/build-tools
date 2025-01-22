@@ -41,7 +41,7 @@ from manifest_tools.scripts.jira_util import connect_jira, get_tickets
 
 slack_oauth_token = os.getenv("SLACK_OAUTH_TOKEN")
 
-message_template = """
+message_header_template = """
 Hi {author},
 
 The commit checker has identified commits authored by you that appear to be missing in subsequent version(s) of {product}.
@@ -164,7 +164,8 @@ class MissingCommits:
                     output += f"{os.linesep}Project {project} - missing: {len(commits)}{os.linesep}"
                     if commits:
                         for sha, match_details in commits.items():
-                            output += f"    [{sha[:7]}] {match_details['message']}{os.linesep}"
+                            # Show the missing commit info, along with the branches/releases it is missing from
+                            output += f"    [{sha[:7]}] {match_details['message']}{os.linesep}       Present in: {', '.join(match_details['present_in'])}{os.linesep}     Missing from: {', '.join(match_details['missing_from'])}{os.linesep}"
                 else:
                     projects_not_missing_commits.append(project)
 
@@ -219,18 +220,19 @@ class MissingCommits:
         with open(file_path, "w") as f:
             f.writelines(new_lines)
 
-    def send_alert(self, email, text):
+    def send_alert(self, email, header, body):
         try:
             user = self.slack_client.users_lookupByEmail(email=email)['user']['id']
             channel = self.slack_client.conversations_open(users=user)['channel']['id']
             self.slack_client.chat_postMessage(
                 channel=channel,
-                text=text
+                text=header+body
             )
             if email not in self.notified_users:
                 self.notified_users.append(email)
         except SlackApiError as e:
-            self.log.error(f"Failed to message {email}: {e.response['error']}")
+            self.log.error(f"Error: {e.response['error']}")
+            self.log.error(f"Notification for {email} could not be delivered: {body}")
 
     def check_call(self, cmd, cwd=None, stdin=None, stdout=None, stderr=None):
         self.log.debug(f"check_call: Running {' '.join([str(c) for c in cmd])} in {str(os.getcwd())} with cwd {str(cwd)}")
@@ -438,7 +440,6 @@ class MissingCommits:
                         change_info = (old_commit, new_commit,
                                        old_diff, new_diff)
                         self.show_needed_commits(repo_path, change_info)
-        print(self)
 
     def backports_of(self, tickets, retries=3):
         """
@@ -772,6 +773,8 @@ class MissingCommits:
         commits = []
         if self.product == "couchbase-server":
             release = os.path.basename(self.new_manifest).split('.')[0]
+            if release == "branch-master":
+                release = "master"
         elif self.product == "sync_gateway":
             release = ".".join(os.path.basename(self.new_manifest).split('.')[:-1])
         try:
@@ -958,7 +961,8 @@ class MissingCommits:
 
         for author in report:
             target_user = recipient if recipient else author
-            message = message_template.format(author=author, product=product)
+            message_header = message_header_template.format(author=author, product=product)
+            message = ""
             for project in report[author]:
                 message += f"\n  Project: {project}\n"
                 for commit in report[author][project]:
@@ -970,7 +974,7 @@ class MissingCommits:
 
             if author.endswith("@couchbase.com"):
                 if self.notify:
-                    self.send_alert(target_user, message)
+                    self.send_alert(target_user, message_header, message)
                 else:
                     if target_user not in self.notified_users:
                         self.notified_users.append(target_user)
@@ -1086,6 +1090,7 @@ def main():
         print(f"Matched {commit_checker.matched_commits} commits")
 
     if commit_checker.total_missing_commits > 0:
+        print(commit_checker)
         commit_checker.notify_users(args.test_email)
         sys.exit(1)
     else:

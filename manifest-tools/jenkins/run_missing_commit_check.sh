@@ -16,6 +16,11 @@ show_help(){
     echo "  -h, --help                         Display this help and exit"
 }
 
+if [ -z "${SLACK_OAUTH_TOKEN}" ]; then
+    echo "SLACK_OAUTH_TOKEN not set"
+    exit 1
+fi
+
 if [ $# -eq 0 ]; then
     show_help
     exit 0
