@@ -22,7 +22,7 @@ if [ -z "${COMMENT}" ]; then
     exit 1
 fi
 
-RELEASE_TRAINS=$(curl -sfL https://dbapi.build.couchbase.com/v1/products/${PRODUCT}/releases | jq -r '.releases.[]')
+RELEASE_TRAINS=$(curl -sfL https://dbapi.build.couchbase.com/v1/products/${PRODUCT}/releases | jq -r '.releases[]')
 
 if [ -z "${RELEASE_TRAINS}" ]; then
     echo "Couldn't retrieve release list - check you are connected to the VPN"
