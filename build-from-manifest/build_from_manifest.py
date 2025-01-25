@@ -313,9 +313,11 @@ class ManifestBuilder:
             top_level = [
                 f for f in pathlib.Path().iterdir() if str(f) != '.repo'
             ]
-            manifests_dir = pathlib.Path('.repo/manifests')
-            if manifests_dir.exists():
-                top_level += [manifests_dir]
+            manifests_dirs = [
+                pathlib.Path('.repo/manifests'),
+                pathlib.Path('.repo/manifests.git'),
+            ]
+            top_level += [ x for x in manifests_dirs if x.exists() ]
 
             child: Union[str, Path]
             for child in top_level:
