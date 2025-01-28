@@ -54,6 +54,7 @@
 "324fb534-b708-4c94-95d0-25335b546471":
   fallback-versions:
     "jdk-17.0.7-ga": "jdk-17.0.7+7"
+    "jdk-21.0.6-ga": "jdk-21.0.6+6"
 
 # GRPC
 "a66041df-2ef9-4ba9-b9e3-c8c4dc9ddf22":
