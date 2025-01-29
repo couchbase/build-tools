@@ -3,6 +3,9 @@
         "3.6.3": {
             "interval": 1440
         },
+        "3.6.5": {
+            "interval": 1440
+        },
         "snapshot": {
             "__comment": "NOTE: this version points to the future release",
             "release": "master",
