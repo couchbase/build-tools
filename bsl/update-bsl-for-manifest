@@ -73,7 +73,7 @@ if [ -n "${MANIFEST}" ]; then
     REPO=${MANIFEST//\//_}
     if [ -d ${REPO} ]; then
         cd ${REPO}
-        repo forall -c 'git clean -dfx && git reset --hard'
+        repo forall -c 'rm -rf $(pwd)'
     else
         mkdir ${REPO}
         cd ${REPO}
