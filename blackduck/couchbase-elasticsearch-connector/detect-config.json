@@ -1,9 +1,14 @@
 {
     "detect_opts": {
-        "detect.excluded.detector.types": "NPM,MAVEN,NUGET",
+        "detect.excluded.detector.types": "NPM,MAVEN,NUGET,GIT",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.excluded.directories": "**/gradle/wrapper",
         "logging.level.com.synopsys.integration": "DEBUG",
         "detect.gradle.included.configurations": "runtimeClasspath",
+        "detect.gradle.excluded.configurations": "annotationProcessor,compileClasspath,test*,integrationTest*",
         "detect.detector.search.depth": 9
-    }
+   },
+   "cb_opts": {
+        "keep_git": true
+   }
 }

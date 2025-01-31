@@ -7,7 +7,15 @@ DETECT_SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
 GET_ADDITIONAL_SOURCE_SCRIPT="${PROD_DIR}/get_additional_source.sh"
 GET_SOURCE_SCRIPT="${PROD_DIR}/get_source.sh"
 SCAN_CONFIG="${PROD_DIR}/scan-config.json"
+DETECT_CONFIG="${PROD_DIR}/detect-config.json"
 ENV_FILE="${PROD_DIR}/.env"
+KEEP_GIT=false
+
+# detect-config.json is required, so check for it right away
+if [ ! -e "${DETECT_CONFIG}" ]; then
+  echo "ERROR: ${DETECT_CONFIG} not found!"
+  exit 1
+fi
 
 # run_script executes a script by sourcing it (passing any args) in a subshell.
 # We capture its exports and dump them to file before the subshell closes, and
@@ -36,11 +44,6 @@ trap clean_up EXIT
 # https://community.synopsys.com/s/article/How-to-disable-Phone-Home-when-running-Detect
 export SYNOPSYS_SKIP_PHONE_HOME=true
 
-# Extract config parameters from scan-config.json, if available
-if [ -e "${SCAN_CONFIG}" ]; then
-    KEEP_GIT=$(jq --arg VERSION ${VERSION} '.versions[$VERSION].keep_git' "${SCAN_CONFIG}")
-fi
-
 # Reset src directory and cd into it
 SRC_DIR="${WORKSPACE}/src"
 mkdir -p "${SRC_DIR}"
@@ -57,38 +60,54 @@ uv venv --python 3.11 --python-preference only-managed "${venv}"
 source "${venv}/bin/activate"
 python -m ensurepip --upgrade --default-pip
 
-# If the product doesn't have a bespoke get_source.sh, then look up the
-# build manifest and sync that
 if [ -f "${GET_SOURCE_SCRIPT}" ]; then
+  # If the product doesn't have a bespoke get_source.sh, then look up
+  # the build manifest and sync that
   run_script "${GET_SOURCE_SCRIPT}" ${PRODUCT} ${RELEASE} ${VERSION} ${BLD_NUM}
+
+  # Extract KEEP_GIT parameters from scan-config.json, if available. If
+  # there's a get_source.sh, there should be a scan-config.json also;
+  # and if there isn't a get_source.sh, there shouldn't be a
+  # scan-config.json.
+  if [ -e "${SCAN_CONFIG}" ]; then
+    KEEP_GIT=$(jq --arg VERSION ${VERSION} '.versions[$VERSION].keep_git' "${SCAN_CONFIG}")
+  fi
+
 else
-    pushd "${WORKSPACE}"
 
-    # Sync build-manifests
-    if [ ! -e build-manifests ]; then
-        git clone ssh://git@github.com/couchbase/build-manifests
-    else
-        (cd build-manifests && git pull)
-    fi
+  # repo sync the build manifest
+  pushd "${WORKSPACE}"
 
-    # Find the requests build manifest
-    cd build-manifests
-    SHA=$(git log --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
-    if [ -z "${SHA}" ]; then
-        echo "Build ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM} not found!"
-        exit 1
-    fi
-    MANIFEST=$(git diff-tree --no-commit-id --name-only -r $SHA)
+  # Sync build-manifests
+  if [ ! -e build-manifests ]; then
+      git clone ssh://git@github.com/couchbase/build-manifests
+  else
+      (cd build-manifests && git pull)
+  fi
 
-    # Back to the src directory
-    popd
+  # Find the requests build manifest
+  cd build-manifests
+  SHA=$(git log --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
+  if [ -z "${SHA}" ]; then
+    echo "Build ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM} not found!"
+    exit 1
+  fi
+  MANIFEST=$(git diff-tree --no-commit-id --name-only -r $SHA)
 
-    echo "Syncing manifest $MANIFEST at $SHA"
-    echo ================================
-    repo init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
-    repo sync --jobs=8
-    repo manifest -r > manifest.xml
-    echo
+  # Back to the src directory
+  popd
+
+  echo "Syncing manifest $MANIFEST at $SHA"
+  echo ================================
+  repo init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
+  repo sync --jobs=8
+  repo manifest -r > manifest.xml
+  echo
+
+  # Check detect-config.json for keep_git - only do this for
+  # manifest-driven runs (ie, without get_source.sh) since
+  # non-manifest-driven runs utilize `scan-config.json` for this purpose
+  KEEP_GIT=$(jq '.cb_opts.keep_git' "${DETECT_CONFIG}")
 fi
 
 # Product-specific script for getting additional sources
@@ -102,11 +121,15 @@ fi
 # version, safest best is to just skip the checksum DB for this module.
 export GONOSUMDB=${GONOSUMDB},github.com/Azure/azure-sdk-for-go
 
-# Normally remove .git directories
+# Normally remove .git and .repo directories
 if [ "${KEEP_GIT}" != true ]; then
-    find . -name .git -print0 | xargs -0 rm -rf
+  find . -name .git -print0 | xargs -0 rm -rf
+  rm -rf .repo
+else
+  # If not removing .git and .repo, at least remove .repo/repo and
+  # .repo/manifest* so they don't get scanned
+  rm -rf .repo/repo .repo/manifest*
 fi
-find . -name .repo -print0 | xargs -0 rm -rf
 
 # Prune source that we will "manually" enter into Black Duck
 echo "Pruning any source directories referenced by Black Duck manifests"
@@ -122,9 +145,7 @@ if [ -x "${PROD_DIR}/prune_source.sh" ]; then
 fi
 
 # Product-specific config for Synopsys Detect
-if [ -e "${PROD_DIR}/detect-config.json" ]; then
-  CONFIG_ARG="-c ${PROD_DIR}/detect-config.json"
-fi
+CONFIG_ARG="-c ${DETECT_CONFIG}"
 
 # If doing dry-run, clean out any old archives
 if [ "x${DRY_RUN}" = "xtrue" ]; then
