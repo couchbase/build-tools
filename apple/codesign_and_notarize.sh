@@ -91,6 +91,15 @@ couchbase-lite-c)
     expected+=(${PRODUCT}-community-${VERSION}-${BLD_NUM}-macos.zip)
     expected+=(${PRODUCT}-community-${VERSION}-${BLD_NUM}-macos-symbols.zip)
     ;;
+couchbase-lite-vector-search)
+    # This product contains only libraries etc., which cannot be notarized
+    do_notarize=false
+    expected+=(${PRODUCT}-${VERSION}-${BLD_NUM}-macos.zip)
+    expected+=(${PRODUCT}-${VERSION}-${BLD_NUM}-macos-symbols.zip)
+    ;;
+couchbase-edge-server)
+    expected+=(${PRODUCT}-${VERSION}-${BLD_NUM}-macos.zip)
+    ;;
 couchbase-server)
     expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
     expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
