@@ -91,7 +91,7 @@ class MissingCommits:
 
     def __init__(self, logger, product, manifest_dir, manifest_repo,
                  reporef_dir, targeted_projects, debug, show_matches,
-                 notify):
+                 only_boundaries, compare_builds, notify):
         """
         Store key information into instance attributes and determine
         path of 'repo' program
@@ -100,6 +100,8 @@ class MissingCommits:
         self.log = logger
         self.debug = debug
         self.show_matches = show_matches
+        self.only_boundaries = only_boundaries
+        self.compare_builds = compare_builds
         self.notify = notify
 
         self.sha_lock = threading.Lock()
@@ -110,6 +112,7 @@ class MissingCommits:
 
         self.product = product
         self.product_dir = pathlib.Path(product)
+        self.manifest_dir = manifest_dir
         self.manifest_repo = manifest_repo
         self.manifest_branch = "main" if product == "sync_gateway" else "master"
         self.reporef_dir = reporef_dir
@@ -127,7 +130,7 @@ class MissingCommits:
         self.repo_bin = shutil.which('repo')
 
         self.slack_client = WebClient(token=slack_oauth_token)
-        self.manifests = self.get_manifests(product, manifest_dir)
+        self.manifests = self.get_manifests(product, self.manifest_dir)
 
         self.notified_users = []
         self.skipped_users = []
@@ -263,6 +266,15 @@ class MissingCommits:
             stderr=stderr
         )
 
+    def get_manifest_annotation(self, manifest, annotation_name):
+        tree = ET.parse(self.manifest_dir / manifest)
+        root = tree.getroot()
+        build = root.find("project[@name='build']")
+        if build:
+            for annotation in build.findall("annotation"):
+                if annotation.get("name") == annotation_name:
+                    return annotation.get("value")
+
     def get_manifests(self, product, manifest_dir):
         """
         Get a list of active manifests for a specific product
@@ -279,14 +291,9 @@ class MissingCommits:
                     semver_groups[major_minor].append((version, semver))
                 else:
                     if semver == "manifest/default.xml" and product == "sync_gateway":
-                        tree = ET.parse(manifest_dir / "manifest/default.xml")
-                        root = tree.getroot()
-                        build = root.find("project[@name='build']")
-                        if build:
-                            for annotation in build.findall("annotation"):
-                                if annotation.get("name") == "VERSION":
-                                    default_version = Version(annotation.get("value"))
-                                    default_semver = semver
+                        default_version = Version(
+                            self.get_manifest_annotation(manifest_dir / "manifest/default.xml", "VERSION"))
+                        default_semver = semver
             latest_versions = [
                 max(versions, key=lambda x: x[0])[1] for versions in semver_groups.values()
             ]
@@ -318,19 +325,15 @@ class MissingCommits:
 
             for manifest in raw_manifest_list:
                 if data["manifests"][manifest].get("do-build", True):
-                    if product == "couchbase-server":
-                        # For couchbase-server, skip any manifest that has a digit in the name
-                        if any(char.isdigit() for char in os.path.basename(manifest)):
-                            continue
                     manifests.append(manifest)
 
         active_manifests = []
 
         for node_name in manifests:
-            if product == "couchbase-server" and any(char.isdigit() for char in node_name):
-                # Ignore any couchbase-server manifest with a digit in the
-                # name - not interested in numbered versions currently
-                continue
+            if product == "couchbase-server" and not self.compare_builds and any(char.isdigit() for char in node_name):
+                    # Ignore any couchbase-server manifest with a digit in the
+                    # name, unless we're processing specific builds
+                    continue
             else:
                 active_manifests.append(node_name)
 
@@ -345,7 +348,11 @@ class MissingCommits:
         """
         Retrieve the URL for a given project in the manifest
         """
-        manifest_path = f"{self.product}/.repo/manifests/{self.new_manifest}"
+
+        if self.new_manifest.endswith("checker-to.xml"):
+            manifest_path = self.new_manifest
+        else:
+            manifest_path = f"{self.product}/.repo/manifests/{self.new_manifest}"
 
         tree = ET.parse(f"{manifest_path}")
         root = tree.getroot()
@@ -506,7 +513,7 @@ class MissingCommits:
 
         try:
             cmd = [self.repo_bin, 'init', '-u',
-                   self.manifest_repo,
+                   self.manifest_dir,
                    '-g', 'all', '-m', self.new_manifest]
             if self.reporef_dir is not None:
                 cmd.extend(['--reference', str(self.reporef_dir)])
@@ -772,9 +779,13 @@ class MissingCommits:
     def get_ignored_commits(self):
         commits = []
         if self.product == "couchbase-server":
-            release = os.path.basename(self.new_manifest).split('.')[0]
-            if release == "branch-master":
+            # Find the release we're working with
+            if self.new_manifest.endswith("branch-master.xml"):
                 release = "master"
+            else:
+                release = self.get_manifest_annotation(self.new_manifest, "RELEASE")
+                if not release:
+                    release = os.path.basename(self.new_manifest).split('.')[0]
         elif self.product == "sync_gateway":
             release = ".".join(os.path.basename(self.new_manifest).split('.')[:-1])
         try:
@@ -1023,6 +1034,10 @@ def main():
     parser.add_argument('--last_manifest',
                         help='Last manifest for comparison',
                         default=None)
+    parser.add_argument('--only_boundaries', action='store_true',
+                        help='Only check commits at manifest boundaries')
+    parser.add_argument('--compare_builds', action='store_true', default=False,
+                        help='Compare two specific builds')
     parser.add_argument('--manifest_repo', help='Git URL to manifest repo')
     parser.add_argument('product', help='Product to check')
     args = parser.parse_args()
@@ -1043,17 +1058,18 @@ def main():
 
     commit_checker = MissingCommits(
         logger, args.product, manifest_dir, args.manifest_repo,
-        reporef_dir, args.targeted_projects, args.debug, args.show_matches,
-        args.notify
+        reporef_dir, args.targeted_projects, args.debug,
+        args.show_matches, args.only_boundaries,
+        args.compare_builds, args.notify
     )
 
     manifest_missing = False
-    if args.first_manifest and args.first_manifest not in commit_checker.manifests:
+    if not args.compare_builds and args.first_manifest and args.first_manifest not in commit_checker.manifests:
         manifest_missing = True
         print(
             f"First manifest {args.first_manifest} not found in product-config.json for {args.product}")
 
-    if args.last_manifest and args.last_manifest not in commit_checker.manifests:
+    if not args.compare_builds and args.last_manifest and args.last_manifest not in commit_checker.manifests:
         manifest_missing = True
         print(
             f"Last manifest {args.last_manifest} not found in product-config.json for {args.product}")
@@ -1061,21 +1077,25 @@ def main():
     if manifest_missing:
         sys.exit(1)
 
+    manifests = []
+
     capturing_manifests = True
     if args.first_manifest:
         capturing_manifests = False
 
-    manifests = []
-    for manifest in commit_checker.manifests:
-        if args.first_manifest and not capturing_manifests:
-            if manifest == args.first_manifest:
-                capturing_manifests = True
-        if not capturing_manifests:
-            continue
-        else:
-            manifests.append(manifest)
-        if args.last_manifest and manifest == args.last_manifest:
-            break
+    if args.only_boundaries:
+        manifests = [args.first_manifest, args.last_manifest]
+    else:
+        for manifest in commit_checker.manifests:
+            if args.first_manifest and not capturing_manifests:
+                if manifest == args.first_manifest:
+                    capturing_manifests = True
+            if not capturing_manifests:
+                continue
+            else:
+                manifests.append(manifest)
+            if args.last_manifest and manifest == args.last_manifest:
+                break
 
     commit_checker.manifests = manifests
 
@@ -1089,8 +1109,9 @@ def main():
     if commit_checker.matched_commits > 0:
         print(f"Matched {commit_checker.matched_commits} commits")
 
+    print(commit_checker)
+
     if commit_checker.total_missing_commits > 0:
-        print(commit_checker)
         commit_checker.notify_users(args.test_email)
         sys.exit(1)
     else:

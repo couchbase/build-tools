@@ -6,8 +6,9 @@ show_help(){
     echo "Options:"
     echo "  --product <product>                The product to check"
     echo "  --project <project/s>              Comma separated list of projects to check"
-    echo "  --first-manifest <first_manifest>  The first manifest (optional)"
-    echo "  --last-manifest <last_manifest>    The last manifest (optional)"
+    echo "  --first-manifest <first_manifest[:build_number]>  The first manifest (optional)"
+    echo "  --last-manifest <last_manifest[:build_number]>    The last manifest (optional)"
+    echo "  --only-boundaries                  Only check the first and last manifests, no intermediate ones"
     echo "  --test-email <user@domain.com>     Send all slack messages to this user for testing (use with --notify)"
     echo "  --notify                           Send slack notifications to users"
     echo "  --debug                            Enable debug output"
@@ -16,17 +17,12 @@ show_help(){
     echo "  -h, --help                         Display this help and exit"
 }
 
-if [ -z "${SLACK_OAUTH_TOKEN}" ]; then
-    echo "SLACK_OAUTH_TOKEN not set"
-    exit 1
-fi
-
 if [ $# -eq 0 ]; then
     show_help
     exit 0
 fi
 
-ARGS=$(getopt -o h -l help,product:,project:,first-manifest:,last-manifest:,test-email:,show-matches,no-sync,notify,debug -- "$@")
+ARGS=$(getopt -o h -l help,product:,project:,first-manifest:,last-manifest:,test-email:,only-boundaries,show-matches,no-sync,notify,debug -- "$@")
 
 if [ $? -ne 0 ]; then
     echo "Failed to parse arguments"
@@ -40,7 +36,7 @@ SYNC=true
 while true; do
     case "$1" in
         -h|--help)
-            echo "Usage: $0 [--product <product>] [--project <project/s>] [--first-manifest <first_manifest>] [--last-manifest <last_manifest>] [--test-email <user@domain.com>] [--show-matches] [--notify] [--no-sync] [--debug]"
+            show_help
             exit 0
             ;;
         --product)
@@ -48,31 +44,59 @@ while true; do
             shift 2
             ;;
         --project)
-            PROJECT="--project $2"
+            PROJECT_ARG="--project $2"
             shift 2
             ;;
         --first-manifest)
-            FIRST_MANIFEST="--first_manifest $2"
+            if [[ "${2}" = *":"* ]]; then
+                manifest="${2%%:*}"
+                build="${2#*:}"
+                FIRST_BUILD="$build"
+            else
+                manifest="${2}"
+            fi
+            FIRST_MANIFEST="$manifest"
+            FIRST_CODENAME="${manifest#*/}"
+            FIRST_CODENAME="${FIRST_CODENAME%%/*}"
+            FIRST_VERSION="${manifest##*/}"
+            FIRST_VERSION="${FIRST_VERSION%.*}"
+            FIRST_MANIFEST_ARG="--first_manifest $FIRST_MANIFEST"
             shift 2
             ;;
         --last-manifest)
-            LAST_MANIFEST="--last_manifest $2"
+            if [[ "${2}" = *":"* ]]; then
+                manifest="${2%%:*}"
+                build="${2#*:}"
+                LAST_BUILD="$build"
+            else
+                manifest="${2}"
+            fi
+            LAST_MANIFEST="$manifest"
+            LAST_CODENAME="${manifest#*/}"
+            LAST_CODENAME="${LAST_CODENAME%%/*}"
+            LAST_VERSION="${manifest##*/}"
+            LAST_VERSION="${LAST_VERSION%.*}"
+            LAST_MANIFEST_ARG="--last_manifest $LAST_MANIFEST"
             shift 2
             ;;
+        --only-boundaries)
+            ONLY_BOUNDARIES_ARG="--only_boundaries"
+            shift
+            ;;
         --test-email)
-            TEST_EMAIL="--test_email $2"
+            TEST_EMAIL_ARG="--test_email $2"
             shift 2
             ;;
         --notify)
-            NOTIFY="--notify"
+            NOTIFY_ARG="--notify"
             shift
             ;;
         --debug)
-            DEBUG="-d"
+            DEBUG_ARG="-d"
             shift
             ;;
         --show-matches)
-            SHOW_MATCHES="--show_matches"
+            SHOW_MATCHES_ARG="--show_matches"
             shift
             ;;
         --no-sync)
@@ -90,8 +114,18 @@ while true; do
     esac
 done
 
+if [ ! -z "${NOTIFY_ARG}" -a -z "${SLACK_OAUTH_TOKEN}" ]; then
+    echo "SLACK_OAUTH_TOKEN not set"
+    exit 1
+fi
+
 if [ "$PRODUCT" = "" ]; then
     echo "ERROR: --product is required"
+    exit 1
+fi
+
+if [ \( -n "${FIRST_BUILD}" -a -z "${LAST_BUILD}" \) -o \( -z "${FIRST_BUILD}" -a -n "${LAST_BUILD}" \) ]; then
+    echo "[ERROR] Specific builds can only be compared to specific builds"
     exit 1
 fi
 
@@ -120,6 +154,7 @@ then
     fi
 fi
 
+
 if [ "$PRODUCT" = "sync_gateway" ]; then
     manifest_dir="${manifests_dir}/sync_gateway"
     manifest_repo=ssh://git@github.com/couchbase/sync_gateway
@@ -128,11 +163,18 @@ else
     manifest_repo=ssh://git@github.com/couchbase/manifest
 fi
 
+build_manifest_dir="${manifests_dir}/build-manifests"
+build_manifest_repo=ssh://git@github.com/couchbase/build-manifests
+
 if ${SYNC}; then
     cd ${manifests_dir}
     echo "Cloning manifest repo ${manifest_repo}..."
     rm -rf ${manifest_dir}
     git clone ${manifest_repo} > /dev/null
+
+    echo "Cloning build-manifest repo ${build_manifest_repo}..."
+    rm -rf ${build_manifest_dir}
+    git clone ${build_manifest_repo} > /dev/null
 
     cd "${reporef_dir}"
     echo "Syncing manifest"
@@ -154,6 +196,27 @@ if ${SYNC}; then
     git clone ssh://git@github.com/couchbase/product-metadata > /dev/null
 fi
 
+# If we're processing specific builds, we add new `from` and `to` manifests
+# to the manifest dir and pass those in as the first and last manifest along
+# with the --compare_builds flag
+if [ "${FIRST_BUILD}" != "" ]; then
+    pushd ${build_manifest_dir}
+    FIRST_SHA=$(git log --grep="${PRODUCT} ${FIRST_CODENAME} build ${FIRST_VERSION}-${FIRST_BUILD}" --format="%H")
+    LAST_SHA=$(git log --grep="${PRODUCT} ${LAST_CODENAME} build ${LAST_VERSION}-${LAST_BUILD}" --format="%H")
+
+    set -x
+    git checkout ${FIRST_SHA} > /dev/null
+    cp "${FIRST_MANIFEST}" "${manifest_dir}/checker-from.xml"
+    FIRST_MANIFEST_ARG="--first_manifest ${manifest_dir}/checker-from.xml"
+
+    git checkout ${LAST_SHA} > /dev/null
+    cp "${LAST_MANIFEST}" "${manifest_dir}/checker-to.xml"
+    LAST_MANIFEST_ARG="--last_manifest ${manifest_dir}/checker-to.xml"
+    popd
+    COMPARE_BUILDS_ARG="--compare_builds"
+    set +x
+fi
+
 echo
 echo "Checking for missing commits in ${PRODUCT}...."
 echo
@@ -163,13 +226,15 @@ cd ${release_dir}
 failed=0
 
 PYTHONUNBUFFERED=1 find_missing_commits \
-    $DEBUG \
-    $SHOW_MATCHES \
-    $NOTIFY \
-    $TEST_EMAIL \
-    $PROJECT \
-    $FIRST_MANIFEST \
-    $LAST_MANIFEST \
+    $DEBUG_ARG \
+    $SHOW_MATCHES_ARG \
+    $NOTIFY_ARG \
+    $TEST_EMAIL_ARG \
+    $PROJECT_ARG \
+    $FIRST_MANIFEST_ARG \
+    $LAST_MANIFEST_ARG \
+    $ONLY_BOUNDARIES_ARG \
+    $COMPARE_BUILDS_ARG \
     --manifest_repo ${manifest_repo} \
     --reporef_dir ${reporef_dir} \
     --manifest_dir ${manifest_dir} \
