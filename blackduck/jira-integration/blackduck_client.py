@@ -211,11 +211,12 @@ class BlackduckClient:
         journal_entries = activities.json().get('items', [])
         for entry in journal_entries:
             if entry['action'] == 'Vulnerability Found':
+                cve_link=f"https://nvd.nist.gov/vuln/detail/{entry['currentData']['vulnerabilityId']}"
                 cve_entries.append({
                     'componentName': entry['currentData']['projectName'],
                     'componentVersionName': entry['currentData']['releaseVersion'],
                     'cve_name': entry['currentData']['vulnerabilityId'],
-                    'cve_link': entry['objectData']['link'],
+                    'cve_link': cve_link,
                     'severity': entry['currentData']['riskPriority'].upper(),
                     'updatedDate': entry['timestamp']
                 })
