@@ -172,6 +172,12 @@ rm -rf .deps/nodejs-${NODEJS_VERSION}
 
 # Ensure all go.mod files are fully tidied
 cd "${WORKSPACE}/src"
+
+# First, delete some sample files that have go.mod files
+if [ -d godeps/src/github.com/google/flatbuffers ]; then
+  find godeps/src/github.com/google/flatbuffers -name \*amples -print0 | xargs -0 rm -rf
+fi
+
 init_checksum=$(repo diff -u | sha256sum)
 while true; do
     for gomod in $(find . -name go.mod); do
