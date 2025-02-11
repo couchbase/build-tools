@@ -17,6 +17,7 @@ root_dir=$1
 configure_args=$2
 install_dir=$3
 install_suffix=$4
+version=$5
 
 cd "${root_dir}/jemalloc"
 
@@ -67,3 +68,9 @@ if [ $(uname -s) = "Darwin" ]; then
     install_name_tool -id @rpath/libjemalloc${install_suffix}d.2.dylib \
         ${install_dir}/lib/libjemalloc${install_suffix}d.2.dylib
 fi
+
+# Create JemallocConfigVersion.cmake to go with our JemallocConfig.cmake
+cmake -D OUTPUT=${install_dir}/cmake/ \
+    -D VERSION=${version} \
+    -D PACKAGE=Jemalloc${install_suffix} \
+    -P "${root_dir}/build-tools/cbdeps/scripts/create_config_version.cmake"

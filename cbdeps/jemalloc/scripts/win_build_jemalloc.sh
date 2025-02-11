@@ -5,6 +5,7 @@ root_dir=$1
 configure_args=$2
 install_dir=$3
 install_suffix=$4
+version=$5
 
 cd "${root_dir}/jemalloc"
 
@@ -62,3 +63,9 @@ cp -f Release/jemalloc${install_suffix}.dll ${install_dir}/ReleaseAssertions/bin
 cp -f Release/jemalloc${install_suffix}.lib ${install_dir}/ReleaseAssertions/lib/
 cp -f Release/jemalloc${install_suffix}.pdb ${install_dir}/ReleaseAssertions/lib/
 popd
+
+# Create JemallocConfigVersion.cmake to go with our JemallocConfig.cmake
+cmake -D OUTPUT=${install_dir}/cmake/ \
+    -D VERSION=${version} \
+    -D PACKAGE=Jemalloc${install_suffix} \
+    -P "${root_dir}/build-tools/cbdeps/scripts/create_config_version.cmake"

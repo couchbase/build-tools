@@ -12,6 +12,7 @@ set -e
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
+VERSION=$6
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -22,4 +23,5 @@ cd "${ROOT_DIR}/jemalloc"
     "${ROOT_DIR}" \
     "--with-jemalloc-prefix=" \
     "${INSTALL_DIR}" \
-    "_noprefix"
+    "_noprefix" \
+    "${VERSION}"

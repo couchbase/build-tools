@@ -13,16 +13,16 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-# Jemalloc_Noprefix cmake module. This defines well-formed "Modern
+# Jemalloc_noprefix cmake module. This defines well-formed "Modern
 # CMake" imported target Jemalloc::noprefix, which has appropriate
 # LOCATION and INCLUDE_DIRECTORIES properties. It will also set the
-# variable Jemalloc_Noprefix_FOUND to 1.
+# variable Jemalloc_noprefix_FOUND to 1.
 
 include(SelectLibraryConfigurations)
 
 get_filename_component(_pkgroot "${CMAKE_CURRENT_LIST_DIR}/../" ABSOLUTE)
 
-set (Jemalloc_Noprefix_FOUND 1)
+set (Jemalloc_noprefix_FOUND 1)
 set (_jemalloc_includedirs "${_pkgroot}/include")
 if (WIN32)
     # On Windows also need to add the 'msvc_compat' subdir to include
@@ -50,7 +50,7 @@ foreach(_cmake_config release debug)
 endforeach()
 foreach(_cmake_file IN LISTS _cmake_files)
     if(NOT EXISTS "${_cmake_file}")
-        message(FATAL_ERROR "Jemalloc_NoprefixConfig.cmake references the file
+        message(FATAL_ERROR "Jemalloc_noprefixConfig.cmake references the file
    \"${_cmake_file}\"
 but this file does not exist.  Possible reasons include:
 * The file was deleted, renamed, or moved to another location.

@@ -18,6 +18,7 @@
 #
 #  Jemalloc_FOUND - true
 #  Jemalloc_LIBRARIES, path to selected (Debug / Release) library variant
+#      (.so on Linux, .dylib on macOS, .lib on Windows)
 #  Jemalloc_INCLUDE_DIRS, where to find the jemalloc headers
 #
 # It also defines well-formed "Modern CMake" imported target
@@ -39,7 +40,9 @@ endif ()
 
 if (WIN32)
     set (Jemalloc_LIBRARY_DEBUG "${_pkgroot}/Debug/lib/jemallocd.lib")
+    set (Jemalloc_DLL_DEBUG "${_pkgroot}/Debug/bin/jemallocd.dll")
     set (Jemalloc_LIBRARY_RELEASE "${_pkgroot}/Release/lib/jemalloc.lib")
+    set (Jemalloc_DLL_RELEASE "${_pkgroot}/Release/bin/jemalloc.dll")
 else ()
     if (APPLE)
         set (_ext dylib)
@@ -75,10 +78,18 @@ select_library_configurations(Jemalloc)
 
 # Create "Modern CMake" imported targets for same.
 add_library(Jemalloc::jemalloc SHARED IMPORTED)
-set_target_properties(Jemalloc::jemalloc
-    PROPERTIES
-    IMPORTED_CONFIGURATIONS "Release;Debug"
-    IMPORTED_LOCATION_DEBUG ${Jemalloc_LIBRARY_DEBUG}
-    IMPORTED_LOCATION_RELEASE ${Jemalloc_LIBRARY_RELEASE})
+if (WIN32)
+    set_target_properties(Jemalloc::jemalloc PROPERTIES
+        IMPORTED_CONFIGURATIONS "Release;Debug"
+        IMPORTED_LOCATION_DEBUG ${Jemalloc_DLL_DEBUG}
+        IMPORTED_LOCATION_RELEASE ${Jemalloc_DLL_RELEASE}
+        IMPORTED_IMPLIB_DEBUG ${Jemalloc_LIBRARY_DEBUG}
+        IMPORTED_IMPLIB_RELEASE ${Jemalloc_LIBRARY_RELEASE})
+else ()
+    set_target_properties(Jemalloc::jemalloc PROPERTIES
+        IMPORTED_CONFIGURATIONS "Release;Debug"
+        IMPORTED_LOCATION_DEBUG ${Jemalloc_LIBRARY_DEBUG}
+        IMPORTED_LOCATION_RELEASE ${Jemalloc_LIBRARY_RELEASE})
+endif ()
 target_include_directories(Jemalloc::jemalloc INTERFACE
     ${Jemalloc_INCLUDE_DIRS})

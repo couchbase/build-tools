@@ -12,6 +12,7 @@ set -ex
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
+VERSION=$6
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -21,4 +22,5 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
    "--with-jemalloc-prefix=je_ --disable-cache-oblivious --disable-zone-allocator \
    --disable-initial-exec-tls --disable-cxx --with-lg-tcache-limit=15" \
    "${INSTALL_DIR}" \
-   ""
+   "" \
+   "${VERSION}"
