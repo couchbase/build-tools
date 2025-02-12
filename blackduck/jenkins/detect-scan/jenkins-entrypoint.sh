@@ -27,7 +27,7 @@ update_builddb() {
     header "Product ${PRODUCT} is not manifest-driven, so not updating build database"
     exit
   fi
-  
+
   builddb_doc="${PRODUCT}-${VERSION}-${BLD_NUM}"
   header "Updating Build Database metadata for ${builddb_doc}: blackduck_scan=${scan_status}"
 

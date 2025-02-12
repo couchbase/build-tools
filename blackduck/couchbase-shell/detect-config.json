@@ -2,6 +2,6 @@
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "detect.required.detector.types": "CARGO",
-        "logging.level.com.synopsys.integration": "DEBUG"
+        "logging.level.detect": "DEBUG"
     }
 }

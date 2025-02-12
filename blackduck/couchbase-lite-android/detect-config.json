@@ -1,7 +1,7 @@
 {
     "detect_opts": {
         "detect.excluded.detector.types": "NPM,MAVEN,NUGET",
-        "logging.level.com.synopsys.integration": "DEBUG",
+        "logging.level.detect": "DEBUG",
         "detect.gradle.included.configurations": "implementation,implementationDependenciesMetadata,releaseImplementationDependenciesMetadata,releaseRuntimeClasspath",
         "detect.gradle.excluded.configurations": "javadocDeps,compileOnly",
         "detect.detector.search.depth": 9

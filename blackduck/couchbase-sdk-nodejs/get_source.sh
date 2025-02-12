@@ -55,7 +55,7 @@ if [ -f "couchbase-sdk-nodejs-black-duck-manifest.yaml" ]; then
 fi
 # package-lock.json + package.json should mean the BD
 # detector search will satisfy the HIGH accuracy requirement
-# SEE: https://sig-product-docs.synopsys.com/bundle/integrations-detect/page/components/detectors.html
+# SEE: https://documentation.blackduck.com/bundle/detect/page/components/detectors.html
 npm install --ignore-scripts
 rm -rf node_modules
 popd

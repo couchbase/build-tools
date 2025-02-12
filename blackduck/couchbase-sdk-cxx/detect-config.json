@@ -2,6 +2,6 @@
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "detect.excluded.detector.types": "CONAN,GRADLE",
-        "logging.level.com.synopsys.integration": "DEBUG"
+        "logging.level.detect": "DEBUG"
     }
 }

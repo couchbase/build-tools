@@ -27,6 +27,11 @@ else
     done
 fi
 
+# Remove unused components from flatbuffers
+rm -rf godeps/src/github.com/google/flatbuffers/Package.swift
+rm -rf godeps/src/github.com/google/flatbuffers/dart
+rm -rf godeps/src/github.com/google/flatbuffers/rust
+
 # Server doesn't use asterix's dashboard, so prune that
 rm analytics/asterixdb/asterixdb/asterix-dashboard/src/node/package.json
 

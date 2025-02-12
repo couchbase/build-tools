@@ -1,6 +1,6 @@
 {
     "detect_opts": {
-        "logging.level.com.synopsys.integration": "DEBUG",
+        "logging.level.detect": "DEBUG",
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.detector.search.depth": 9
     }

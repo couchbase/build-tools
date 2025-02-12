@@ -2,7 +2,7 @@
     "detect_opts": {
         "detect.excluded.detector.types": "GRADLE,NUGET,SWIFT",
         "detect.excluded.directories": "**/mobile-testkit",
-	"logging.level.com.synopsys.integration": "DEBUG",
+	    "logging.level.detect": "DEBUG",
         "detect.detector.search.depth": 9
     }
 }

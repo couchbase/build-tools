@@ -53,7 +53,7 @@ popd
 
 # Since our source tarball includes a setup.py and requirements.txt the BD
 # detector search will satisfy the HIGH accuracy requirement
-# SEE: https://sig-product-docs.synopsys.com/bundle/integrations-detect/page/components/detectors.html
+# SEE: https://documentation.blackduck.com/bundle/detect/page/components/detectors.html
 rm -rf $TARBALL_CONTENTS_DIR
 rm $TARBALL
 

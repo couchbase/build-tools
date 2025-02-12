@@ -2,7 +2,7 @@
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "detect.excluded.detector.types": "MAVEN,NPM,NUGET",
-        "logging.level.com.synopsys.integration": "DEBUG",
+        "logging.level.detect": "DEBUG",
         "detect.detector.search.continue": true
     }
 }

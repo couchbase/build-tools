@@ -1,7 +1,7 @@
 {
     "detect_opts": {
         "detect.excluded.detector.types": "NPM,MAVEN,GRADLE",
-        "logging.level.com.synopsys.integration": "DEBUG",
+        "logging.level.detect": "DEBUG",
         "detect.detector.search.depth": 10
     }
 }

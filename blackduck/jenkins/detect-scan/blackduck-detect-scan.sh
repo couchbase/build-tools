@@ -41,8 +41,8 @@ function clean_up() {
 trap clean_up EXIT
 
 # Disable analytics
-# https://community.synopsys.com/s/article/How-to-disable-Phone-Home-when-running-Detect
-export SYNOPSYS_SKIP_PHONE_HOME=true
+# https://documentation.blackduck.com/bundle/detect/page/troubleshooting/usage-metrics.html
+export BLACKDUCK_SKIP_PHONE_HOME=true
 
 # Reset src directory and cd into it
 SRC_DIR="${WORKSPACE}/src"
