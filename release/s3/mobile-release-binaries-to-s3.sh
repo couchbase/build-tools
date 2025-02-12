@@ -103,12 +103,6 @@ case "${PRODUCT}" in
         mkdir -p -m 755 ${RELEASE_DIR}
         SRC_DIR=${BUILD_DIR}
         ;;
-    couchbase-lite-android*|couchbase-lite-c|couchbase-lite-ios|couchbase-lite-java*|couchbase-lite-vector-search|couchbase-lite-cblite|couchbase-lite-log)
-        S3_DIR=${S3_ROOT}/${PRODUCT}/${RELEASE_DIRNAME}
-        RELEASE_DIR=${RELEASE_ROOT}/mobile/${PRODUCT}/${RELEASE_DIRNAME}
-        mkdir -p -m 755 ${RELEASE_DIR}
-        SRC_DIR=${BUILD_DIR}
-        ;;
     couchbase-lite-net*)
         S3_DIR=${S3_ROOT}/${PRODUCT}/${RELEASE_DIRNAME}
         RELEASE_DIR=${RELEASE_ROOT}/mobile/${PRODUCT}/${RELEASE_DIRNAME}
@@ -116,9 +110,10 @@ case "${PRODUCT}" in
         SRC_DIR=${BUILD_DIR}/release
         ;;
     *)
-        echo "Unsupported Product!"
-        usage
-        exit 1
+        S3_DIR=${S3_ROOT}/${PRODUCT}/${RELEASE_DIRNAME}
+        RELEASE_DIR=${RELEASE_ROOT}/mobile/${PRODUCT}/${RELEASE_DIRNAME}
+        mkdir -p -m 755 ${RELEASE_DIR}
+        SRC_DIR=${BUILD_DIR}
         ;;
 esac
 
