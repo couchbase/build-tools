@@ -63,6 +63,11 @@
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
     - "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c"
 
+# Openssl
+"cd7c0bf1-7757-4ce9-bcc0-46332273dc27":
+  bd-id-aliases:
+    - "cc8d0e2b-f88f-49c8-b42f-42626640f589"
+
 # PCRE
 "55d69c03-c8e9-4f39-af25-43f7b949b083":
   bd-id-aliases:
