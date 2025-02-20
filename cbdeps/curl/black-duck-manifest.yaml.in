@@ -1,0 +1,4 @@
+components:
+    curl:
+        bd-id: 5495fd92-f4e5-4099-aa40-bd0f22b2f602
+        versions: [ "@@BD_VERSION@@" ]

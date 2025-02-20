@@ -1,76 +1,77 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 580cc4357..f136cfe8d 100644
+index 566863e3b..9c3d48aa2 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -1123,14 +1123,14 @@ endif()
+@@ -1060,6 +1060,9 @@ if(USE_NGHTTP2)
+     if(NGHTTP2_CFLAGS)
+       string(APPEND CMAKE_C_FLAGS " ${NGHTTP2_CFLAGS}")
+     endif()
++  elseif("${CURL_CA_BUNDLE}" STREQUAL "env")
++    unset(CURL_CA_BUNDLE CACHE)
++    set(CURL_ENABLE_CA_BUNDLE_ENVVAR)
+   else()
+     set(USE_NGHTTP2 OFF)
+   endif()
+@@ -1478,7 +1481,7 @@ endif()
  #
- if(curl_ca_bundle_supported)
-   set(CURL_CA_BUNDLE "auto" CACHE STRING
--      "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
-+      "Path to the CA bundle. Set 'none' to disable, 'auto' for auto-detection at build time, or 'env' for runtime setting from CURL_CA_BUNDLE in environment. Defaults to 'auto'.")
-   set(CURL_CA_FALLBACK OFF CACHE BOOL
-       "Set ON to use built-in CA store of TLS backend. Defaults to OFF")
-   set(CURL_CA_PATH "auto" CACHE STRING
-       "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
-
+ if(_curl_ca_bundle_supported)
+   set(CURL_CA_BUNDLE "auto" CACHE
+-    STRING "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
++    STRING "Path to the CA bundle. Set 'none' to disable, 'auto' for auto-detection at build time, or 'env' for runtime setting from CURL_CA_BUNDLE in environment.. Defaults to 'auto'.")
+   set(CURL_CA_FALLBACK OFF CACHE
+     BOOL "Use built-in CA store of TLS backend. Defaults to OFF")
+   set(CURL_CA_PATH "auto" CACHE
+@@ -1487,7 +1490,7 @@ if(_curl_ca_bundle_supported)
+     STRING "Path to the CA bundle to embed in the curl tool.")
+ 
    if(CURL_CA_BUNDLE STREQUAL "")
 -    message(FATAL_ERROR "Invalid value of CURL_CA_BUNDLE. Use 'none', 'auto' or file path.")
 +    message(FATAL_ERROR "Invalid value of CURL_CA_BUNDLE. Use 'none', 'auto', 'env', or file path.")
    elseif(CURL_CA_BUNDLE STREQUAL "none")
      unset(CURL_CA_BUNDLE CACHE)
    elseif(CURL_CA_BUNDLE STREQUAL "auto")
-@@ -1138,6 +1138,9 @@ if(curl_ca_bundle_supported)
-     if(NOT CMAKE_CROSSCOMPILING AND NOT WIN32)
-       set(CURL_CA_BUNDLE_AUTODETECT TRUE)
-     endif()
-+  elseif("${CURL_CA_BUNDLE}" STREQUAL "env")
-+    unset(CURL_CA_BUNDLE CACHE)
-+    set(CURL_ENABLE_CA_BUNDLE_ENVVAR)
-   else()
-     set(CURL_CA_BUNDLE_SET TRUE)
-   endif()
 diff --git a/acinclude.m4 b/acinclude.m4
-index 7a26ecedc..d12be32f6 100644
+index b550761a0..fe91cdc72 100644
 --- a/acinclude.m4
 +++ b/acinclude.m4
-@@ -1299,7 +1299,7 @@ AS_HELP_STRING([--without-ca-path], [Don't use a default CA path]),
+@@ -1283,7 +1283,7 @@ AS_HELP_STRING([--without-ca-path], [Don't use a default CA path]),
      fi
    fi
-
+ 
 -  if test "x$ca" = "xno" || test -f "$ca"; then
 +  if test "x$ca" = "xno" || test "x$ca" = "xenv" || test -f "$ca"; then
      ca_warning=""
    fi
-
-@@ -1323,7 +1323,11 @@ AS_HELP_STRING([--without-ca-path], [Don't use a default CA path]),
+ 
+@@ -1307,7 +1307,11 @@ AS_HELP_STRING([--without-ca-path], [Don't use a default CA path]),
      capath_warning=""
    fi
-
+ 
 -  if test "x$ca" != "xno"; then
 +  if test "x$ca" = "xenv"; then
 +    AC_DEFINE_UNQUOTED(CURL_ENABLE_CA_BUNDLE_ENVVAR, 1,
 +      [Define to 1 to support loading CURL_CA_BUNDLE from env at runtime.])
 +    AC_MSG_RESULT([use environment at runtime])
 +  elif test "x$ca" != "xno"; then
-     CURL_CA_BUNDLE='"'$ca'"'
+     CURL_CA_BUNDLE="$ca"
      AC_DEFINE_UNQUOTED(CURL_CA_BUNDLE, "$ca", [Location of default ca bundle])
      AC_SUBST(CURL_CA_BUNDLE)
 diff --git a/lib/curl_config.h.cmake b/lib/curl_config.h.cmake
-index 631ee27b3..3b90d74e3 100644
+index f4f3a186d..839c21649 100644
 --- a/lib/curl_config.h.cmake
 +++ b/lib/curl_config.h.cmake
-@@ -26,6 +26,9 @@
+@@ -25,6 +25,9 @@
  /* Location of default ca bundle */
  #cmakedefine CURL_CA_BUNDLE "${CURL_CA_BUNDLE}"
-
+ 
 +/* Whether to enable specifying CURL_CA_BUNDLE in environment */
 +#cmakedefine CURL_ENABLE_CA_BUNDLE_ENVVAR 1
 +
  /* define "1" to use built-in ca store of TLS backend */
  #cmakedefine CURL_CA_FALLBACK 1
-
+ 
 diff --git a/lib/url.c b/lib/url.c
-index 914b5b653..a52e462e9 100644
+index 516ee08a1..9f0582c70 100644
 --- a/lib/url.c
 +++ b/lib/url.c
 @@ -84,6 +84,7 @@
@@ -81,7 +82,7 @@ index 914b5b653..a52e462e9 100644
  #include "warnless.h"
  #include "getinfo.h"
  #include "urlapi-int.h"
-@@ -435,7 +436,21 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
+@@ -428,7 +429,21 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
     */
    if(Curl_ssl_backend() != CURLSSLBACKEND_SCHANNEL &&
       Curl_ssl_backend() != CURLSSLBACKEND_SECURETRANSPORT) {
