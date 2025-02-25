@@ -61,19 +61,27 @@ export PATH=$(pwd)/tools/gh-${GH_VERSION}/bin:$PATH
 for mani in ${MANIFESTS}; do
 
     product=$(dirname ${mani})
-    # Skip manifest if `do-build` is explicitly false. `do-build` is
-    # used by `scan-manifests` to determine which manifests to
-    # automatically poll, and that script assumes the default value is
-    # `True`, so we do the same here.
+    # Skip manifest if it is not mentioned in `product-config.json` at
+    # all, or if `do-build` is explicitly false for the manifest's
+    # entry. `do-build` is used by `scan-manifests` to determine which
+    # manifests to automatically poll, and that script assumes the
+    # default value is `True` for any manifest listed in
+    # `product-config.json`, so we do the same here.
+    manifest_exists=$(cat manifests/${product}/product-config.json | jq '.manifests."'${mani}'"')
+    if [ "${manifest_exists}" = "null" ]; then
+        header "${mani}: Skipping because it is not listed in product-config.json"
+        continue
+    fi
     do_build=$(cat manifests/${product}/product-config.json | jq '.manifests."'${mani}'"."do-build"')
     if [ "${do_build}" = "false" ]; then
         header "${mani}: Skipping because 'do-build' is false"
-    else
-        ./update-bsl-for-manifest \
-            ${DRY_RUN_ARG} ${LICENSES_ONLY_ARG} ${PROJECTS_ARG} \
-            -u "${MANIFEST_REPO}" \
-            -m "${mani}"
+        continue
     fi
+
+    ./update-bsl-for-manifest \
+        ${DRY_RUN_ARG} ${LICENSES_ONLY_ARG} ${PROJECTS_ARG} \
+        -u "${MANIFEST_REPO}" \
+        -m "${mani}"
 
 done
 
