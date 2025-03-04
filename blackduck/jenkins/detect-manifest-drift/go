@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-if [ -d tlm ]; then
-    (cd tlm && git fetch --all && git reset --hard origin/HEAD)
-else
-    git clone https://github.com/couchbase/tlm
-fi
+# Get the root of the repository
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+REPO_ROOT="$( cd "$SCRIPT_DIR/../../../" && pwd )"
 
-if [ ! -f ./env/bin/activate ]
-then
-    python3 -m venv env
-    source ./env/bin/activate
-    pip3 install -r requirements.txt
-else
-    source ./env/bin/activate
-fi
+# Clone the tlm repository
+$REPO_ROOT/utilities/clean_git_clone https://github.com/couchbase/tlm
 
-python3 main.py
+./main.py

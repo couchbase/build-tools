@@ -1,4 +1,12 @@
-#!/usr/bin/python3
+#!/usr/bin/env -S uv run
+
+# /// script
+# dependencies = [
+#   "PyYAML"
+# ]
+# [tool.uv]
+# exclude-newer = "2025-03-04T00:00:00Z"
+# ///
 
 import re
 import yaml
@@ -18,7 +26,7 @@ def short_version(text):
 def product_and_version(words):
     # Retrieve product and version from a DECLARE_DEP line in manifest.cmake
     product = words[1][1:]
-    version = re.sub("(-cb[0-9]+|-couchbase)", '',
+    version = re.sub("(-cb[0-9]+|-couchbase|_.*)", '',
                      words[4] if(words[2] == "V2") else words[3])
     return {"product": product, "version": version}
 
