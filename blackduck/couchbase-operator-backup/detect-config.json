@@ -2,6 +2,7 @@
     "detect_opts": {
         "detect.detector.search.depth": 3,
         "detect.included.detector.types": "PIP,GO_MOD",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
         "logging.level.detect": "DEBUG",
         "detect.detector.search.continue": true
     }

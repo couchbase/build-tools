@@ -61,6 +61,48 @@ fi
 # End bash-only functions
 ####
 
+function repo_init() {
+    # Performs a "repo init", but first does an init --mirror and sync
+    # in ~/.reporef before doing the actual repo init with --reference
+    # ~/.reporef. This caches the git history, making later `repo sync`
+    # operations much faster.
+    #
+    # Note: This supports the -u, -b, -g, and -m options of `repo init`.
+
+    # Read the options using getopts. Unsetting OPTIND is necessary to
+    # allow multiple calls to this function in the same script.
+    unset OPTIND
+    local url manifest
+    local branch=master
+    local groups=default
+    while getopts "u:b:g:m:" opt; do
+        case $opt in
+            u) url=$OPTARG;;
+            b) branch=$OPTARG;;
+            g) groups=$OPTARG;;
+            m) manifest=$OPTARG;;
+            *) echo "Invalid argument $opt"
+               exit 1;;
+        esac
+    done
+    chk_set url manifest
+
+    local mirror_arg=""
+    if [ ! -d ~/.reporef ]; then
+        mkdir ~/.reporef
+        # `repo` only allows specifying `--mirror` on a clean directory,
+        # but it will continue to honor it on subsequent re-inits in
+        # that directory
+        mirror_arg="--mirror"
+    fi
+    pushd ~/.reporef
+    repo init ${mirror_arg} -u ${url} -b ${branch} -g ${groups} -m ${manifest}
+    repo sync -j8
+    popd
+
+    repo init --reference ~/.reporef -u ${url} -b ${branch} -g ${groups} -m ${manifest}
+}
+
 function clean_git_clone() {
     # Does everything possible to ensure that a given directory looks
     # like a freshly-cloned git repository, including having a remote

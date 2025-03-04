@@ -11,10 +11,12 @@ DETECT_CONFIG="${PROD_DIR}/detect-config.json"
 ENV_FILE="${PROD_DIR}/.env"
 KEEP_GIT=false
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source ${SCRIPT_DIR}/../../../utilities/shell-utils.sh
+
 # detect-config.json is required, so check for it right away
 if [ ! -e "${DETECT_CONFIG}" ]; then
-  echo "ERROR: ${DETECT_CONFIG} not found!"
-  exit 1
+  error "${DETECT_CONFIG} not found!"
 fi
 
 # run_script executes a script by sourcing it (passing any args) in a subshell.
@@ -26,7 +28,7 @@ function run_script() {
   local script=$1
   shift
   (
-    source "${script}" "$@"
+    source "${script}" "$@" || exit 1
     set +x
     printf "$(export -p | sed 's/declare -x/declare -gx/g')\n" >> "${ENV_FILE}"
     set -x
@@ -99,7 +101,7 @@ else
 
   echo "Syncing manifest $MANIFEST at $SHA"
   echo ================================
-  repo init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
+  repo_init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
   repo sync --jobs=8
   repo manifest -r > manifest.xml
   echo

@@ -34,17 +34,27 @@ SERVER_VERSION=$(sed 's/-.*//' VERSION.txt)
 
 mkdir server_src
 cd server_src
-repo init \
+# Pull anything in the "backup" manifest group. Oddly the "backup"
+# project itself is not in that group, so pull it by name. Also grab
+# "golang" to help identify a likely Go version below.
+repo_init \
     -u ssh://git@github.com/couchbase/manifest \
     -m released/couchbase-server/${SERVER_VERSION}.xml \
-    -g backup
-repo sync backup cbauth gomemcached go-couchbase
+    -g backup,name:backup,name:golang
+repo sync -j8
 
-# Also take a peek at cbbackupmgr from there and determine what Go version
-# was used to compile it
+# Also take a peek at cbbackupmgr from there and determine what Go
+# version was used to compile it - a bit annoyingly this requires us to
+# install Go, so install SUPPORTED_NEWER as of the base Server build.
 docker cp ${container}:/opt/couchbase/bin/cbbackupmgr .
+SUPPORTED_NEWER=$(cat golang/versions/$(cat golang/versions/SUPPORTED_NEWER.txt).txt)
+cbdep install -d "${WORKSPACE}/tools" golang ${SUPPORTED_NEWER}
+GOVERSION=$("${WORKSPACE}/tools/go${SUPPORTED_NEWER}/bin/go" version cbbackupmgr | sed -Ee 's/^.*go([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
 
-GOVERSION=$(go version cbbackupmgr | sed -Ee 's/^.*go([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
+# Now we know the actual Go version, install that too (might be the same
+# as SUPPORTED_NEWER, and that's OK) and put it on the PATH for Detect.
+cbdep install -d "${WORKSPACE}/tools" golang ${GOVERSION}
+export PATH="${WORKSPACE}/tools/go${GOVERSION}/bin:$PATH"
 
 # Cons up a black-duck-manifest for Golang
 cat <<EOF > "${WORKSPACE}/src/${PRODUCT}-black-duck-manifest.yaml"
@@ -53,5 +63,3 @@ components:
     bd-id: 6d055c2b-f7d7-45ab-a6b3-021617efd61b
     versions: [ ${GOVERSION} ]
 EOF
-
-deactivate
