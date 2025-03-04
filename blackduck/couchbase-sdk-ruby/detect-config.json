@@ -4,6 +4,7 @@
     "detect.detector.buildless": true,
     "detect.required.detector.types": "RUBYGEMS",
     "detect.excluded.detector.types": "GRADLE",
+    "detect.tools.excluded": "SIGNATURE_SCAN",
     "logging.level.detect": "DEBUG"
   }
 }

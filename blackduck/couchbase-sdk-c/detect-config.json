@@ -2,6 +2,7 @@
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "logging.level.detect": "DEBUG",
-        "detect.excluded.detector.types": "CPAN"
+        "detect.excluded.detector.types": "CPAN",
+        "detect.tools.excluded": "SIGNATURE_SCAN"
     }
 }

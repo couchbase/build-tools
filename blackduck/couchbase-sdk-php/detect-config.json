@@ -2,6 +2,7 @@
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "detect.excluded.detector.types": "CONAN,GRADLE",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
         "logging.level.detect": "DEBUG"
     }
 }

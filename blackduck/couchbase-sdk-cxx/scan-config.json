@@ -1,17 +1,11 @@
 {
     "versions": {
-        "1.0.0-dp.11": {
+        "1.0.6": {
             "__comment": "NOTE: this version points to the future release",
             "release": "main",
             "interval": 1440
         },
-        "1.0.0-dp.10": {
-            "interval": 1440
-        },
-        "1.0.0-dp.9": {
-            "interval": 1440
-        },
-        "1.0.0": {
+        "1.0.5": {
             "interval": 1440
         }
     }
