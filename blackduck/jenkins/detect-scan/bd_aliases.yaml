@@ -97,3 +97,8 @@
 "6e2c44eb-e153-4b09-9500-f61fda6353ac":
   fallback-versions:
     "14.1.0": "13.2.0"
+
+# BoringSSL
+"09937fd5-ac0e-4c0b-8500-9479ced81391":
+  bd-id-aliases:
+    - "1e303b15-b82b-4a4d-8cd6-a2048fb2c73d"
