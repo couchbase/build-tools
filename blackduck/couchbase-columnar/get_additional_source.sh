@@ -54,7 +54,7 @@ export CB_MAVEN_REPO_LOCAL=~/.m2/repository
 rm -rf "${BUILD_DIR}"
 mkdir "${BUILD_DIR}"
 pushd "${BUILD_DIR}"
-LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src"
+LANG=en_US.UTF-8 cmake -G Ninja "${WORKSPACE}/src" -DBUILD_COLUMNAR=true -DBUILD_ENTERPRISE=true
 
 # Most cbdeps packages that have embedded black-duck-manifest.yaml files will
 # be under ${BUILD_DIR} and so will get picked up automatically. However, cbpy
@@ -123,18 +123,25 @@ for dir in gen/nftp/client evaluator/impl/gen/parser evaluator/impl/v8wrapper/pr
 done
 
 # TEMPORARY: If plasma is pointing to the bad SHA, rewind
-pushd goproj/src/github.com/couchbase/plasma
-if [ $(git rev-parse HEAD) = "627239d4056939f1bcfe92faf9fbf81c9a96537b" ]; then
-    git checkout 34d4558a9c2aa34403b0e355cb30120fc919f7e0
+# plasma doesn't exist after columnar 1.2.0
+if [[ -d goproj/src/github.com/couchbase/plasma ]]; then
+    pushd goproj/src/github.com/couchbase/plasma
+    if [ $(git rev-parse HEAD) = "627239d4056939f1bcfe92faf9fbf81c9a96537b" ]; then
+        git checkout 34d4558a9c2aa34403b0e355cb30120fc919f7e0
+    fi
+    popd
 fi
-popd
 
 # package-lock.json from an old version of npm, need to regenerate
 cbdep install -d .deps nodejs ${NODEJS_VERSION}
 export PATH=$(pwd)/.deps/nodejs-${NODEJS_VERSION}/bin:$PATH
-pushd cbgt/rest/static/lib/angular-bootstrap
-npm install --legacy-peer-deps
-popd
+
+# angular-bootstrap exists before columnar 1.2.0.
+if [[ -d cbgt/rest/static/lib/angular-bootstrap ]]; then
+    pushd cbgt/rest/static/lib/angular-bootstrap
+    npm install --legacy-peer-deps
+    popd
+fi
 rm -rf .deps/nodejs-${NODEJS_VERSION}
 
 # Ensure all go.mod files are fully tidied
