@@ -20,7 +20,7 @@ def heading(text):
 
 
 def short_version(text):
-    return re.sub('\.0$', '', re.sub('^(v|V)', '', text))
+    return re.sub(r'\.0$', '', re.sub(r'^(v|V)', '', text))
 
 
 def product_and_version(words):
