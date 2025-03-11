@@ -10,7 +10,7 @@ do
     pushd $dir
     # Try to identify an appropriate version of node from build-and-deliver-predev.yml
     # based on the contents of package.json
-    REQUIRED_NODE_VERSION=$(jq -re '.engines.node // ""' package.json)
+    REQUIRED_NODE_VERSION=$(jq -re '.engines.node // ""' package.json | sed 's/[^0-9.]//g')
     if [[ "${REQUIRED_NODE_VERSION}" == \>=* ]]; then
       MIN_VERSION=$(echo "${REQUIRED_NODE_VERSION}" | cut -d ' ' -f 2)
       NODE_VER=$(echo "${NODE_VERSIONS}" | awk -v min_ver="${MIN_VERSION}" -F. '$1 >= min_ver' | sort -V | head -n 1)
