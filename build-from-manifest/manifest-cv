@@ -1,0 +1,14 @@
+#!/bin/bash -ex
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source "${SCRIPT_DIR}/../utilities/shell-utils.sh"
+
+clean_git_clone ssh://review.couchbase.org/manifest.git manifest
+cd manifest
+git fetch origin $GERRIT_REFSPEC && git checkout FETCH_HEAD
+cd ..
+
+set +x
+header "Running manifest_util.py to check correctness of all product-config.json files"
+
+"${SCRIPT_DIR}/manifest_util.py" -d manifest
