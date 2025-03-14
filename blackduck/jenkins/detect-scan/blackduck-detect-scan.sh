@@ -28,7 +28,7 @@ function run_script() {
   local script=$1
   shift
   (
-    source "${script}" "$@" || exit 1
+    source "${script}" "$@"
     set +x
     printf "$(export -p | sed 's/declare -x/declare -gx/g')\n" >> "${ENV_FILE}"
     set -x

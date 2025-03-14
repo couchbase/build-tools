@@ -130,30 +130,43 @@ else
   download_analytics_jars
 fi
 
-# Delete all the built artifacts so BD doesn't scan them
-rm -rf install
-
-# If we find any go.mod files with zero "require" statements, they're probably one
-# of the stub go.mod files we introduced to make other Go projects happy. Black Duck
-# still wants to run "go mod why" on them, which means they need a full set of
-# replace directives.
-for stubmod in $(find . -name go.mod \! -execdir grep --quiet require '{}' \; -print); do
-    cat ${SCRIPT_DIR}/go-mod-replace.txt >> ${stubmod}
-done
-
-# Need to fake the generated go files in indexing, eventing, and eventing-ee
-for dir in secondary/protobuf; do
-    mkdir -p goproj/src/github.com/couchbase/indexing/${dir}
-    touch goproj/src/github.com/couchbase/indexing/${dir}/foo.go
-done
-for dir in auditevent flatbuf/cfg flatbuf/cfgv2 flatbuf/header flatbuf/header_v2 flatbuf/payload flatbuf/response parser version; do
-    mkdir -p goproj/src/github.com/couchbase/eventing/gen/${dir}
-    touch goproj/src/github.com/couchbase/eventing/gen/${dir}/foo.go
-done
-for dir in gen/nftp/client evaluator/impl/gen/parser evaluator/impl/v8wrapper/process_manager/gen/flatbuf/payload; do
-    mkdir -p goproj/src/github.com/couchbase/eventing-ee/${dir}
-    touch goproj/src/github.com/couchbase/eventing-ee/${dir}/foo.go
-done
+# Black Duck does a number of "go" operations directly, which requires
+# that all packages are fully tidied. This is easier in Morpheus and
+# later releases, so we do it here. For earlier releases, the older
+# logic has been split into a separate script
+if [ "8.0.0" = $(printf "8.0.0\n${VERSION}" | sort -n | head -1) ]; then
+  # temporary workarounds until CBD-6269 is fully completed
+  pushd "${BUILD_DIR}"
+  ninja eventing-generated backup_generated_flatbuffer_files
+  popd
+  for dir in goxdcr n1fty query; do
+    pushd "${WORKSPACE}/src/goproj/src/github.com/couchbase/${dir}"
+    echo "replace github.com/couchbase/eventing => ../eventing" >> go.mod
+    popd
+  done
+  pushd "${WORKSPACE}/src"
+  for i in 1 2 3; do
+    for gomod in $(find . -name go.mod); do
+      pushd $(dirname ${gomod})
+      grep --quiet require go.mod || {
+        popd
+        continue
+      }
+      go mod tidy
+      popd
+    done
+  done
+  popd
+  # end temporary workarounds
+  # Morpheus or higher
+  pushd "${BUILD_DIR}"
+  ninja go-mod-tidy-all
+  popd
+else
+  pushd "${WORKSPACE}/src"
+  "${SCRIPT_DIR}/go_mod_tidy_pre_morpheus.sh"
+  popd
+fi
 
 # TEMPORARY: If plasma is pointing to the bad SHA, rewind
 pushd goproj/src/github.com/couchbase/plasma
@@ -170,31 +183,7 @@ npm install --legacy-peer-deps
 popd
 rm -rf .deps/nodejs-${NODEJS_VERSION}
 
-# Ensure all go.mod files are fully tidied
-cd "${WORKSPACE}/src"
-
-# First, delete some sample files that have go.mod files
-if [ -d godeps/src/github.com/google/flatbuffers ]; then
-  find godeps/src/github.com/google/flatbuffers -name \*amples -print0 | xargs -0 rm -rf
-fi
-
-init_checksum=$(repo diff -u | sha256sum)
-while true; do
-    for gomod in $(find . -name go.mod); do
-        pushd $(dirname ${gomod})
-        grep --quiet require go.mod || {
-            popd
-            continue
-        }
-        go mod tidy
-        popd
-    done
-    curr_checksum=$(repo diff -u | sha256sum)
-    if [ "${init_checksum}" = "${curr_checksum}" ]; then
-        break
-    fi
-    echo
-    echo "Repo was changed - re-running go mod tidy"
-    echo
-    init_checksum="${curr_checksum}"
-done
+# Delete all the built artifacts so BD doesn't scan them. Do this last
+# as some of the earlier steps may depend on things in the install
+# directory, eg. python.
+rm -rf install
