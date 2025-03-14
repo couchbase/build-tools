@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 # "go mod tidy" handling for pre-Morpheus releases. Expects to be run in
 # the src/ directory.
 
