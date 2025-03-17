@@ -96,7 +96,7 @@ function repo_init() {
         mirror_arg="--mirror"
     fi
     pushd ~/.reporef
-    repo init ${mirror_arg} -u ${url} -b ${branch} -g ${groups} -m ${manifest}
+    repo init --no-repo-verify ${mirror_arg} -u ${url} -b ${branch} -g ${groups} -m ${manifest}
     repo sync -j8
     popd
 

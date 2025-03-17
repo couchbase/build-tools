@@ -135,29 +135,6 @@ fi
 # later releases, so we do it here. For earlier releases, the older
 # logic has been split into a separate script
 if [ "8.0.0" = $(printf "8.0.0\n${VERSION}" | sort -n | head -1) ]; then
-  # temporary workarounds until CBD-6269 is fully completed
-  pushd "${BUILD_DIR}"
-  ninja eventing-generated backup_generated_flatbuffer_files
-  popd
-  for dir in goxdcr n1fty query; do
-    pushd "${WORKSPACE}/src/goproj/src/github.com/couchbase/${dir}"
-    echo "replace github.com/couchbase/eventing => ../eventing" >> go.mod
-    popd
-  done
-  pushd "${WORKSPACE}/src"
-  for i in 1 2 3; do
-    for gomod in $(find . -name go.mod); do
-      pushd $(dirname ${gomod})
-      grep --quiet require go.mod || {
-        popd
-        continue
-      }
-      go mod tidy
-      popd
-    done
-  done
-  popd
-  # end temporary workarounds
   # Morpheus or higher
   pushd "${BUILD_DIR}"
   ninja go-mod-tidy-all
