@@ -13,6 +13,7 @@ show_help(){
     echo "  --notify                           Send slack notifications to users"
     echo "  --debug                            Enable debug output"
     echo "  --show-matches                     Show matched commits as well as unmatched"
+    echo "  --compare-builds                   Compare specific builds, not release trains"
     echo "  --no-sync                          Do not synchronise repositories (useful for debugging)"
     echo "  -h, --help                         Display this help and exit"
 }
@@ -48,7 +49,7 @@ while true; do
             shift 2
             ;;
         --first-manifest)
-            if [[ "${2}" = *":"* ]]; then
+            if [ "${2}" != "${2#*:}" ]; then
                 manifest="${2%%:*}"
                 build="${2#*:}"
                 FIRST_BUILD="$build"
@@ -64,7 +65,7 @@ while true; do
             shift 2
             ;;
         --last-manifest)
-            if [[ "${2}" = *":"* ]]; then
+            if [ "${2}" != "${2#*:}" ]; then
                 manifest="${2%%:*}"
                 build="${2#*:}"
                 LAST_BUILD="$build"

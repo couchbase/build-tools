@@ -29,7 +29,6 @@ import xml.etree.ElementTree as ET
 
 from collections import defaultdict
 from itertools import combinations
-from multiprocessing import cpu_count
 from packaging.version import Version
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -90,7 +89,8 @@ class MissingCommits:
     match_types = ["Backport", "Date match", "Diff match", "Summary match"]
 
     def __init__(self, logger, product, manifest_dir, manifest_repo,
-                 reporef_dir, targeted_projects, debug, show_matches,
+                 first_manifest, last_manifest, reporef_dir,
+                 targeted_projects, debug, show_matches,
                  only_boundaries, compare_builds, notify):
         """
         Store key information into instance attributes and determine
@@ -117,6 +117,9 @@ class MissingCommits:
         self.manifest_branch = "main" if product == "sync_gateway" else "master"
         self.reporef_dir = reporef_dir
         self.targeted_projects = [project.strip() for project in targeted_projects.split(",")] if targeted_projects else None
+
+        self.first_manifest = first_manifest
+        self.last_manifest = last_manifest
 
         self.commits = default_dict_factory()
         self.long_shas = {}
@@ -168,7 +171,7 @@ class MissingCommits:
                     if commits:
                         for sha, match_details in commits.items():
                             # Show the missing commit info, along with the branches/releases it is missing from
-                            output += f"    [{sha[:7]}] {match_details['message']}{os.linesep}       Present in: {', '.join(match_details['present_in'])}{os.linesep}     Missing from: {', '.join(match_details['missing_from'])}{os.linesep}"
+                            output += f"    [{sha[:7]}] {match_details['message']}{os.linesep}             Date: {match_details['date']}{os.linesep}       Present in: {', '.join(match_details['present_in'])}{os.linesep}     Missing from: {', '.join(match_details['missing_from'])}{os.linesep}"
                 else:
                     projects_not_missing_commits.append(project)
 
@@ -330,10 +333,22 @@ class MissingCommits:
         active_manifests = []
 
         for node_name in manifests:
-            if product == "couchbase-server" and not self.compare_builds and any(char.isdigit() for char in node_name):
-                    # Ignore any couchbase-server manifest with a digit in the
-                    # name, unless we're processing specific builds
-                    continue
+            # Define conditions for skipping a manifest
+            is_couchbase_server = product == "couchbase-server"
+            has_digit_in_name = any(char.isdigit() for char in node_name)
+            not_comparing_builds = not self.compare_builds
+            not_boundary_manifest = node_name not in [self.first_manifest, self.last_manifest]
+
+            # Skip manifests with version numbers (containing digits) for couchbase-server,
+            # except when they're explicitly specified as first/last manifest
+            # or when we're directly comparing two specific builds
+            should_skip = (is_couchbase_server and
+                          has_digit_in_name and
+                          not_comparing_builds and
+                          not_boundary_manifest)
+
+            if should_skip:
+                continue
             else:
                 active_manifests.append(node_name)
 
@@ -536,7 +551,7 @@ class MissingCommits:
 
         try:
             cmd = [self.repo_bin, 'sync',
-                    f'--jobs={cpu_count()}', '--force-sync']
+                    f'--jobs=8', '--force-sync']
             self.check_output(
                 cmd,
                 cwd=self.product_dir, stderr=subprocess.STDOUT
@@ -584,7 +599,7 @@ class MissingCommits:
             if not line.startswith(' ')
         ]
 
-    def get_author_and_date(self, repo_path, commit_sha):
+    def get_author_and_dates(self, repo_path, commit_sha):
         """
         Get the author date for a specific SHA
         """
@@ -595,16 +610,16 @@ class MissingCommits:
 
         project_dir = self.product_dir / repo_path
         try:
-            (author, date) = self.check_output(
-                ['git', 'show', '-s', '--format=%ae|%ai', commit_sha],
+            (author, author_date, commit_date) = self.check_output(
+                ['git', 'show', '-s', '--format=%ae|%ai|%ci', commit_sha],
                 cwd=project_dir
             ).decode().strip().split("|")
-            self.commit_authors_and_dates[commit_sha] = (author, date)
-            return (author, date)
+            self.commit_authors_and_dates[commit_sha] = (author, author_date, commit_date)
+            return (author, author_date, commit_date)
         except subprocess.CalledProcessError as exc:
             traceback.print_exc()
             raise RuntimeError(
-                f'Failed to retrieve commit date for '
+                f'Failed to retrieve author and commit dates for '
                 f'{commit_sha}: {exc.output}') from exc
 
     def get_commit_details(self, line, repo_path):
@@ -614,9 +629,9 @@ class MissingCommits:
         """
         sha, msg = line.split(' ', 1)
         long_sha = self.get_long_sha(repo_path, sha)
-        author, date = self.get_author_and_date(repo_path, long_sha)
+        author, author_date, commit_date = self.get_author_and_dates(repo_path, long_sha)
         diff_changes = self.get_diff_changes(repo_path, long_sha)
-        return (sha, msg, author, date, diff_changes)
+        return (sha, msg, author, author_date, commit_date, diff_changes)
 
     def get_diff_changes(self, repo_path, commit_sha):
         """
@@ -735,9 +750,9 @@ class MissingCommits:
         in a list of old commits.
         """
 
-        new_sha, new_commit_message, new_author, new_date, _ = new_commit
-        for old_sha, old_commit_message, old_author, old_date, _ in old_commits:
-            if old_date == new_date and old_author == new_author:
+        new_sha, new_commit_message, new_author, new_author_date, _, _ = new_commit
+        for old_sha, old_commit_message, old_author, old_author_date, _, _ in old_commits:
+            if old_author_date == new_author_date and old_author == new_author:
                 self.add_match("Date match", project, old_author, old_sha,
                                old_commit_message, new_sha, new_commit_message)
                 return True
@@ -747,8 +762,8 @@ class MissingCommits:
         Fuzzy comparison of two diffs (changes only)
         """
 
-        new_sha, new_commit_message, _, _, new_diff = new_commit
-        for old_sha, old_commit_message, old_author, _, old_diff in old_commits:
+        new_sha, new_commit_message, _, _, _, new_diff = new_commit
+        for old_sha, old_commit_message, old_author, _, _, old_diff in old_commits:
             if len(new_diff) <= 10:
                 threshold = 90
             elif len(new_diff) <= 50:
@@ -765,8 +780,8 @@ class MissingCommits:
         """
         Matches the summary of a new commit with the summaries of old commits.
         """
-        new_sha, new_commit_message, _, _, _ = new_commit
-        for old_sha, old_commit_message, old_author, _, _ in old_commits:
+        new_sha, new_commit_message, _, _, _, _ = new_commit
+        for old_sha, old_commit_message, old_author, _, _, _ in old_commits:
             normalized_old_commit_message = re.sub(self.backport_regex, '', re.sub(
                 self.normalize_regex, '', old_commit_message)).lower()
             normalized_new_commit_message = re.sub(self.backport_regex, '', re.sub(
@@ -784,11 +799,16 @@ class MissingCommits:
                 release = "master"
             else:
                 release = self.get_manifest_annotation(self.new_manifest, "RELEASE")
+                manifest_parts = self.new_manifest.split('/')
                 if not release:
-                    release = os.path.basename(self.new_manifest).split('.')[0]
+                    if len(manifest_parts) == 3: # e.g. couchbase-server/trinity/7.6.5.xml
+                        release = manifest_parts[-2]
+                    elif len(manifest_parts) == 2:  # e.g. couchbase-server/trinity.xml
+                        release = manifest_parts[-1].split('.')[0]
         elif self.product == "sync_gateway":
             release = ".".join(os.path.basename(self.new_manifest).split('.')[:-1])
         try:
+            self.log.info(f"Missing commit file is /data/metadata/product-metadata/{self.product}/missing_commits/{release}/ok-missing-commits.txt")
             with open(f"/data/metadata/product-metadata/{self.product}/missing_commits/{release}/ok-missing-commits.txt") as fh:
                 for entry in fh.readlines():
                     if entry.startswith('#'):
@@ -857,7 +877,7 @@ class MissingCommits:
 
         old_commits = []
         if old_results:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 old_commits = list(executor.map(
                     get_commit_details, old_results.split("\n")))
 
@@ -873,7 +893,7 @@ class MissingCommits:
 
         new_commits = []
         if new_results:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 new_commits = list(executor.map(
                     get_commit_details, new_results.split("\n")))
 
@@ -887,7 +907,8 @@ class MissingCommits:
         if new_commits:
             missing_commits = 0
             for commit in new_commits:
-                new_sha, new_commit_message, new_author, _, _ = commit
+                new_sha, new_commit_message, new_author, _, commit_date, _ = commit
+
                 if any(
                     c.startswith(new_sha[:7]) for c in self.ignored_commits
                 ):
@@ -931,6 +952,7 @@ class MissingCommits:
                         "missing_from": [self.new_manifest],
                         "author": new_author,
                         "message": new_commit_message,
+                        "date": commit_date,
                     }
                     self.total_missing_commits += 1
                 else:
@@ -980,6 +1002,7 @@ class MissingCommits:
                     present_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[author][project][commit]["present_in"]])
                     missing_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[author][project][commit]["missing_from"]])
                     message += f"    *{report[author][project][commit].get('message')}* (<{self.commits[product][project]['url']}/commit/{commit}|{commit}>)\n"
+                    message += f"         date: {self.commits[product][project]['Missing'][commit]['date']}\n"
                     message += f"         present: {present_links}\n"
                     message += f"         missing: {missing_links}\n"
 
@@ -1058,6 +1081,7 @@ def main():
 
     commit_checker = MissingCommits(
         logger, args.product, manifest_dir, args.manifest_repo,
+        args.first_manifest, args.last_manifest,
         reporef_dir, args.targeted_projects, args.debug,
         args.show_matches, args.only_boundaries,
         args.compare_builds, args.notify
