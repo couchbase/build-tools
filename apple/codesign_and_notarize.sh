@@ -10,7 +10,7 @@
 #  - <BLD_DIR>/unfinished/<ARTIFACT_NAME>.<EXT>
 #  - <BLD_DIR>/<ARTIFACT_NAME>_unsigned.<EXT>
 #
-# For couchbase-server .dmg files, the unsigned/un-notarized artifacts
+# For Srver or Columnar .dmg files, the unsigned/un-notarized artifacts
 # are .zip files in one of two locations:
 #
 #  - <BLD_DIR>/unfinished/<ARTIFACT_NAME>.zip
@@ -44,10 +44,9 @@ function usage
     echo "  -b Build Number: eg. 123"
 }
 
-# Check if final artifact name is for a Server .dmg
-function is-server-dmg
-{
-    [[ $1 = couchbase-server-*.dmg ]]
+# Check if final artifact name is for a Server or Columnar .dmg
+function is-dmg-package {
+    [[ $1 = couchbase-(server|columnar)-*.dmg ]]
 }
 
 while getopts b:p:r:v: opt
@@ -112,6 +111,9 @@ couchbase-operator)
     expected+=(couchbase-autonomous-operator_${VERSION}-${BLD_NUM}-openshift-macos-amd64.zip)
     expected+=(couchbase-autonomous-operator_${VERSION}-${BLD_NUM}-openshift-macos-arm64.zip)
     ;;
+couchbase-columnar)
+    expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
+    ;;
 *)
     header "Unsupported product ${PRODUCT}, nothing to do..."
     exit 0
@@ -143,10 +145,10 @@ fi
 typeset -A urls=()
 for pkg in $needed; do
 
-    # The unsigned version of a Server .dmg file is actually a .zip,
+    # The unsigned version of a Server or Columnar .dmg file is actually a .zip,
     # in slightly different potential locations
     candidate_urls=()
-    if is-server-dmg ${pkg}; then
+    if is-dmg-package ${pkg}; then
         candidate_urls+=(${BLD_DIR}/${pkg:r}-unsigned.zip)
         candidate_urls+=(${BLD_DIR}/unfinished/${pkg:r}.zip)
     else
@@ -196,12 +198,12 @@ done
 # Codesign each file.
 for pkg in ${(k)urls}; do
     header "Codesigning ${pkg}..."
-    if is-server-dmg ${pkg}; then
-        # Server ".dmg" files are actually the unsigned .zip; fix that
-        # up, and delete the .zip after the signed .dmg is created.
+    if is-dmg-package ${pkg}; then
+        # Server or Columnar ".dmg" files are actually the unsigned .zip;
+        # fix that  up, and delete the .zip after the signed .dmg is created.
         zippkg=${pkg:r}.zip
         mv ${pkg} ${zippkg}
-        "${SCRIPT_DIR}/codesign/codesignApple_server.sh" ${zippkg} ${pkg}
+        "${SCRIPT_DIR}/codesign/codesignApple_dmg.sh" ${zippkg} ${pkg}
         rm ${zippkg}
     else
         "${SCRIPT_DIR}/codesign/codesignApple_simple.sh" ${pkg}

@@ -50,19 +50,20 @@ unzip -qq ${ZIP_FILENAME} -d ${tmpdir}
 pushd ${tmpdir}
 
 TEMPLATE_DMG_GZ=couchbase-server-macos-template_x86_64.dmg.gz
+APP_NAME=$(ls -d *.app)
 
 #protoc-gen-go was generated w/ sdk older than 10.9, it will cause notarization failure.
 #it can be removed since it doesn't need to be shipped.
 #it is not packaged in CC anymore, but still exist in older builds
-if [[ -f "Couchbase Server.app/Contents/Resources/couchbase-core/bin/protoc-gen-go" ]]; then
-    rm -f "Couchbase Server.app/Contents/Resources/couchbase-core/bin/protoc-gen-go"
+if [[ -f "${APP_NAME}/Contents/Resources/couchbase-core/bin/protoc-gen-go" ]]; then
+    rm -f "${APP_NAME}/Contents/Resources/couchbase-core/bin/protoc-gen-go"
 fi
 
 #move couchbase-server-macos-template_x86_64.dmg.gz out.  it will trigger notarization failure
-mv "Couchbase Server.app/Contents/Resources/${TEMPLATE_DMG_GZ}" .
+mv "${APP_NAME}/Contents/Resources/${TEMPLATE_DMG_GZ}" .
 
 #move .app and README into packaging directory
-PKG_DIR=couchbase-server-pkg
+PKG_DIR=dmg-pkg
 mkdir ${PKG_DIR}
 mv *.app README.txt ${PKG_DIR}
 pushd ${PKG_DIR}
@@ -85,7 +86,7 @@ echo ------- Codesign options: $sign_flags -----------
 echo ------- Sign binary files individually in Resources and Frameworks-------
 set +e
 
-find "Couchbase Server.app/Contents/Resources" "Couchbase Server.app/Contents/Frameworks" -type f \
+find "${APP_NAME}/Contents/Resources" "${APP_NAME}/Contents/Frameworks" -type f \
 | while IFS= read -r f
 do
   ##binaries in jars have to be signed.
@@ -113,14 +114,14 @@ done
 set -e
 
 echo -------- Must sign Sparkle framework all versions ----------
-codesign $sign_flags --sign "$cert_name" Couchbase\ Server.app/Contents/Frameworks/Sparkle.framework/Versions/A/Sparkle
-codesign $sign_flags --sign "$cert_name" Couchbase\ Server.app/Contents/Frameworks/Sparkle.framework/Versions/A
+codesign $sign_flags --sign "$cert_name" "${APP_NAME}/Contents/Frameworks/Sparkle.framework/Versions/A/Sparkle"
+codesign $sign_flags --sign "$cert_name" "${APP_NAME}/Contents/Frameworks/Sparkle.framework/Versions/A"
 
-codesign $sign_flags --sign "$cert_name" Couchbase\ Server.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle
-codesign $sign_flags --sign "$cert_name" Couchbase\ Server.app/Contents/Frameworks/Sparkle.framework/Versions/Current
+codesign $sign_flags --sign "$cert_name" "${APP_NAME}/Contents/Frameworks/Sparkle.framework/Versions/Current/Sparkle"
+codesign $sign_flags --sign "$cert_name" "${APP_NAME}/Contents/Frameworks/Sparkle.framework/Versions/Current"
 
 echo --------- Sign Couchbase app --------------
-codesign $sign_flags --sign "$cert_name" Couchbase\ Server.app
+codesign $sign_flags --sign "$cert_name" "${APP_NAME}
 
 popd
 
@@ -149,7 +150,7 @@ rm -rf $WC_DMG
 echo "Copying template..."
 gzcat "${TEMPLATE_DMG_GZ}" > ${WC_DMG}
 # pad 'du' size to ensure there is enough storage space
-# enterprise x86_64 complains w/o padding.
+# enterprise complains w/o padding.
 DMG_SIZE=$(du -sm ${PKG_DIR} |awk '{print($1 + 20)}')M
 echo "Resizing DMG to ${DMG_SIZE}..."
 echo "It may need to be resized again if ditto errors out with No space left on device".
@@ -161,7 +162,7 @@ mkdir -p ${WC_DIR}
 hdiutil attach $WC_DMG -readwrite -nobrowse -mountpoint $WC_DIR
 echo "Updating working image files..."
 rm -rf $WC_DIR/*.app
-ditto -rsrc ${PKG_DIR}/Couchbase\ Server.app $WC_DIR/Couchbase\ Server.app
+ditto -rsrc ${PKG_DIR}/${APP_NAME} $WC_DIR/${APP_NAME}
 ditto -rsrc ${PKG_DIR}/README.txt $WC_DIR/README.txt
 #
 sleep 2
