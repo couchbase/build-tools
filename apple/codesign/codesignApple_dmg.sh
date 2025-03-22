@@ -121,7 +121,7 @@ codesign $sign_flags --sign "$cert_name" "${APP_NAME}/Contents/Frameworks/Sparkl
 codesign $sign_flags --sign "$cert_name" "${APP_NAME}/Contents/Frameworks/Sparkle.framework/Versions/Current"
 
 echo --------- Sign Couchbase app --------------
-codesign $sign_flags --sign "$cert_name" "${APP_NAME}
+codesign $sign_flags --sign "$cert_name" "${APP_NAME}"
 
 popd
 
@@ -162,7 +162,7 @@ mkdir -p ${WC_DIR}
 hdiutil attach $WC_DMG -readwrite -nobrowse -mountpoint $WC_DIR
 echo "Updating working image files..."
 rm -rf $WC_DIR/*.app
-ditto -rsrc ${PKG_DIR}/${APP_NAME} $WC_DIR/${APP_NAME}
+ditto -rsrc "${PKG_DIR}/${APP_NAME}" "$WC_DIR/${APP_NAME}"
 ditto -rsrc ${PKG_DIR}/README.txt $WC_DIR/README.txt
 #
 sleep 2
