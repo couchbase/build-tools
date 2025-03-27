@@ -28,9 +28,9 @@ else
 fi
 
 # Remove unused components from flatbuffers
-rm -rf godeps/src/github.com/google/flatbuffers/Package.swift
-rm -rf godeps/src/github.com/google/flatbuffers/dart
-rm -rf godeps/src/github.com/google/flatbuffers/rust
+for entry in Package.swift android dart java rust goldens grpc; do
+    rm -rf godeps/src/github.com/google/flatbuffers/${entry}
+done
 
 # Server doesn't use asterix's dashboard, so prune that
 rm analytics/asterixdb/asterixdb/asterix-dashboard/src/node/package.json
