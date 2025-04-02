@@ -79,6 +79,7 @@ function upload_image {
     skopeo copy \
         --multi-arch all \
         --override-os linux \
+        --format oci \
         docker://${internal_image} docker://${external_image}
 }
 
