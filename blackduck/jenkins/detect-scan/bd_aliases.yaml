@@ -37,8 +37,7 @@
 # Go programming language
 "6d055c2b-f7d7-45ab-a6b3-021617efd61b":
   fallback-versions:
-    "1.22.8": "1.22.7"
-    "1.23.2": "1.23.0"
+    "1.24.2": "1.24.1"
 
 # Python cffi
 "a136afda-2456-41df-a8f4-2d74ef679b21":
