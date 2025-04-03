@@ -9,7 +9,7 @@ i.e. https://couchbasecloud.atlassian.net/browse/TOOL-901
 import argparse
 import logging
 import sys
-from jira_rest_api import JiraRestApi
+from jira_issue_manager import JiraIssueManager
 
 logger = logging.getLogger('')
 logger.setLevel(logging.INFO)
@@ -28,10 +28,9 @@ parser.add_argument(
     help='Release date: i.e. Jan-12-2024, or January 12, 2024.')
 args = parser.parse_args()
 
-jira_session = JiraRestApi()
-project = jira_session.jira.get_project('TOOL', expand=None)
+jira_session = JiraIssueManager()
 issue_dict = {
-    'project': {'id': project['id']},
+    'project': {'key': 'TOOL'},
     'issuetype': {'name': 'Task'},
     'summary': 'Support Secret Sauce Update Request',
     'description': (
@@ -40,5 +39,5 @@ issue_dict = {
         f'Release Date: {args.release_date}\n'
     )
 }
-result = jira_session.jira.create_issue(issue_dict)
+result = jira_session.client.create_issue(issue_dict)
 logger.info(f'{result}')
