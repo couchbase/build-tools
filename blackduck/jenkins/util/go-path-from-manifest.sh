@@ -22,6 +22,7 @@ components:
 EOF
 
 # Install golang and add to PATH
+mkdir -p "${WORKSPACE}/extra/install"
 cbdep install -d "${WORKSPACE}/extra/install" golang ${GOVERSION} >& /dev/null
 
 printf "${WORKSPACE}/extra/install/go${GOVERSION}/bin"
