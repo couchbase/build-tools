@@ -71,10 +71,41 @@ class JiraIssueManager:
             start_at += batch_size
         return issues
 
-    def update_issue(self, issue_key, issue_fields):
+    def update_issue(self, issue_key, issue_fields, notify=True):
         '''Update Jira issue fields.'''
         logging.info(f'Updating issue {issue_key} with fields {issue_fields}')
-        self.client.issue(issue_key).update(fields=issue_fields)
+        self.client.issue(issue_key).update(fields=issue_fields, notify=notify)
+
+    def get_projects_in_category(self, category_name):
+        '''Get all projects in a specific category.'''
+        all_projects = []
+        start_at = 0
+        max_results = 50
+        while True:
+            # Make paginated API request
+            response = self._make_api_request(
+                "GET", f"project/search?startAt={start_at}&maxResults={max_results}")
+            projects_page = response.json()
+
+            if not projects_page.get('values'):
+                break
+
+            all_projects.extend(projects_page['values'])
+
+            # Check if we've retrieved all projects
+            if start_at + max_results >= projects_page.get('total', 0):
+                break
+
+            start_at += max_results
+
+        # Filter projects by category
+        category_projects = []
+        for project in all_projects:
+            if (project.get('projectCategory') and
+                    project['projectCategory'].get('name') == category_name):
+                category_projects.append(project['key'])
+
+        return category_projects
 
     def get_filter_by_name(self, jira_filter_name):
         '''Get Jira filter by name.'''
