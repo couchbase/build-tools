@@ -1,5 +1,8 @@
 {
     "versions": {
+        "1.0.1": {
+            "interval": 1440
+        }
         "1.0.0": {
             "interval": 1440
         }
