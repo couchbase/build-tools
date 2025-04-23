@@ -70,7 +70,7 @@ cmake \
 # be under ${BUILD_DIR} and so will get picked up automatically. However, cbpy
 # gets unpacked into the install directory, which we will shortly delete. Copy
 # that file into ${BUILD_DIR} to keep it safe, if it exists.
-CBPY_MANIFEST="${WORKSPACE}/src/install/lib/python/interp/cbpy-black-duck-manifest.yaml"
+CBPY_MANIFEST="${WORKSPACE}/src/install/lib/python/interp/blackduck/cbpy-black-duck-manifest.yaml"
 if [ -e "${CBPY_MANIFEST}" ]; then
   cp "${CBPY_MANIFEST}" .
 fi
