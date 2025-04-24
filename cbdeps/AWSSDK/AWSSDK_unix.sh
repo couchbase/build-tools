@@ -12,7 +12,7 @@ cd ${ROOT_DIR}/AWSSDK
 
 if [ $PLATFORM = "linux" ]; then
     export CC=/opt/gcc-13.2.0/bin/gcc
-    export CXX=/opt/gcc-13.2.0/bin/gcc
+    export CXX=/opt/gcc-13.2.0/bin/g++
 fi
 
 add_cbdep() {

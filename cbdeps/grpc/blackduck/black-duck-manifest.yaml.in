@@ -1,0 +1,19 @@
+components:
+    grpc:
+        bd-id: a38e1dc0-f53d-4dc1-adb4-6328fc424fb5
+        versions: [ "@@GRPC_VERSION@@" ]
+    abseil-cpp:
+        bd-id: 99ea2532-8ecf-4c21-ac5b-1b00740c80f5
+        versions: [ "@@ABSEIL_VERSION@@" ]
+    c-ares:
+        bd-id: 3c284f73-2808-4837-845b-b6725cf7e840
+        versions: [ "@@CARES_VERSION@@" ]
+    protobuf:
+        bd-id: 1ac59252-efa9-4847-adda-55c704035f0c
+        versions: [ "@@PROTOBUF_VERSION@@" ]
+    google-re2:
+        bd-id: 2cc499cd-32b6-4b1b-8730-a482a94619bd
+        versions: [ "@@RE2_VERSION@@" ]
+    zlib:
+        bd-id: b9185555-6e31-401e-b373-bfec7955a8ab
+        versions: [ "@@ZLIB_VERSION@@" ]
