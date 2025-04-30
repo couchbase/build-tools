@@ -88,7 +88,6 @@ couchbase_lite_ios_publish() {
     git checkout ${BRANCH}
     if [[ "${COMMUNITY}" != "no" ]]; then
         files=$(ls *.podspec)
-        create_pr "couchbase-lite-ios"
     else
         files=$(ls *.podspec |grep Enterprise)
     fi
@@ -115,10 +114,10 @@ couchbase_lite_vector_search_publish() {
 # Predefined params from Jenkins job:
 # ${PRODUCT}, ${VERSION}, ${DRYRUN}, ${BRANCH}, ${COMMUNITY}, ${RUBY_VERSION}
 
+set_ruby_env
+
 # Ensure there is a valid pod session before continue
 verify_pod_session
-
-set_ruby_env
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd ${SCRIPT_DIR}
