@@ -26,6 +26,11 @@ STANDALONE_JIRA_PROJECTS = {
         'ISSUE_TYPES': ('Bug', '\"Bug Sub-Task\"', 'Task', 'Improvement',
                         'Epic', 'Initiative', '\"Sub-task\"'),
         'EXTRA_JQL_PATTERN': ''
+    },
+    'K8S': {
+        'ISSUE_TYPES': ('Bug', 'Task', 'Improvement', 'Page',
+                        'Epic', '\"Sub-task\"'),
+        'EXTRA_JQL_PATTERN': 'summary !~ "Release Ticket"'
     }
 }
 JIRA_CATEGORIES = {
