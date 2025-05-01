@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # This script is passed a PRODUCT, an INTERNAL_TAG, a PUBLIC_TAG, an
-# OPENSHIFT_BUILD number, and a true/false value LATEST.
+# OPENSHIFT_BUILD number, a true/false value LATEST, and an optional REGISTRY.
 #
 # It presumes that the following images are available:
 #    build-docker.couchbase.com/cb-vanilla/${short_product}:${INTERNAL_TAG}
@@ -13,21 +13,26 @@
 # number to the public tag. If OPENSHIFT_BUILD is omitted or '0', this script
 # will skip the upload to RHCC.
 #
+# The REGISTRY argument can be used to limit which registry to publish to:
+# 'dockerhub', 'rhcc', or 'all' (default) if omitted.
+#
 # On both Docker Hub and RHCC it will also create the redundant -dockerhub
 # and -rhcc tags.
 #
 # If LATEST=true it will also update the :latest tag.
 
 usage() {
-    echo "Usage: $(basename $0) -p PRODUCT -i INTERNAL_TAG -t PUBLIC_TAG -o OPENSHIFT_BUILD [ -l ]"
+    echo "Usage: $(basename $0) -p PRODUCT -i INTERNAL_TAG -t PUBLIC_TAG -o OPENSHIFT_BUILD [ -l ] [ -r REGISTRY ]"
     echo "Options:"
     echo "   -l - Also create :latest tag"
+    echo "   -r - Specify the registry to use - dockerhub, rhcc, or all (default)"
     exit 1
 }
 
 LATEST=false
 OPENSHIFT_BUILD=0
-while getopts ":p:i:t:o:l" opt; do
+REGISTRY="all"
+while getopts ":p:i:t:o:r:l" opt; do
     case ${opt} in
         p)
             PRODUCT=${OPTARG}
@@ -41,6 +46,9 @@ while getopts ":p:i:t:o:l" opt; do
         o)
             OPENSHIFT_BUILD=${OPTARG}
             ;;
+        r)
+            REGISTRY=${OPTARG}
+            ;;
         l)
             LATEST=true
             ;;
@@ -53,6 +61,24 @@ while getopts ":p:i:t:o:l" opt; do
             ;;
     esac
 done
+
+publishing_redhat() {
+    if [ "${REGISTRY}" = "rhcc" -o "${REGISTRY}" = "all" -a "${OPENSHIFT_BUILD}" != "0" ]; then
+        return 0
+    fi
+    return 1
+}
+
+publishing_vanilla() {
+    if [ "${REGISTRY}" = "dockerhub" -o "${REGISTRY}" = "all" ]; then
+        return 0
+    fi
+    return 1
+}
+
+if publishing_redhat; then
+    chk_set OPENSHIFT_BUILD
+fi
 
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 build_tools_dir=$(cd "${script_dir}" && git rev-parse --show-toplevel)
@@ -79,33 +105,33 @@ rhcc_registry=registry.connect.redhat.com
 
 ################ VANILLA
 
-status Publishing to Docker Hub...
-internal_image=${internal_repo}/cb-vanilla/${short_product}:${INTERNAL_TAG}
-internal_key=$(image_key ${internal_image})
-external_base=${vanilla_registry}/couchbase/${short_product}
-images=(${external_base}:${PUBLIC_TAG} ${external_base}:${PUBLIC_TAG}-dockerhub)
-if ${LATEST}; then
-    images+=(${external_base}:latest)
-fi
-for image in ${images[@]}; do
-    header Publishing ${internal_image} to ${image}
-    status Checking current Docker Hub image key...
-    image_key=$(image_key ${image})
-    if [ "$(image_key ${internal_image})" = "$(image_key ${image})" ]; then
-        status "Keys match, skipping copy!"
-    else
-        status "Keys don't match, performing copy"
-        skopeo copy --authfile ${HOME}/.docker/config.json \
-            --all --preserve-digests \
-            docker://${internal_image} docker://${image}
+if publishing_vanilla; then
+    status Publishing to Docker Hub...
+    internal_image=${internal_repo}/cb-vanilla/${short_product}:${INTERNAL_TAG}
+    internal_key=$(image_key ${internal_image})
+    external_base=${vanilla_registry}/couchbase/${short_product}
+    images=(${external_base}:${PUBLIC_TAG} ${external_base}:${PUBLIC_TAG}-dockerhub)
+    if ${LATEST}; then
+        images+=(${external_base}:latest)
     fi
-done
+    for image in ${images[@]}; do
+        header Publishing ${internal_image} to ${image}
+        status Checking current Docker Hub image key...
+        image_key=$(image_key ${image})
+        if [ "$(image_key ${internal_image})" = "$(image_key ${image})" ]; then
+            status "Keys match, skipping copy!"
+        else
+            status "Keys don't match, performing copy"
+            skopeo copy --authfile ${HOME}/.docker/config.json \
+                --all --preserve-digests \
+                docker://${internal_image} docker://${image}
+        fi
+    done
+fi
 
 ################## RHCC
 
-# There is no RHEL build for some products
-if product_in_rhcc "${PRODUCT}" && [ "${OPENSHIFT_BUILD}" != "0" ]; then
-
+if publishing_redhat; then
     internal_image=${internal_repo}/cb-rhcc/${short_product}:${INTERNAL_TAG}
     external_base=${rhcc_registry}/couchbase/${short_product}:${PUBLIC_TAG}
 

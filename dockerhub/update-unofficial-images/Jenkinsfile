@@ -1,0 +1,111 @@
+pipeline {
+    agent {
+        label 'zzz-lightweight'
+    }
+
+    parameters {
+        booleanParam(name: 'DRY_RUN', defaultValue: false, description: 'If true, only show what would be run without actually triggering jobs')
+        booleanParam(name: 'DEBUG', defaultValue: false, description: 'If true, adds --log-level DEBUG to the command')
+        string(name: 'PRODUCT', defaultValue: '', description: 'Product(s) - a product or comma-separated list of products')
+        string(name: 'VERSION', defaultValue: '', description: 'Version(s) - a version or comma separated list of versions')
+        string(name: 'EDITION', defaultValue: '', description: 'Edition(s) - an edition or comma separated list of editions')
+        string(name: 'REGISTRY', defaultValue: '', description: 'Registry(s) - a registry or comma separated list of registries (dockerhub and/or rhcc)')
+    }
+
+    stages {
+        stage('Generate trigger files') {
+            steps {
+                script {
+                    // Get the code
+                    checkout scm
+
+                    // Compose command + parameters
+                    def cmd = "uv run ./dockerhub/update-unofficial-images/generate_trigger_files.py"
+
+                    if (params.DEBUG) {
+                        cmd += " --log-level DEBUG"
+                    }
+
+                    if (params.PRODUCT) {
+                        cmd += " --product ${params.PRODUCT}"
+                    }
+                    if (params.EDITION) {
+                        cmd += " --edition ${params.EDITION}"
+                    }
+                    if (params.VERSION) {
+                        cmd += " --version ${params.VERSION}"
+                    }
+                    if (params.REGISTRY) {
+                        cmd += " --registry ${params.REGISTRY}"
+                    }
+
+                    // Run it
+                    sh cmd
+                }
+            }
+        }
+        stage('Trigger build jobs') {
+            steps {
+                script {
+                    // Find all property files
+                    def triggerFiles = findFiles(glob: 'triggers/*.properties')
+
+                    triggerFiles.each { file ->
+                        // Read the file content
+                        def fileContent = readFile(file.path).trim()
+                        def paramMap = [:]
+
+                        // Parse each line to extract parameters
+                        fileContent.split('\n').each { line ->
+                            if (line.trim()) {
+                                def parts = line.split('=', 2)
+                                if (parts.size() == 2) {
+                                    paramMap[parts[0].trim()] = parts[1].trim()
+                                }
+                            }
+                        }
+
+                        // Get the build job
+                        def targetJob = paramMap['BUILD_JOB']
+
+                        // Remove param irrelevant to the target job
+                        paramMap.remove('BUILD_JOB')
+
+                        // Show what we're about to do
+                        def jobType = params.DRY_RUN ? "Would run job" : "Triggering job"
+                        def paramsFormatted = paramMap.collect { key, value -> "  ${key} = ${value}" }.join('\n')
+
+                        echo """Processing: ${file.name}
+${jobType}: ${targetJob}
+With parameters:
+${paramsFormatted}
+----------------------------------------"""
+
+                        // Only trigger the job if not in dry run mode
+                        if (!params.DRY_RUN) {
+                            def buildParams = paramMap.collect { key, value ->
+                                string(name: key, value: value)
+                            }
+                            build job: targetJob, parameters: buildParams, wait: false
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        failure {
+            emailext (
+                subject: "Build Failed: ${currentBuild.fullDisplayName}",
+                body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'</p>
+<p>Check console output at <a href='${env.BUILD_URL}'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a></p>
+<p><b>Build Log:</b></p>
+<pre>${currentBuild.rawBuild.getLog(100)}</pre>
+<p><b>Changes:</b></p>
+${CHANGES}""",
+                to: 'build-team@couchbase.com',
+                mimeType: 'text/html'
+            )
+        }
+    }
+}

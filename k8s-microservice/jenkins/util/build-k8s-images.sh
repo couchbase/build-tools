@@ -40,7 +40,12 @@
 # None of those products have RHCC equivalents, so only the above image
 # will be pushed.
 #
-# NOTE: If BLD_NUM is empty, then VANILLA_ARCHES and RHCC_ARCHES must be
+# A REGISTRY parameter can be specified to limit which registry types to push
+# to. If set to "dockerhub", only vanilla images will be built and pushed.
+# If set to "rhcc", only RHCC images will be built and pushed.
+# If omitted or set to "all", both types of images will be built and pushed.
+#
+# NOTE: If BLD_NUM is empty, then VANILLA_ARCHES and/or RHCC_ARCHES must be
 # specified so this script can rebuild the right images in preparation
 # for republishing them. Either or both of these may be the string
 # "none", in which case the corresponding architecture will be silently
@@ -49,15 +54,18 @@
 shopt -s extglob
 
 usage() {
-    echo "Usage: $(basename $0) -p PRODUCT -v VERSION -o OPENSHIFT_BUILD [ -b BLD_NUM | -d VANILLA_ARCHES -r RHCC_ARCHES ] [ -P ]"
+    echo "Usage: $(basename $0) -p PRODUCT -v VERSION [ -b BLD_NUM | (-d VANILLA_ARCHES | -r RHCC_ARCHES | both) ] [ -o OPENSHIFT_BUILD ] [ -R REGISTRY ] [ -P ]"
     echo "Options:"
     echo "  -P - Immediately Publish each product's images after building (will publish with just :VERSION tags)"
     echo "  -l - Also create :latest tags in each repository"
+    echo "  -R - Specify the registry to use (dockerhub, rhcc, or all [default])"
+    echo "  -o - OPENSHIFT_BUILD (required when building RHCC images)"
     exit 1
 }
 
 PUBLISH=false
-while getopts ":p:v:b:o:d:r:lP" opt; do
+REGISTRY="all"
+while getopts ":p:v:b:o:d:r:R:lP" opt; do
     case ${opt} in
         p)
             PRODUCT=${OPTARG}
@@ -83,6 +91,9 @@ while getopts ":p:v:b:o:d:r:lP" opt; do
         P)
             PUBLISH=true
             ;;
+        R)
+            REGISTRY=${OPTARG}
+            ;;
         \?)
             usage
             ;;
@@ -92,6 +103,20 @@ while getopts ":p:v:b:o:d:r:lP" opt; do
             ;;
     esac
 done
+
+building_redhat() {
+    if [ "${REGISTRY}" = "rhcc" -o "${REGISTRY}" = "all" ]; then
+        return 0
+    fi
+    return 1
+}
+
+building_vanilla() {
+    if [ "${REGISTRY}" = "dockerhub" -o "${REGISTRY}" = "all" ]; then
+        return 0
+    fi
+    return 1
+}
 
 build-image() {
     local org=$1
@@ -174,10 +199,22 @@ source ${script_dir}/funclib.sh
 # (BLD_NUM is not set).
 chk_set PRODUCT
 chk_set VERSION
-chk_set OPENSHIFT_BUILD
+
+# Check OPENSHIFT_BUILD is provided if building RHCC images
+if building_redhat; then
+    chk_set OPENSHIFT_BUILD
+fi
+
 if [ -z "${BLD_NUM}" ]; then
-    chk_set VANILLA_ARCHES
-    chk_set RHCC_ARCHES
+    # When no BLD_NUM, we need at least one of VANILLA_ARCHES or RHCC_ARCHES
+    # depending on which registry we're building for
+    if building_vanilla; then
+        chk_set VANILLA_ARCHES
+    fi
+
+    if building_redhat; then
+        chk_set RHCC_ARCHES
+    fi
 
     tag=${VERSION}
     base_url=http://releases.service.couchbase.com/builds/releases/${PRODUCT}/${VERSION}
@@ -185,8 +222,13 @@ else
     tag=${VERSION}-${BLD_NUM}
     base_url=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}
 
-    VANILLA_ARCHES=$(product_platforms ${PRODUCT})
-    RHCC_ARCHES=$(product_platforms ${PRODUCT})
+    if building_vanilla && [ -z "${VANILLA_ARCHES}" ]; then
+        VANILLA_ARCHES=$(product_platforms ${PRODUCT})
+    fi
+
+    if building_redhat && [ -z "${RHCC_ARCHES}" ]; then
+        RHCC_ARCHES=$(product_platforms ${PRODUCT})
+    fi
 fi
 
 # Download build manifest and image.tgz artifact
@@ -225,11 +267,13 @@ for local_product in *; do
     pushd ${local_product} &> /dev/null
     short_product=${local_product/couchbase-/}
 
-    build-image cb-vanilla ${short_product} ${tag} \
-        ${external_registry} ${VANILLA_ARCHES}
+    if building_vanilla; then
+        build-image cb-vanilla ${short_product} ${tag} \
+            ${external_registry} ${VANILLA_ARCHES}
+    fi
 
     # Some projects don't do RHCC
-    if product_in_rhcc "${PRODUCT}"; then
+    if building_redhat && product_in_rhcc "${PRODUCT}"; then
         build-image cb-rhcc ${short_product} ${tag} \
             ${external_registry} ${RHCC_ARCHES}
     fi
@@ -238,8 +282,11 @@ for local_product in *; do
 
     # If requested, go on and publish this product's images.
     if ${PUBLISH}; then
-        ${script_dir}/publish-k8s-images.sh \
-            -p ${local_product} -i ${tag} -t ${VERSION} -o ${OPENSHIFT_BUILD}
+        PUBLISH_CMD="${script_dir}/publish-k8s-images.sh -p ${local_product} -i ${tag} -t ${VERSION}"
+        if [ -n "${OPENSHIFT_BUILD}" ]; then
+            PUBLISH_CMD+=" -o ${OPENSHIFT_BUILD}"
+        fi
+        ${PUBLISH_CMD}
     fi
 done
 
