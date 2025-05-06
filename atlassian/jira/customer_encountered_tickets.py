@@ -9,7 +9,6 @@ It performs two main operations:
     - Bug, Task, or Improvement
     - do not have linked tiket to CBSE
 '''
-
 import logging
 from jira_issue_manager import JiraIssueManager
 
@@ -31,6 +30,11 @@ STANDALONE_JIRA_PROJECTS = {
         'ISSUE_TYPES': ('Bug', 'Task', 'Improvement', 'Page',
                         'Epic', '\"Sub-task\"'),
         'EXTRA_JQL_PATTERN': 'summary !~ "Release Ticket"'
+    },
+    'ING': {
+        'ISSUE_TYPES': ('Bug', '\"Bug Sub-Task\"', 'Task', 'Improvement',
+                        'Epic', 'Initiative', '\"Sub-task\"'),
+        'EXTRA_JQL_PATTERN': ''
     }
 }
 JIRA_CATEGORIES = {
