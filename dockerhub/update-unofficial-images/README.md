@@ -29,6 +29,10 @@ All arguments are optional, and if not provided will be targeted broadly (e.g. i
 - **-r, --registry**: Specify the registries to be checked (available options are `docker` and `redhat`)
 - **-l, --log-level**: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Defaults to INFO.
 
+### Skipping Rebuilds
+
+The utility checks for a `.norebuild` file at `http://releases.service.couchbase.com/builds/releases/${PRODUCT}/${VERSION}/.norebuild`. If this file exists for a specific product/version combination, that version will not be flagged for rebuild even if the base image is newer.
+
 ### Project structure
 
 - **src/**: Contains the main source code, including modules for metadata handling, Dockerfile parsing, registry interaction etc.

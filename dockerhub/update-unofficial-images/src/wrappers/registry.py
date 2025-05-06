@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import requests
 from datetime import datetime
 from typing import Dict, List
 
@@ -111,24 +112,28 @@ def redhat_tags(product: str, edition: str) -> dict:
         logger.debug("Product/edition is absent from RHCC")
         return defaultdict()
 
-    pattern = re.compile(rf'^(\d+\.\d+\.\d+)')
+    pattern = re.compile(r'^\d+\.\d+\.\d+(-\d+)?$')
     processed_semvers = []
     filtered_tags = defaultdict()
 
     tags = skopeo.tags(image_uri("rhcc", product))
     logger.debug(f"Found {len(tags)} total tags")
 
+    matched_versions = []
     for version in tags:
-        match = re.search(pattern, version)
-        if match:
-            # The list of tags is reverse semver-with-optional-hyphenated-bit
-            # sorted, so we can just grab the first hit which will be either
-            # the most recent build number (x.y.z-7) or a generic tag which
-            # *should* be present on the most current build (x.y.z-rhcc)
-            if match.group(1) not in processed_semvers:
-                filtered_tags[version] = defaultdict()
-                processed_semvers.append(match.group(1))
-                logger.debug(f"Added tag {version}")
+        bare_version = version.split("-")[0]
+        if bare_version not in matched_versions:
+            match = re.search(pattern, version)
+            if match:
+                matched_versions.append(bare_version)
+                # The list of tags is reverse semver (with optional build number)
+                # sorted, so we can just grab the first hit which will be either
+                # the most recent build number (x.y.z-7) or a generic tag which
+                # *should* be present on the most current build (x.y.z-rhcc)
+                if match.group(1) not in processed_semvers:
+                    filtered_tags[version] = defaultdict()
+                    processed_semvers.append(match.group(1))
+                    logger.debug(f"Added tag {version}")
 
     logger.debug(f"Returning {len(filtered_tags)} filtered tags")
     return filtered_tags
@@ -368,10 +373,35 @@ def format_time_difference(total_seconds):
         return f"{int(total_seconds/(7*24*3600))} weeks"
 
 
+def has_norebuild_file(product: str, version: str) -> bool:
+    """
+    Check if a .norebuild file exists for the specified product/version.
+    """
+    url = f"http://releases.service.couchbase.com/builds/releases/{product}/{version}/.norebuild"
+    logger.debug(f"Checking for .norebuild file at {url}")
+
+    try:
+        response = requests.head(url, timeout=10)
+        exists = response.status_code == 200
+        logger.debug(f".norebuild file {'exists' if exists else 'does not exist'} for {product}/{version}")
+        return exists
+    except requests.RequestException as e:
+        logger.warning(f"Error checking for .norebuild file: {e}")
+        return False
+
+
 def process_single_tag(registry, product, edition, semver, tag):
     """Process a single tag and return its metadata."""
+
+    # Check for .norebuild file, if exists, no rebuild needed
+    if has_norebuild_file(product, semver):
+        logger.info(f"Skipping rebuild for {product}/{semver} on {registry} due to .norebuild file")
+        tag_data = { 'rebuild_needed': False, 'queried_tag': tag }
+        return tag_data
+
     tag_data = get_base_image_and_dates(registry, product, edition, tag)
     tag_data['queried_tag'] = tag
+
 
     if tag_data['rebuild_needed']:
         base_created = datetime.fromtimestamp(tag_data['base_created'])
@@ -461,7 +491,7 @@ def analyze_images(registries: List[str],
     for product in products:
         logger.debug(f"Processing product: {product}")
         total_product_tags = 0
-        total_rebuilds_required = 0
+        base_updates_available = 0
 
         for edition in editions:
             logger.debug(f"Processing edition: {edition}")
@@ -481,10 +511,10 @@ def analyze_images(registries: List[str],
                         tags[registry][prod][ed] = edition_results[registry][prod][ed]
 
             total_product_tags += tag_count
-            total_rebuilds_required += rebuild_count
+            base_updates_available += rebuild_count
 
         if total_product_tags > 0:
-            logger.info(f"Processed {total_product_tags} tags for {product} ({total_rebuilds_required} rebuilds required)")
+            logger.info(f"Processed {total_product_tags} tags for {product} ({base_updates_available} base image updates available)")
 
     logger.debug(f"Analysis complete - processed {len(tags)} tags")
     return tags

@@ -286,6 +286,9 @@ for local_product in *; do
         if [ -n "${OPENSHIFT_BUILD}" ]; then
             PUBLISH_CMD+=" -o ${OPENSHIFT_BUILD}"
         fi
+        if [ "${REGISTRY}" != "all" ]; then
+            PUBLISH_CMD+=" -r ${REGISTRY}"
+        fi
         ${PUBLISH_CMD}
     fi
 done

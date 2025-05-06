@@ -24,14 +24,13 @@ function republish() {
                 NEXT_BLD=$(${script_dir}/../../rhcc/scripts/compute-next-rhcc-build.sh \
                     -p ${product} -v ${version})
                 rhcc_args="-o ${NEXT_BLD} -r linux/amd64,linux/arm64"
-            fi
         fi
     fi
 
     # Rebuild the images on internal registry - this will update the base image.
     # Pass the -P argument to have the new images Published.
     status Rebuilding ${product} ${version}
-    ${script_dir}/util/build-k8s-images.sh -P -p ${product} -v ${version} ${vanilla_args} ${rhcc_args}
+    ${script_dir}/util/build-k8s-images.sh -R ${REGISTRY} -P -p ${product} -v ${version} ${vanilla_args} ${rhcc_args}
 }
 
 

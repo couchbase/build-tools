@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 # /// script
 # requires-python = "==3.12.3"
-# dependencies = ['packaging']
+# dependencies = ['packaging', 'requests']
 # [tool.uv]
 # exclude-newer = "2025-02-19T00:00:00Z"
 # ///
@@ -112,7 +112,7 @@ def main() -> int:
         registries=registries,
         products=products,
         editions=editions,
-        versions=versions,
+        versions=versions
     )
 
     # Ensure triggers directory exists and is empty

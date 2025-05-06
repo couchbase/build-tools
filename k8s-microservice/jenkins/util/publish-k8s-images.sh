@@ -29,6 +29,9 @@ usage() {
     exit 1
 }
 
+script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
+source ${script_dir}/../../../utilities/shell-utils.sh
+
 LATEST=false
 OPENSHIFT_BUILD=0
 REGISTRY="all"

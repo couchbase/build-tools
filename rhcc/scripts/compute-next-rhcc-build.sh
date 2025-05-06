@@ -41,7 +41,7 @@ PYSCRIPT=$(cat <<EOF
 import sys
 import json
 
-tags = json.load(sys.stdin)["tags"]
+tags = json.load(sys.stdin)["Tags"]
 highest = 0
 for tag in tags:
     if tag.startswith("$VERSION"):
@@ -59,4 +59,18 @@ print (highest + 1)
 EOF
 )
 
-"${script_dir}/get-tag-list.sh" ${PRODUCT} | python -c "$PYSCRIPT"
+# Use a job specific auth file for skopeo
+export REGISTRY_AUTH_FILE=$(pwd)/docker-auth.json
+
+CONFFILE=~/.docker/rhcc-metadata.json
+
+product_path=".products.\"${PRODUCT}\""
+project_id=$(jq -r "${product_path}.project_id" "${CONFFILE}")
+registry_key=$(jq -r "${product_path}.registry_key" "${CONFFILE}")
+image_base=quay.io/redhat-isv-containers/${project_id}
+
+# Login to RHCC
+skopeo login -u redhat-isv-containers+${project_id}-robot -p ${registry_key} quay.io &>/dev/null
+
+# Get and filter tag list
+skopeo list-tags docker://${image_base} --override-arch arm64 --override-os linux | python -c "$PYSCRIPT"
