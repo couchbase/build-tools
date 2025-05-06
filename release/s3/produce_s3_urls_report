@@ -48,7 +48,7 @@ def connect_jira():
               f"{cloud_jira_creds['username']}",
               f"{cloud_jira_creds['apitoken']}"))
 
-def get_url_list(product, version, editions, staging):
+def get_url_list(product, version, editions, hide_community, staging):
   """
   Extract list of binaries from S3 for the given product and version,
   excluding certain files (such as MD5/SHA files)
@@ -102,6 +102,7 @@ def get_url_list(product, version, editions, staging):
   urls = {
     'Enterprise': {k:[] for k in model_keys},
     'Community': {k:[] for k in model_keys},
+    'Tools': {k:[] for k in model_keys},
     'Artifact': {k:[] for k in model_keys},
     'Release': {
       "Notices File": []
@@ -115,6 +116,7 @@ def get_url_list(product, version, editions, staging):
   dbg_re = re.compile(r'dbg_|dbgsym_|debuginfo-|PDB')
   ee_re = re.compile(r'\bee\b|enterprise', flags=re.IGNORECASE)
   ce_re = re.compile(r'community', flags=re.IGNORECASE)
+  tools_re = re.compile(r'tools', flags=re.IGNORECASE)
   docker_re = re.compile(r'docker\.tar|rhcc\.tar', flags=re.IGNORECASE)
   notices_re = re.compile(r'notices\.txt', flags=re.IGNORECASE)
   sha_re = re.compile(r'\.sha256$|\.md5$')
@@ -135,12 +137,14 @@ def get_url_list(product, version, editions, staging):
 
     # Sort uploads depending on whether the product has EE/CE or not.
     if editions:
-      # Sort files into EE or CE; skip files that aren't explicitly
-      # either of those.
+      # Sort files into EE, CE, and Tools; skip files that aren't
+      # explicitly any of those.
       if ee_re.search(rfile):
         urllist = urls['Enterprise']
-      elif ce_re.search(rfile):
+      elif (not hide_community and ce_re.search(rfile)):
         urllist = urls['Community']
+      elif tools_re.search(rfile):
+        urllist = urls['Tools']
       else:
         continue
     else:
@@ -166,12 +170,6 @@ def get_product_download_urls(product, version):
   product-specific, and intended to tell the web team what URL to put on the
   Downloads page when the actual artifact URL isn't desired.
   """
-
-  # Several product URLs use only major.minor versioning, so pre-compute that
-  majmin = "unknown"
-  version_bits = version.split('.')
-  if len(version_bits) > 1:
-    majmin = '.'.join(version_bits[0:2])
 
   match product:
     case "couchbase-lite-net":
@@ -296,6 +294,10 @@ if __name__ == '__main__':
     help="Split EE/CE artifacts (default for Server, otherwise not)"
   )
   parser.add_argument(
+    "--hide-community", action="store_true",
+    help="Hide Community URLs from report (only valid with --editions)"
+  )
+  parser.add_argument(
     '--staging', action="store_true", help="URLs from packages-staging"
   )
   parser.add_argument('--issue', type=str, help='Approval ticket for version')
@@ -306,7 +308,11 @@ if __name__ == '__main__':
     boto3.setup_default_session(profile_name=args.profile)
 
   # Get the set of S3 URLs
-  urls = get_url_list(args.product, args.version, args.editions, args.staging)
+  urls = get_url_list(
+    args.product, args.version,
+    args.editions, args.hide_community,
+    args.staging
+  )
 
   # Extend with any product-specific URLs
   urls['Downloads Page'].update(get_product_download_urls(args.product, args.version))
