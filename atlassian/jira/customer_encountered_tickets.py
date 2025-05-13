@@ -1,13 +1,7 @@
 '''
 This script updates Jira tickets' Issue_Impact customfield based on association with CBSE project.
-
-It performs two main operations:
-1. Sets Issue_Impact to "external" for
-    - Bug, Task, or Improvement
-    - have a linked to CBSE bug or task
-2. Clears Issue_Impact field for
-    - Bug, Task, or Improvement
-    - do not have linked tiket to CBSE
+It looks for issues of given projects based on issue types and jql.  If the issues have CBSE links,
+this script will set Issue_Impact to "external"
 '''
 import logging
 from jira_issue_manager import JiraIssueManager
@@ -96,9 +90,6 @@ if __name__ == '__main__':
         issue_impact_field: {
             "value": "external"
         }
-    }
-    unset_issue_impact_field = {
-        issue_impact_field: None
     }
     session = JiraIssueManager()
     for project in STANDALONE_JIRA_PROJECTS:
