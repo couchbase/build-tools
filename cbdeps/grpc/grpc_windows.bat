@@ -3,16 +3,17 @@ set ROOT_DIR=%2
 set PROFILE=%4
 
 rem Download the right OpenSSL package depending on profile
-if %PROFILE% == "server" (
+if %PROFILE% == server (
   set OPENSSL_VER=3.1.4-1
+  set CBDEP_PLATFORM=windows
 ) else (
   set OPENSSL_VER=1.1.1g-sdk1
+  set CBDEP_PLATFORM=windows_msvc2017
 )
-
 set CBDEPS_DIR=%CD%\cbdeps
 mkdir %CBDEPS_DIR%
 cd %CBDEPS_DIR%
-cbdep install -d %CBDEPS_DIR% openssl %OPENSSL_VER% || goto error
+cbdep --platform %CBDEP_PLATFORM% install -d %CBDEPS_DIR% openssl %OPENSSL_VER% || goto error
 
 cd %ROOT_DIR%\grpc
 git submodule update --init --recursive || goto error
