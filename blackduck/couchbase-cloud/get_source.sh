@@ -5,7 +5,7 @@ git clone ssh://git@github.com/couchbase/data-api.git
 git clone ssh://git@github.com/couchbase/regulator.git ../extra/regulator
 
 # Use the same go version used on self hosted runners
-GO_VER=$(yq '.inputs.version.default' couchbase-cloud/.github/actions/install-go-self-hosted/action.yml)
+GO_VER=$(yq '.inputs.go-version.default' couchbase-cloud/.github/actions/setup-go/action.yml)
 cbdep install -d "${WORKSPACE}/extra" golang ${GO_VER}
 
 export GONOSUMDB="github.com/prometheus/node_exporter"
