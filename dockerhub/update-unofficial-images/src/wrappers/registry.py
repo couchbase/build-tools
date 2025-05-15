@@ -1,14 +1,17 @@
+import json
 import logging
 import os
 import re
 import requests
+import tempfile
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 
 from src.metadata import image_info, lifecycle_dates, REGISTRIES
 from src.wrappers import skopeo
 from src.wrappers.dockerfile import base_image
 from src.wrappers.collections import defaultdict
+from src.wrappers.docker import check_image_for_updates
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ _floating_tag_digest_cache = {}
 
 
 def filter_versions(versions: List[str] = [],
-                   product: str = None) -> List[str]:
+                    product: str = None) -> List[str]:
     """
     Filters out versions that have reached end of maintenance according to
     lifecycle dates.
@@ -85,7 +88,8 @@ def is_absent(registry, product, edition):
     """
     Determine whether a product/edition is absent from a specified registry.
     """
-    logger.debug(f"Checking if {product} ({edition}) is absent from {registry}")
+    logger.debug(
+        f"Checking if {product} ({edition}) is absent from {registry}")
 
     absent = False
     for absence in image_info(product).get("absences", []):
@@ -200,8 +204,8 @@ def github_tags(product: str, edition: str) -> Dict:
 
 
 def get_product_tags(registries: List[str],
-                    product: str,
-                    edition: str) -> Dict:
+                     product: str,
+                     edition: str) -> Dict:
     """
     Get all rhcc+github+dockerhub tags (eol filtered) for a given edition of
     a product.
@@ -237,7 +241,8 @@ def get_floating_tags(registry: str, product: str, tag: str, image_info=None) ->
 
     Accepts optional image_info parameter to avoid re-inspecting the image.
     """
-    logger.debug(f"Checking for floating tags for {product}:{tag} on {registry}")
+    logger.debug(
+        f"Checking for floating tags for {product}:{tag} on {registry}")
 
     # Floating tags we want to track
     floating_tags = ["enterprise", "community", "latest"]
@@ -249,11 +254,13 @@ def get_floating_tags(registry: str, product: str, tag: str, image_info=None) ->
 
     # Use provided image_info if available
     if image_info:
-        target_digest = image_info.raw_info.get("digest") or image_info.info.get("Digest")
+        target_digest = image_info.raw_info.get(
+            "digest") or image_info.info.get("Digest")
     else:
         # Create a new Image object if we don't have the info
         image = skopeo.Image(f"{uri}:{tag}")
-        target_digest = image.raw_info.get("digest") or image.info.get("Digest")
+        target_digest = image.raw_info.get(
+            "digest") or image.info.get("Digest")
 
     if not target_digest:
         logger.warning(f"Could not get digest for {uri}:{tag}")
@@ -264,7 +271,8 @@ def get_floating_tags(registry: str, product: str, tag: str, image_info=None) ->
     logger.debug(f"Found {len(available_tags)} available tags for {uri}")
 
     # Filter floating tags to only include ones that exist
-    existing_floating_tags = [ft for ft in floating_tags if ft in available_tags]
+    existing_floating_tags = [
+        ft for ft in floating_tags if ft in available_tags]
     if existing_floating_tags:
         logger.debug(f"Found existing floating tags: {existing_floating_tags}")
     else:
@@ -283,7 +291,8 @@ def get_floating_tags(registry: str, product: str, tag: str, image_info=None) ->
             logger.debug(f"Using cached digest for {floating_tag}")
         else:
             float_image = skopeo.Image(f"{uri}:{floating_tag}")
-            float_digest = float_image.raw_info.get("digest") or float_image.info.get("Digest")
+            float_digest = float_image.raw_info.get(
+                "digest") or float_image.info.get("Digest")
 
             # Cache the digest for future use
             if float_digest:
@@ -292,15 +301,16 @@ def get_floating_tags(registry: str, product: str, tag: str, image_info=None) ->
 
         if float_digest and float_digest == target_digest:
             matches.append(floating_tag)
-            logger.debug(f"Floating tag '{floating_tag}' points to the same image as '{tag}'")
+            logger.debug(
+                f"Floating tag '{floating_tag}' points to the same image as '{tag}'")
 
     return matches
 
 
 def get_base_image_and_dates(registry: str,
-                            product: str,
-                            edition: str,
-                            tag: str) -> Dict:
+                             product: str,
+                             edition: str,
+                             tag: str) -> Dict:
     """
     Get a dict containing base image name + create dates of an image and its
     base.
@@ -312,16 +322,19 @@ def get_base_image_and_dates(registry: str,
     base = base_image(registry, product, edition, tag)
     logger.debug(f"Found base image: {base}")
 
-    if base == "scratch" or "gcr.io/distroless" in base:
+    if (base == "scratch" or
+        "distroless" in base or
+        "alpine:scratch" in base
+            or base.startswith("busybox:")):
         base_created = 0
         product_created = 0
         rebuild_needed = False
         architectures = []
-        logger.debug(f"Special base image detected, no rebuild needed")
-        return {"rebuild_needed": False}
+        logger.debug(f"Distroless base image: {base}, no rebuild needed")
+        return {"rebuild_needed": False, "distroless": True}
     else:
         [base_name, base_tag] = (base.split(":")
-                                if ":" in base else [base, "latest"])
+                                 if ":" in base else [base, "latest"])
 
         logger.debug(f"Getting product created date for {product}:{tag}")
         product_image = skopeo.Image(f"{image_uri(registry, product)}:{tag}")
@@ -329,7 +342,8 @@ def get_base_image_and_dates(registry: str,
         architectures = product_image.architectures
 
         logger.debug(f"Getting base created date for {base_name}:{base_tag}")
-        base_image_obj = skopeo.Image(f"{image_uri(registry, base_name)}:{base_tag}")
+        base_image_obj = skopeo.Image(
+            f"{image_uri(registry, base_name)}:{base_tag}")
         base_created = base_image_obj.create_date()
         rebuild_needed = product_created - base_created < 0
         logger.debug(
@@ -340,12 +354,13 @@ def get_base_image_and_dates(registry: str,
     build_job = None
     if product_info := image_info(product):
         build_job = product_info.get("build_jobs", {}).get(registry)
-        logger.debug(f"Retrieved build job for {product} on {registry}: {build_job}")
+        logger.debug(
+            f"Retrieved build job for {product} on {registry}: {build_job}")
 
     # Check if this tag is associated with any floating tags
     # Pass the already-inspected product_image
     floating_tags = get_floating_tags(registry, product, tag,
-                                     image_info=product_image if 'product_image' in locals() else None)
+                                      image_info=product_image if 'product_image' in locals() else None)
 
     return {
         "base_image": base,
@@ -355,7 +370,8 @@ def get_base_image_and_dates(registry: str,
         "architectures": architectures,
         "registry": registry,
         "build_job": build_job,
-        "floating_tags": floating_tags
+        "floating_tags": floating_tags,
+        "distroless": False
     }
 
 
@@ -382,38 +398,79 @@ def has_norebuild_file(product: str, version: str) -> bool:
 
     try:
         response = requests.head(url, timeout=10)
-        exists = response.status_code == 200
-        logger.debug(f".norebuild file {'exists' if exists else 'does not exist'} for {product}/{version}")
-        return exists
+        # It's OK for a .norebuild file to not exist
+        if response.status_code == 404:
+            logger.debug(
+                f".norebuild file does not exist for {product}/{version}")
+            return False
+        # Norebuild file exists
+        elif response.status_code == 200:
+            logger.debug(f".norebuild file exists for {product}/{version}")
+            return True
+        # Any other status code is unexpected and should be fatal
+        else:
+            logger.error(
+                f"Unexpected status code {response.status_code} when checking for .norebuild file")
+            raise requests.exceptions.HTTPError(
+                f"Unexpected status code: {response.status_code}")
     except requests.RequestException as e:
-        logger.warning(f"Error checking for .norebuild file: {e}")
-        return False
+        # Fatal if we can't access releases.service.couchbase.com at all
+        logger.error(
+            f"Fatal error accessing releases.service.couchbase.com: {e}")
+        raise
 
 
 def process_single_tag(registry, product, edition, semver, tag):
     """Process a single tag and return its metadata."""
 
-    # Check for .norebuild file, if exists, no rebuild needed
+    tag_data = {'queried_tag': tag, 'rebuild_needed': False}
+
     if has_norebuild_file(product, semver):
-        logger.info(f"Skipping rebuild for {product}/{semver} on {registry} due to .norebuild file")
-        tag_data = { 'rebuild_needed': False, 'queried_tag': tag }
+        logger.info(
+            f"Skipping rebuild for {product}/{semver} on {registry} due to .norebuild file")
         return tag_data
 
-    tag_data = get_base_image_and_dates(registry, product, edition, tag)
-    tag_data['queried_tag'] = tag
+    tag_data.update(get_base_image_and_dates(registry, product, edition, tag))
+    distroless = tag_data.get('distroless', False)
 
-
+    # If rebuild is already needed based on base image changes, no need to check packages
     if tag_data['rebuild_needed']:
-        base_created = datetime.fromtimestamp(tag_data['base_created'])
-        product_created = datetime.fromtimestamp(tag_data['product_created'])
-        age_diff = base_created - product_created
-        time_str = format_time_difference(age_diff.total_seconds())
+        if 'base_created' in tag_data and 'product_created' in tag_data:
+            base_created = datetime.fromtimestamp(tag_data['base_created'])
+            product_created = datetime.fromtimestamp(
+                tag_data['product_created'])
+            age_diff = base_created - product_created
+            if age_diff.total_seconds() > 0:
+                time_str = format_time_difference(age_diff.total_seconds())
 
-        logger.debug(
-            f"Rebuild needed: {registry}/{product}/{edition}/{semver} "
-            f"(base: {tag_data['base_image']}, "
-            f"{time_str} newer, build job: {tag_data.get('build_job', 'None')})")
+                logger.debug(
+                    f"Rebuild needed: {registry}/{product}/{edition}/{semver} "
+                    f"(base: {tag_data['base_image']}, "
+                    f"{time_str} newer, build job: {tag_data.get('build_job', 'None')})")
+        return tag_data
+
+    # Check for package updates if non-distroless image
+    if not distroless:
+        logger.debug(f"Checking for package updates for {product}/{semver}")
+        try:
+            uri = image_uri(registry, product).replace("docker://", "")
+            full_uri = f"{uri}:{tag}"
+
+            package_updates_needed, packages_to_update = check_image_for_updates(
+                full_uri)
+
+            if package_updates_needed:
+                tag_data['rebuild_needed'] = True
+                tag_data['packages_to_update'] = packages_to_update
+                logger.debug(
+                    f"Rebuild needed due to package updates: {packages_to_update}")
+        except Exception as e:
+            logger.warning(f"Error checking for package updates: {e}")
     else:
+        logger.debug(
+            f"Skipping package update check for {product}/{semver} (likely a distroless image)")
+
+    if not tag_data['rebuild_needed']:
         logger.debug(
             f"Skipping tag: {registry}/{product}/{edition}/{semver} - rebuild not needed")
 
@@ -442,7 +499,8 @@ def process_product_edition(registries, product, edition, versions=None):
                     logger.debug(f"Processing tag: {tag}")
                     semver = re.search(semver_pattern, tag).group(1)
 
-                    tag_data = process_single_tag(registry, product, edition, semver, tag)
+                    tag_data = process_single_tag(
+                        registry, product, edition, semver, tag)
                     results[registry][product][edition][semver] = tag_data
 
                     if tag_data['rebuild_needed']:
@@ -456,9 +514,9 @@ def process_product_edition(registries, product, edition, versions=None):
 
 
 def analyze_images(registries: List[str],
-                  products: List[str],
-                  editions: List[str],
-                  versions: List[str] = None) -> Dict:
+                   products: List[str],
+                   editions: List[str],
+                   versions: List[str] = None) -> Dict:
     """
     Retrieve info for any number of registries, products, editions and versions.
 
@@ -514,7 +572,8 @@ def analyze_images(registries: List[str],
             base_updates_available += rebuild_count
 
         if total_product_tags > 0:
-            logger.info(f"Processed {total_product_tags} tags for {product} ({base_updates_available} base image updates available)")
+            logger.info(
+                f"Processed {total_product_tags} tags for {product} ({base_updates_available} base image updates available)")
 
     logger.debug(f"Analysis complete - processed {len(tags)} tags")
     return tags
