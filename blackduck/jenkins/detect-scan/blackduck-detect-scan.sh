@@ -149,6 +149,11 @@ fi
 # Product-specific config for Synopsys Detect
 CONFIG_ARG="-c ${DETECT_CONFIG}"
 
+# Possible generated extra Detect config file
+if [ -e "${SRC_DIR}/extra-detect-config.json" ]; then
+  CONFIG_ARG="${CONFIG_ARG} -c ${SRC_DIR}/extra-detect-config.json"
+fi
+
 # If doing dry-run, clean out any old archives
 if [ "x${DRY_RUN}" = "xtrue" ]; then
   export DRY_RUN_ARG="-n"

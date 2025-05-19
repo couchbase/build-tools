@@ -38,6 +38,7 @@ create_analytics_poms() {
       --file analytics/cbas/cbas-install/target/bom.txt
 }
 
+
 # Main script starts here - decide which action to take based on VERSION
 
 # Have to configure the Server build for several reasons. Couldn't find
@@ -107,6 +108,17 @@ if [ -e "${GOVER_FILE}" ]; then
   GOMAX=$(cat max-go-ver.txt)
   cbdep install -d "${WORKSPACE}/extra" golang ${GOMAX}
   export PATH="${WORKSPACE}/extra/go${GOMAX}/bin:${PATH}"
+
+  # Create a detect config file that will be used to skip the
+  # directories containing go.mod files that are not associated with
+  # shipped targets. Also skip the analytics directory entirely as the
+  # maven BOMs step will handle those.
+  uv run --project "${SCRIPT_DIR}/../scripts" --quiet \
+    "${SCRIPT_DIR}/../scripts/exclude-unshipped-go-modules.py" --debug \
+      --output "${WORKSPACE}/src/extra-detect-config.json" \
+      --extra-excludes '**/analytics' \
+      --root "${WORKSPACE}/src" \
+      --go-versions "${GOVER_FILE}"
 
 else
   cat <<EOF > "${GO_MANIFEST}"

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import string
+import sys
 import urllib.request
 
 from subprocess import check_call
@@ -15,8 +16,8 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument('--python-venv', required=True,
                      help="Path to Python venv to use for Python/Pip Detector")
-parser.add_argument('--config', '-c',
-                    help='Config JSON file containing Detect options')
+parser.add_argument('--config', '-c', action='append', required=True,
+                    help='Config JSON file containing Detect options (may be specified multiple times)')
 parser.add_argument('--credentials', '-r', required=True,
                     help='File containing Black Duck Hub credentials')
 parser.add_argument('--pdf', action='store_true',
@@ -25,14 +26,25 @@ parser.add_argument('--dry-run', '-n', action='store_true',
                     help="Dry run (do not upload scan to Hub)")
 args = parser.parse_args()
 
-# Read input config files
 with open(args.credentials, "r") as t:
     creds = json.load(t)
-if args.config is not None:
-    with open(args.config, "r") as c:
-        config = json.load(c)
-else:
-    config = { "detect_opts": {} }
+
+# Merge Detect config files. Only two top-level keys are recognized:
+# detect_opts, which is a dict, and source_paths, which is a list. Both
+# of these keys will be merged in order from the list of config files.
+config = { "detect_opts": {}, "source_paths": [] }
+for config_file in args.config:
+    with open(config_file, "r") as c:
+        config_data = json.load(c)
+    if "detect_opts" in config_data:
+        config["detect_opts"].update(config_data["detect_opts"])
+    if "source_paths" in config_data:
+        config["source_paths"].extend(config_data["source_paths"])
+
+# If no source_paths are specified, use the current directory
+if not config["source_paths"]:
+    config["source_paths"] = ['.']
+print(f"Using config: {json.dumps(config, indent=2)}")
 
 # Download desired Detect jar, if necessary
 cache_dir = os.path.join(
@@ -129,7 +141,7 @@ os.environ["VIRTUAL_ENV"] = venv_path
 # Iterate through code paths, calling scanner
 source_root = os.path.join(os.environ.get("WORKSPACE", "."), "src")
 first_path = True
-for i, path in enumerate(config.get("source_paths", ['.']), start=1):
+for i, path in enumerate(config["source_paths"], start=1):
     suffix = f"-{i}" if i > 1 else ""
     source_path = os.path.join(source_root, path)
     path_args = [
