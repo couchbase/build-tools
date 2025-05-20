@@ -10,7 +10,7 @@
 #  - <BLD_DIR>/unfinished/<ARTIFACT_NAME>.<EXT>
 #  - <BLD_DIR>/<ARTIFACT_NAME>_unsigned.<EXT>
 #
-# For Srver or Columnar .dmg files, the unsigned/un-notarized artifacts
+# For Srver or Enterprise Analytics .dmg files, the unsigned/un-notarized artifacts
 # are .zip files in one of two locations:
 #
 #  - <BLD_DIR>/unfinished/<ARTIFACT_NAME>.zip
@@ -44,9 +44,9 @@ function usage
     echo "  -b Build Number: eg. 123"
 }
 
-# Check if final artifact name is for a Server or Columnar .dmg
+# Check if final artifact name is for a Server or Enterprise Analytics .dmg
 function is-dmg-package {
-    [[ $1 = couchbase-(server|columnar)-*.dmg ]]
+    [[ $1 = (couchbase-server|enterprise-analytics)*.dmg ]]
 }
 
 while getopts b:p:r:v: opt
@@ -111,8 +111,8 @@ couchbase-operator)
     expected+=(couchbase-autonomous-operator_${VERSION}-${BLD_NUM}-openshift-macos-amd64.zip)
     expected+=(couchbase-autonomous-operator_${VERSION}-${BLD_NUM}-openshift-macos-arm64.zip)
     ;;
-couchbase-columnar)
-    expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
+enterprise-analytics)
+    expected+=(${PRODUCT}_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
     ;;
 *)
     header "Unsupported product ${PRODUCT}, nothing to do..."
@@ -145,7 +145,7 @@ fi
 typeset -A urls=()
 for pkg in $needed; do
 
-    # The unsigned version of a Server or Columnar .dmg file is actually a .zip,
+    # The unsigned version of a Server or Enterprise Analytics .dmg file is actually a .zip,
     # in slightly different potential locations
     candidate_urls=()
     if is-dmg-package ${pkg}; then
@@ -199,7 +199,7 @@ done
 for pkg in ${(k)urls}; do
     header "Codesigning ${pkg}..."
     if is-dmg-package ${pkg}; then
-        # Server or Columnar ".dmg" files are actually the unsigned .zip;
+        # Server or Enterprise Analytics ".dmg" files are actually the unsigned .zip;
         # fix that  up, and delete the .zip after the signed .dmg is created.
         zippkg=${pkg:r}.zip
         mv ${pkg} ${zippkg}
