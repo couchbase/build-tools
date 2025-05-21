@@ -133,6 +133,11 @@ case "${PRODUCT}" in
         # There's also beta-staging but that will be caught by beta-*.
         EXTRA_POSITIVE_WILDCARDS+=('couchbase-beta-*' 'couchbase-staging-*')
         ;;
+    couchbase-cloud-native-gateway)
+        # couchbase-cloud-native-gateway also uploads raw executables,
+        # which are called "cloud-native-gateway*"
+        EXTRA_POSITIVE_WILDCARDS+=('cloud-native-gateway*')
+        ;;
 esac
 
 # Compute target filename components
