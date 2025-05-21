@@ -1,8 +1,7 @@
 #!/bin/bash -ex
 git clone ssh://git@github.com/couchbasecloud/couchbase-cloud.git
-git clone ssh://git@github.com/couchbase/direct-nebula.git
-git clone ssh://git@github.com/couchbase/data-api.git
-git clone ssh://git@github.com/couchbase/regulator.git ../extra/regulator
+pushd couchbase-cloud
+git checkout production
 
 # Use the same go version used on self hosted runners
 GO_VER=$(yq '.inputs.go-version.default' couchbase-cloud/.github/actions/setup-go/action.yml)
@@ -18,17 +17,5 @@ cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
 # Ensure go + node are pathed
 export PATH="${WORKSPACE}/extra/go${GO_VER}/bin:${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
 
-echo "replace github.com/couchbasecloud/couchbase-cloud => ../couchbase-cloud" >> direct-nebula/go.mod
-echo "replace github.com/couchbasecloud/couchbase-cloud => ../couchbase-cloud" >> data-api/go.mod
-echo "replace github.com/couchbase/regulator => ../../extra/regulator" >> data-api/go.mod
-echo "replace github.com/couchbase/regulator => ../../extra/regulator" >> direct-nebula/go.mod
-
-pushd couchbase-cloud
-git checkout production
+go mod download
 popd
-
-for repo in couchbase-cloud direct-nebula data-api; do
-    pushd ${repo}
-    go mod download
-    popd
-done
