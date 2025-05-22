@@ -144,6 +144,9 @@ class BlackduckClient:
         cve_list = []
         for entry in raw_entries:
             cve_name = entry['vulnerabilityWithRemediation']['vulnerabilityName']
+            # Skip if CVE is in the exclusion list
+            if cve_name in constants.EXCLUDED_CVE_LIST:
+                continue
             cve_detail = self.hub.get_vulnerabilities(cve_name)
             cve_link = next(
                 (x['href'] for x in cve_detail['_meta']['links'] if x['rel'] == 'nist'), '')
@@ -211,11 +214,15 @@ class BlackduckClient:
         journal_entries = activities.json().get('items', [])
         for entry in journal_entries:
             if entry['action'] == 'Vulnerability Found':
+                cve_name=entry['currentData']['vulnerabilityId']
+                # Skip if CVE is in the exclusion list
+                if cve_name in constants.EXCLUDED_CVE_LIST:
+                    continue
                 cve_link=f"https://nvd.nist.gov/vuln/detail/{entry['currentData']['vulnerabilityId']}"
                 cve_entries.append({
                     'componentName': entry['currentData']['projectName'],
                     'componentVersionName': entry['currentData']['releaseVersion'],
-                    'cve_name': entry['currentData']['vulnerabilityId'],
+                    'cve_name': cve_name,
                     'cve_link': cve_link,
                     'severity': entry['currentData']['riskPriority'].upper(),
                     'updatedDate': entry['timestamp']

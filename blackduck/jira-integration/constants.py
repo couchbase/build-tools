@@ -43,3 +43,9 @@ DO_NOT_REOPEN_STATUSES = {
     'Component Not Applicable',
     'Fixed In Later Version'
 }
+
+# Set of CVE IDs to exclude from vulnerability reporting
+EXCLUDED_CVE_LIST = {
+    'CVE-2019-11840',  # Blackduck falsely reports against wrong versions of golang.org/x/crypto
+    'CVE-2017-3204',  # Blackduck falsely reports against wrong versions of golang.org/x/crypto
+}
