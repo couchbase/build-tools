@@ -15,7 +15,7 @@ import sys
 import yaml
 
 from abc import ABC, abstractmethod
-from blackduck.HubRestApi import HubInstance
+from bdhelper import BlackDuckClient
 from enum import Enum
 from urllib.parse import urlparse, quote
 
@@ -289,19 +289,23 @@ class UpdateComponents(ManifestWalker):
             sys.exit(3)
         with open(credentials_file, "r") as c:
             creds = json.load(c)
-        self.hub = HubInstance(
-            creds['url'],
-            creds['username'],
-            creds['password'],
-            insecure=True
+        self.client = BlackDuckClient(
+            base_url=creds['url'],
+            token=creds['token']
         )
-        self.comp_base = self.hub.get_apibase() + "/components/"
+        self.comp_base = self.client.resources['components'] + "/"
 
         # Save Black Duck's data about the project-version
         logging.debug(f"Looking up project {project}")
-        self.project = self.hub.get_project_by_name(project)
+        self.project = self.client.get_project_by_name(project)
         logging.debug(f"Looking up project version {version}")
-        self.project_version = self.hub.get_version_by_name(self.project, version)
+        self.project_version = self.client.get_version_by_name(self.project, version)
+
+        if self.project_version is None:
+            logging.error(
+                f"Project version {version} for project {project} not found!"
+            )
+            sys.exit(3)
 
         # Initialize bom_comp_map and manifest schema
         self.manifest = collections.defaultdict(lambda: { "versions": set() })
@@ -386,24 +390,14 @@ class UpdateComponents(ManifestWalker):
         """
         Returns the current "Manually Added" components for the current project-
         version.
-
-        Adapted from hub-rest-api-python/blackduck/Projects.py so we can add
-        filters.
         """
 
-        url = self.hub.get_link(self.project_version, "components")
-        headers = self.hub.get_headers()
-        headers['Accept'] = 'application/vnd.blackducksoftware.bill-of-materials-6+json'
-        filter_opts = "bomMatchType:manually_added"
-        response = requests.get(
-            url,
-            headers = headers,
-            params = { "limit": 1000, "filter": filter_opts },
-            verify = not self.hub.config['insecure']
-        )
-        jsondata = response.json()
-        return jsondata.get("items", [])
-
+        params = {
+            "filter": "bomMatchType:manually_added",
+        }
+        return [m for m in self.client.get_resource(
+            "components", self.project_version, params=params
+        )]
 
     def _load_manual_bom_components(self):
         """
@@ -470,7 +464,7 @@ class UpdateComponents(ManifestWalker):
         safe_version = re.sub(r'[+]', '_', version)
         versions_url = f"{component_url}/versions?q=versionName:{quote(safe_version)}&limit=100"
         logging.debug(f"Searching for version {version} of {comp_name}: {versions_url}")
-        versions = self.hub.execute_get(versions_url).json().get('items', [])
+        versions = self.client.get_json(versions_url).get('items', [])
         logging.debug(f"Found {len(versions)} items")
 
         # Ensure one of those found versions is an exact match.
@@ -787,17 +781,13 @@ class UpdateComponents(ManifestWalker):
 
         # OK, finally add the component-version to the project-version
         # (unless dryrun is set).
-        pv_components_url = self.hub.get_link(self.project_version, "components")
+        pv_components_url = self.client.list_resources(self.project_version)["components"]
         if self.dryrun:
             logging.info("DRYRUN: not updating Black Duck")
         else:
             post_data = {'component': component_version_url}
-            custom_headers = {
-                'Content-Type': 'application/vnd.blackducksoftware.bomcomponent-1+json',
-                'Accept': '*/*'
-            }
-            response = self.hub.execute_post(
-                pv_components_url, post_data, custom_headers=custom_headers
+            response = self.client.session.post(
+                pv_components_url, json=post_data
             )
             response.raise_for_status()
             logging.debug(f"{comp_id} version {version} added successfully")
@@ -817,12 +807,13 @@ class UpdateComponents(ManifestWalker):
         # rarely so a simple linear search is fine.
         comp_url = self.comp_base + comp_id
         for component in self.bom_components:
+            logging.debug(f"Looking for URL {comp_url} in {component}")
             if (component['component'] == comp_url and
                 component.get('componentVersionName', "") == version):
                 if self.dryrun:
                     logging.info("DRYRUN: found comp-version but not updating Black Duck")
                 else:
-                    response = self.hub.execute_delete(component['_meta']['href'])
+                    response = self.client.session.delete(component['_meta']['href'])
                     response.raise_for_status()
                     logging.debug(f"{comp_id} version {version} deleted successfully")
                 return
@@ -858,12 +849,8 @@ class UpdateComponents(ManifestWalker):
             if self.dryrun:
                 logging.info("DRYRUN: not updating Black Duck")
             else:
-                custom_headers = {
-                    'Content-Type': 'application/vnd.blackducksoftware.bill-of-materials-6+json',
-                    'Accept': 'application/vnd.blackducksoftware.bill-of-materials-6+json'
-                }
-                response = self.hub.execute_put(
-                    item['_meta']['href'], item, custom_headers=custom_headers
+                response = self.client.session.put(
+                    item['_meta']['href'], json=item
                 )
                 response.raise_for_status()
 
