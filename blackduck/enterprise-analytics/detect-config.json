@@ -1,0 +1,12 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "detect.excluded.directories": "**/analytics",
+        "logging.level.detect": "DEBUG",
+        "detect.excluded.detector.types": "GRADLE,HEX,PEAR,NUGET,CONAN",
+        "detect.accuracy.required": "MAVEN",
+        "detect.pip.path": "/none",
+        "detect.maven.build.command": "--batch-mode",
+        "detect.npm.include.dev.dependencies": "false"
+    }
+}
