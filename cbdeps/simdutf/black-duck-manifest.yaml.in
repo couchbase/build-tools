@@ -1,0 +1,4 @@
+components:
+    simdutf:
+        bd-id: 29063689-35a8-423f-bb71-9778509582be
+        versions: [ "@@BD_VERSION@@" ]
