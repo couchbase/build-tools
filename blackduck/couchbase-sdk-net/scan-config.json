@@ -1,12 +1,12 @@
 {
     "versions": {
-        "3.6.6": {
-            "interval": 1440
-        },
         "3.7.0": {
             "interval": 1440
         },
         "3.7.1": {
+            "interval": 1440
+        },
+        "3.7.2": {
             "interval": 1440
         },
         "snapshot": {
