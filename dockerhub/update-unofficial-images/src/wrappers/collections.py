@@ -5,5 +5,8 @@ def dict_factory():
     return _defaultdict(dict)
 
 
-def defaultdict():
-    return _defaultdict(dict_factory)
+def defaultdict(factory=None):
+    if factory is None:
+        return _defaultdict(dict_factory)
+    else:
+        return _defaultdict(factory)

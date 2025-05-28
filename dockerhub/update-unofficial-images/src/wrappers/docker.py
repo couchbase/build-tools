@@ -1,9 +1,13 @@
 import logging
 import subprocess
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+# Cache for storing package update check results by image URI
+# Format: {image_uri: (updates_needed, packages_to_update)}
+_package_update_cache: Dict[str, Tuple[bool, List[str]]] = {}
 
 
 def pull_image(image_uri: str, max_retries: int = 3) -> None:
@@ -145,6 +149,62 @@ def _run_apk_update(container_id: str) -> None:
         raise RuntimeError(f"Failed to run apk update: {e.stderr}") from e
 
 
+def _ensure_microdnf_supports_assumeno(container_id: str) -> bool:
+    """
+    Ensure microdnf in ubi containers supports --assumeno flag.
+
+    This is a workaround for the fact that microdnf in UBI8 does not support the --assumeno flag.
+    This flag is required for the package update check to work.
+
+    Args:
+        container_id: Docker container ID
+
+    Returns:
+        bool: True if microdnf was upgraded or already has the feature, False if upgrade failed
+
+    Raises:
+        RuntimeError: If microdnf upgrade fails critically
+    """
+    logger.debug("Checking if microdnf needs to be upgraded")
+
+    # Check if current microdnf already supports --assumeno
+    check_cmd = "microdnf --help | grep -q -- --assumeno"
+    result = subprocess.run(
+        ["docker", "exec", "--user", "0", container_id, "sh", "-c", check_cmd],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+
+    if result.returncode == 0:
+        logger.debug("microdnf already supports --assumeno flag")
+        return True
+
+    logger.debug("Upgrading microdnf to get --assumeno support")
+    try:
+        # Upgrade microdnf
+        subprocess.run(
+            ["docker", "exec", "--user", "0", container_id, "microdnf", "upgrade", "microdnf"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            check=True
+        )
+
+        # Verify if the upgrade provided the --assumeno flag
+        verify_result = subprocess.run(
+            ["docker", "exec", "--user", "0", container_id, "sh", "-c", check_cmd],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+
+        if verify_result.returncode == 0:
+            logger.debug("Successfully upgraded microdnf to support --assumeno flag")
+            return True
+        else:
+            logger.warning("Upgraded microdnf but --assumeno flag still not available")
+            return False
+
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to upgrade microdnf: {e}")
+        return False
+
+
 def _execute_package_update_check(container_id: str, pkg_mgr: str, check_cmd: str) -> subprocess.CompletedProcess:
     """
     Run package check command in the container.
@@ -211,28 +271,47 @@ def _parse_microdnf_updates(output: str) -> List[str]:
     in_package_section = False
     section_headers = ("Installing:", "Upgrading:", "Reinstalling:",
                       "Obsoleting:", "Removing:", "Downgrading:")
+    seen_packages = set()  # Track unique package names
 
     for line in output.strip().split('\n'):
         line = line.strip()
         if not line:
             continue
 
-        # Check if we're entering a new package section
-        if line.startswith(section_headers):
-            in_package_section = True
-            continue
-        elif line.startswith("Transaction Summary:"):
-            in_package_section = False
-            continue
+        # If "Transaction Summary:" is found, stop all package parsing activities.
+        if line.startswith("Transaction Summary:"):
+            break
 
-        # Extract package names from any sections showing changes
-        if in_package_section and not line.startswith(' replacing'):
-            # Extract package name from something like: " package_name-version.arch ..."
-            parts = line.strip().split('-', 1)
-            if parts and parts[0].strip():
-                package_name = parts[0].strip()
-                packages.append(package_name)
+        # Check if the line is one of the main section headers (e.g., "Installing:", "Upgrading:")
+        # These headers indicate the start of a list of packages.
+        is_section_header_line = False
+        for header in section_headers:
+            if line.startswith(header):
+                in_package_section = True
+                is_section_header_line = True
+                break
 
+        if is_section_header_line:
+            continue # Skip the header line itself, packages are on subsequent lines
+
+        # Process lines if we are in a package section and summary hasn't been seen
+        if in_package_section:
+            # Skip specific non-package lines that might appear within sections
+            if line.startswith("replacing "):  # e.g., "  replacing old-package-version"
+                continue
+            if (line.startswith("(") and "):" in line and "WARNING **:" in line): # e.g., DNF style warnings
+                continue
+            if (line.startswith("Package") and "Repository" in line and "Size" in line): # e.g., "Package      Repository     Size"
+                continue
+
+            # Extract package name (should be the first token on the line)
+            columns = line.split(None, 1)
+            if columns:
+                package_name = columns[0]
+                # Ensure package_name is not empty and add to set/list if unique
+                if package_name and package_name not in seen_packages:
+                    seen_packages.add(package_name)
+                    packages.append(package_name)
     return packages
 
 
@@ -265,7 +344,7 @@ def check_container_for_updates(container_id: str) -> Tuple[bool, List[str]]:
         "apt": "apt list --upgradable -qq",
         "yum": "yum check-update --quiet",
         "dnf": "dnf check-update --quiet",
-        "microdnf": "microdnf upgrade --assumeno",
+        "microdnf": "microdnf --assumeno upgrade",
         "apk": "apk -v upgrade --available --simulate"
     }
 
@@ -290,6 +369,11 @@ def check_container_for_updates(container_id: str) -> Tuple[bool, List[str]]:
             # For apk, we need to run update first
             elif pkg_mgr == "apk":
                 _run_apk_update(container_id)
+            # For microdnf, ensure the installed version supports --assumeno
+            elif pkg_mgr == "microdnf":
+                if not _ensure_microdnf_supports_assumeno(container_id):
+                    # Fail if microdnf can't do what we need
+                    raise RuntimeError("microdnf does not support --assumeno flag")
 
             # Run the package check command
             check_result = _execute_package_update_check(container_id, pkg_mgr, check_cmd)
@@ -317,12 +401,13 @@ def check_container_for_updates(container_id: str) -> Tuple[bool, List[str]]:
     return len(packages_to_update) > 0, packages_to_update
 
 
-def check_image_for_updates(image_uri: str) -> Tuple[bool, List[str]]:
+def check_image_for_updates(image_uri: str, image_label: str = "image") -> Tuple[bool, List[str]]:
     """
     Check if the image has any packages that need to be updated.
 
     Args:
         image_uri: Full Docker image URI to check
+        image_label: Label to use in logs (e.g., "product image" or "base image")
 
     Returns:
         Tuple[bool, List[str]]: (updates_needed, package_list)
@@ -332,24 +417,42 @@ def check_image_for_updates(image_uri: str) -> Tuple[bool, List[str]]:
         RuntimeError: If image pull or container start fails
         RuntimeError: If apt update fails for containers using apt
     """
-    logger.debug(f"Checking for package updates in {image_uri}")
+    # Check cache first
+    if image_uri in _package_update_cache:
+        logger.debug(f"Using cached package update results for {image_label} {image_uri}")
+        return _package_update_cache[image_uri]
+
+    logger.debug(f"Checking for package updates in {image_label} {image_uri}")
     container_id = None
 
     try:
         # Pull the image - will raise exception on failure
         pull_image(image_uri)
 
-        # Start container - will raise exception on failure
-        container_id = start_container(image_uri)
+        try:
+            # Start container - will raise exception on failure
+            container_id = start_container(image_uri)
+        except RuntimeError as e:
+            # Check if this is a command not found error (exit code 127)
+            if "exit status 127" in str(e.__cause__):
+                logger.info(f"Image {image_uri} appears to have no shell - assuming no updates needed")
+                result = (False, [])
+                _package_update_cache[image_uri] = result
+                return result
+            # Re-raise for other errors
+            raise
 
         # Check for updates - will raise exception if issues occur
         updates_needed, packages_to_update = check_container_for_updates(container_id)
 
-        logger.debug(f"Package updates needed: {updates_needed}")
         if updates_needed:
-            logger.debug(f"Packages to update: {packages_to_update}")
+            logger.debug(f"Packages to update in {image_label}: {packages_to_update}")
 
-        return updates_needed, packages_to_update
+        # Cache the results
+        result = (updates_needed, packages_to_update)
+        _package_update_cache[image_uri] = result
+
+        return result
     finally:
         # Clean up
         if container_id:

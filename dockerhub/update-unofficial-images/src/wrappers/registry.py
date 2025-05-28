@@ -116,30 +116,56 @@ def redhat_tags(product: str, edition: str) -> dict:
         logger.debug("Product/edition is absent from RHCC")
         return defaultdict()
 
-    pattern = re.compile(r'^\d+\.\d+\.\d+(-\d+)?$')
-    processed_semvers = []
-    filtered_tags = defaultdict()
+    # Regex to capture semver (X.Y.Z) and an optional build number (-N)
+    # Group 1: X.Y.Z (e.g., "1.2.3")
+    # Group 2 (optional): N (e.g., "10" from "-10")
+    semver_build_pattern = re.compile(r'^(\d+\.\d+\.\d+)(?:-(\d+))?$')
+
+    # Temporary storage for candidate tags, grouped by base semver
+    # Key: "X.Y.Z", Value: list of (build_number_int, full_tag_string)
+    # build_number_int is -1 for plain "X.Y.Z" tags, otherwise the parsed integer.
+    semver_candidates = defaultdict(list)
 
     tags = skopeo.tags(image_uri("rhcc", product))
-    logger.debug(f"Found {len(tags)} total tags")
+    logger.debug(f"Found {len(tags)} total tags from skopeo for {product}")
 
-    matched_versions = []
-    for version in tags:
-        bare_version = version.split("-")[0]
-        if bare_version not in matched_versions:
-            match = re.search(pattern, version)
-            if match:
-                matched_versions.append(bare_version)
-                # The list of tags is reverse semver (with optional build number)
-                # sorted, so we can just grab the first hit which will be either
-                # the most recent build number (x.y.z-7) or a generic tag which
-                # *should* be present on the most current build (x.y.z-rhcc)
-                if match.group(1) not in processed_semvers:
-                    filtered_tags[version] = defaultdict()
-                    processed_semvers.append(match.group(1))
-                    logger.debug(f"Added tag {version}")
+    for tag_str in tags:
+        match = semver_build_pattern.match(tag_str)
+        if match:
+            base_semver = match.group(1)  # The "X.Y.Z" part
+            build_num_str = match.group(2) # The "N" part (string or None)
 
-    logger.debug(f"Returning {len(filtered_tags)} filtered tags")
+            if build_num_str:
+                try:
+                    build_number = int(build_num_str)
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse build number from tag {tag_str} for product {product}, skipping.")
+                    continue
+            else:
+                # Tag is like "1.2.3", no build number suffix.
+                # Assign a value that sorts it lower than actual positive build numbers.
+                build_number = -1
+
+            semver_candidates[base_semver].append((build_number, tag_str))
+
+    filtered_tags = defaultdict()
+    for base_semver, candidates in semver_candidates.items():
+        if not candidates:
+            continue
+
+        # Sort candidates:
+        # Primary key: build_number (descending, so highest actual build number is first).
+        # A build_number of -1 (for plain semver X.Y.Z) will come after any positive build numbers.
+        candidates.sort(key=lambda x: x[0], reverse=True)
+
+        # The best tag is the first one after sorting
+        best_tag_full_string = candidates[0][1]
+        filtered_tags[best_tag_full_string] = defaultdict()
+        logger.debug(
+            f"For product {product}, selected tag for base semver {base_semver}: {best_tag_full_string} from candidates: {candidates}")
+
+    logger.debug(f"Returning {len(filtered_tags)} filtered tags for {product}")
     return filtered_tags
 
 
@@ -421,60 +447,125 @@ def has_norebuild_file(product: str, version: str) -> bool:
 
 
 def process_single_tag(registry, product, edition, semver, tag):
-    """Process a single tag and return its metadata."""
+    """
+    Process a single tag and return its metadata.
 
+    Follows these steps in order:
+    1. Check if .norebuild file exists (skip if yes)
+    2. Check if base image is newer (rebuild if yes)
+    3. Check for package updates (rebuild if updates in product image
+       which are not available in base image)
+    """
     tag_data = {'queried_tag': tag, 'rebuild_needed': False}
 
+    # STEP 1: Check for .norebuild file
     if has_norebuild_file(product, semver):
         logger.info(
             f"Skipping rebuild for {product}/{semver} on {registry} due to .norebuild file")
+        tag_data['skipped_reason'] = ".norebuild file"
         return tag_data
 
+    # STEP 2: Check if base image is newer
+    logger.debug(f"Checking if base image is newer for {product}/{semver}")
     tag_data.update(get_base_image_and_dates(registry, product, edition, tag))
-    distroless = tag_data.get('distroless', False)
 
-    # If rebuild is already needed based on base image changes, no need to check packages
     if tag_data['rebuild_needed']:
         if 'base_created' in tag_data and 'product_created' in tag_data:
-            base_created = datetime.fromtimestamp(tag_data['base_created'])
-            product_created = datetime.fromtimestamp(
-                tag_data['product_created'])
-            age_diff = base_created - product_created
-            if age_diff.total_seconds() > 0:
-                time_str = format_time_difference(age_diff.total_seconds())
-
-                logger.debug(
-                    f"Rebuild needed: {registry}/{product}/{edition}/{semver} "
-                    f"(base: {tag_data['base_image']}, "
-                    f"{time_str} newer, build job: {tag_data.get('build_job', 'None')})")
+            if tag_data['base_created'] > tag_data['product_created']:
+                logger.info(
+                    f"Rebuild needed for {registry}/{product}/{edition}/{semver}: "
+                    f"Base image {tag_data['base_image']} is newer")
         return tag_data
 
-    # Check for package updates if non-distroless image
-    if not distroless:
-        logger.debug(f"Checking for package updates for {product}/{semver}")
-        try:
-            uri = image_uri(registry, product).replace("docker://", "")
-            full_uri = f"{uri}:{tag}"
+    # Skip package checks for distroless images
+    distroless = tag_data.get('distroless', False)
+    if distroless:
+        logger.debug(f"Skipping package update check for {product}/{semver} (distroless image)")
+        return tag_data
 
-            package_updates_needed, packages_to_update = check_image_for_updates(
-                full_uri)
-
-            if package_updates_needed:
-                tag_data['rebuild_needed'] = True
-                tag_data['packages_to_update'] = packages_to_update
-                logger.debug(
-                    f"Rebuild needed due to package updates: {packages_to_update}")
-        except Exception as e:
-            logger.warning(f"Error checking for package updates: {e}")
-    else:
-        logger.debug(
-            f"Skipping package update check for {product}/{semver} (likely a distroless image)")
-
-    if not tag_data['rebuild_needed']:
-        logger.debug(
-            f"Skipping tag: {registry}/{product}/{edition}/{semver} - rebuild not needed")
+    # STEP 3: Check for package updates
+    update_data = check_package_updates(registry, product, semver, tag, tag_data)
+    tag_data.update(update_data)
 
     return tag_data
+
+
+def check_package_updates(registry, product, semver, tag, tag_data):
+    """
+    Check for package updates in product and base images.
+
+    Args:
+        registry: The container registry
+        product: The product name
+        semver: The semantic version
+        tag: The image tag to check
+        tag_data: Existing tag data with base image information
+
+    Returns:
+        Dict with update information
+    """
+    update_data = {}
+    try:
+        uri = image_uri(registry, product).replace("docker://", "")
+        full_uri = f"{uri}:{tag}"
+
+        # Check if our product image needs package updates
+        product_updates_needed, product_packages = check_image_for_updates(
+            full_uri, image_label="product image")
+
+        # If no updates needed in our image, we're done
+        if not product_updates_needed:
+            logger.debug(f"No package updates needed for {product}/{semver}")
+            return update_data
+
+        # Updates available in product image - compare against base image
+        logger.info(f"Found package updates in {product}/{semver}, checking base image")
+
+        # Check base image for same updates
+        try:
+            base_image_name = tag_data.get('base_image')
+            logger.debug(f"Checking base image {base_image_name} for package updates")
+            base_updates_needed, base_packages = check_image_for_updates(
+                base_image_name, image_label="base image")
+
+            # If base image has updates, compare the packages
+            if not base_updates_needed:
+                # Base has no updates but our image does, rebuild
+                logger.info(f"Rebuild needed for {product}/{semver}: base image has no updates but our image does")
+                update_data['rebuild_needed'] = True
+                update_data['packages_to_update'] = product_packages
+            else:
+                # Product and base have updates, compare the packages
+                product_updates_set = set(product_packages)
+                base_updates_set = set(base_packages)
+
+                # If product image has unique updates, rebuild is needed
+                updates_only_in_product = product_updates_set - base_updates_set
+                if updates_only_in_product:
+                    logger.info(
+                        f"Rebuild needed for {product}/{semver}: "
+                        f"product-specific package updates required: {list(updates_only_in_product)}")
+                    update_data['rebuild_needed'] = True
+                    update_data['packages_to_update'] = list(updates_only_in_product)
+                elif product_updates_set: # Implies product_updates_set is a non-empty subset of or equal to base_updates_set
+                    logger.info(
+                        f"Ineffective rebuild for {product}/{semver}: "
+                        f"all product package updates ({list(product_updates_set)}) are also present in base image updates.")
+                    update_data['rebuild_ineffective'] = True
+                    update_data['packages_in_common'] = list(product_updates_set)
+
+
+        except Exception as e:
+            # Fallback to rebuilding if base image check fails
+            logger.warning(f"Error checking base image packages: {e}")
+            update_data['rebuild_needed'] = True
+            update_data['packages_to_update'] = product_packages
+    except Exception as e:
+        logger.warning(f"Error in package update checking process: {e}")
+        # On any other error, assume no updates needed
+        logger.info(f"Assuming no updates needed for {product}/{semver} due to error in update process")
+
+    return update_data
 
 
 def process_product_edition(registries, product, edition, versions=None):

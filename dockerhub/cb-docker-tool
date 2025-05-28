@@ -563,7 +563,7 @@ class DockerTool:
         """
 
         buildcmd = [
-            "docker", "buildx", "build",
+            "docker", "buildx", "build", "--no-cache",
             self.contextdir
         ]
         for imagename in self.imagenames:

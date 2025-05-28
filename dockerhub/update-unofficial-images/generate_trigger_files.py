@@ -15,6 +15,7 @@ from src.wrappers.logging import setup_logging
 from src.wrappers.collections import defaultdict
 from src.wrappers import git
 from src.metadata import all_products, image_info, REGISTRIES
+from datetime import datetime
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ parameters = {
     }
 }
 
+
 def clone_repos():
     """Clone required repositories for container analysis"""
     logger.info("Cloning required repositories")
@@ -50,6 +52,34 @@ def clone_repos():
         "couchbase-partners/redhat-openshift"
     ]:
         git.repo(f"{repo}")
+
+
+def create_trigger_file(registry, product, edition, tag, build_job, floating_tags):
+    repo = image_info(product)["github_repo"]
+
+    # Generate filename for the trigger file
+    edition_part = f"-{edition}" if edition != "default" else ""
+    if repo == "couchbase/docker":
+        filename = f"triggers/{registry}-{product}{edition_part}-{tag}-couchbase-republish.properties"
+    else:
+        filename = f"triggers/{registry}-{product}{edition_part}-{tag}-k8s-republish.properties"
+
+    logger.debug(f"Creating trigger file: {filename}")
+
+    with open(filename, "w") as f:
+        f.write(f"REGISTRY={registry}{os.linesep}")
+        f.write(f"BUILD_JOB={build_job}{os.linesep}")
+        f.write(f"{parameters[build_job]['product']}={product}{os.linesep}")
+        f.write(f"{parameters[build_job]['version']}={tag}{os.linesep}")
+
+        # Pass edition to the build job if it's not the default edition
+        if edition != "default" and "edition" in parameters[build_job]:
+            f.write(f"{parameters[build_job]['edition']}={edition}{os.linesep}")
+
+        # If floating tags are associated with the current tag, we
+        # need to let the build job know
+        if floating_tags and "update_edition" in parameters[build_job]:
+            f.write(f"{parameters[build_job]['update_edition']}=true{os.linesep}")
 
 
 def main() -> int:
@@ -124,50 +154,74 @@ def main() -> int:
     # Create trigger files for images that need rebuilt
     logger.info("Creating trigger files for images needing rebuilds")
     needed_rebuilds = {registry: [] for registry in REGISTRIES}
+    skipped_rebuilds = {registry: [] for registry in REGISTRIES}
+    ineffective_rebuilds = {registry: [] for registry in REGISTRIES}
 
-    for registry, products in image_update_info.items():
-        for product, editions in products.items():
-            for edition, tags in editions.items():
-                for tag, info in tags.items():
-                    if info['rebuild_needed']:
-                        build_job = info.get('build_job')
-                        floating_tags = info.get('floating_tags', [])
-                        architectures = info['architectures']
+    for registry, products_data in image_update_info.items():
+        for product, editions_data in products_data.items():
+            for edition, tags_data in editions_data.items():
+                for tag, info in tags_data.items():
+                    build_job = info.get('build_job')
+                    base_image = info.get('base_image', '')
+                    floating_tags = info.get('floating_tags', [])
+                    edition_display = f"({edition}) " if edition != "default" else ""
+                    heading = f"{product} {tag} {edition_display}[job: {build_job or 'None'}]"
 
-                        # Format floating tags for display
-                        floating_tag_display = ""
-                        if floating_tags:
-                            floating_tag_list = ", ".join(floating_tags)
-                            floating_tag_display = f" - floating tags: {floating_tag_list}"
+                    details = []
+                    if floating_tags:
+                        details.append(f"  Floating tags: {', '.join(floating_tags)}")
+                    if base_image:
+                        details.append(f"  Base image: {base_image}")
 
-                        edition_display = f"({edition}) " if edition != "default" else ""
-                        needed_rebuilds[registry].append(
-                            f"{product} {tag} {edition_display}[build job: {build_job or "None"}]{floating_tag_display}")
-                        repo = image_info(product)["github_repo"]
-
-                        # Generate filename for the trigger file
-                        edition_part = f"-{edition}" if edition != "default" else ""
-                        if repo == "couchbase/docker":
-                            filename = f"triggers/{registry}-{product}{edition_part}-{tag}-couchbase-republish.properties"
+                    if info.get('rebuild_ineffective', False):
+                        packages_in_common = info.get('packages_in_common', [])
+                        if packages_in_common:
+                            details.append(f"  Common package updates (also in base): {', '.join(packages_in_common)}")
+                        details.append("  Status: Ineffective rebuild (review Dockerfile)")
+                        ineffective_rebuilds[registry].append(heading)
+                        ineffective_rebuilds[registry].extend(details)
+                    elif info.get('rebuild_needed', False):
+                        if ('base_created' in info and 'product_created' in info
+                                and info['base_created'] > info['product_created']):
+                            details.append("  Status: Rebuild needed (newer base image)")
+                        elif info.get('packages_to_update'):
+                            details.append(f"  Product-specific updates: {', '.join(info['packages_to_update'])}")
+                            details.append("  Status: Rebuild needed (product-specific package updates)")
                         else:
-                            filename = f"triggers/{registry}-{product}{edition_part}-{tag}-k8s-republish.properties"
+                            details.append("  Status: Rebuild needed (unknown reason - check logs)")
 
-                        logger.debug(f"Creating trigger file: {filename}")
+                        if build_job:
+                            needed_rebuilds[registry].append(heading)
+                            needed_rebuilds[registry].extend(details)
+                            create_trigger_file(registry, product, edition, tag, build_job, floating_tags)
+                        else:
+                            details.append("  Status: Skipped (no build_job defined, but rebuild otherwise needed)")
+                            skipped_rebuilds[registry].append(heading)
+                            skipped_rebuilds[registry].extend(details)
+                    else:
+                        skipped_reason = info.get('skipped_reason')
+                        if skipped_reason:
+                            details.append(f"  Status: Skipped ({skipped_reason})")
+                        elif info.get('distroless', False):
+                            details.append("  Status: Skipped (distroless image, no package checks)")
+                        else:
+                            details.append("  Status: Skipped (no actionable updates found)")
 
-                        with open(filename, "w") as f:
-                            f.write(f"REGISTRY={registry}{os.linesep}")
-                            f.write(f"BUILD_JOB={build_job}{os.linesep}")
-                            f.write(f"{parameters[build_job]["product"]}={product}{os.linesep}")
-                            f.write(f"{parameters[build_job]["version"]}={tag}{os.linesep}")
+                        skipped_rebuilds[registry].append(heading)
+                        skipped_rebuilds[registry].extend(details)
 
-                            # Pass edition to the build job if it's not the default edition
-                            if edition != "default" and "edition" in parameters[build_job]:
-                                f.write(f"{parameters[build_job]["edition"]}={edition}{os.linesep}")
-
-                            # If floating tags are associated with the current tag, we
-                            # need to let the build job know
-                            if floating_tags and "update_edition" in parameters[build_job]:
-                                f.write(f"{parameters[build_job]["update_edition"]}=TRUE{os.linesep}")
+    # Print skipped rebuilds if there are any
+    if any(skipped_rebuilds[registry] for registry in skipped_rebuilds):
+        logger.info("Rebuilds skipped - printing summary")
+        print(
+            f"==============={os.linesep}Rebuild skips{os.linesep}"
+            f"===============")
+        for registry, skips in skipped_rebuilds.items():
+            if skips:
+                print(f"{registry}:")
+                for entry in skips:
+                    print(f"  {entry}")
+                print("")  # Add extra newline between registries
 
     if any(needed_rebuilds[registry] for registry in needed_rebuilds):
         logger.info("Rebuilds needed - printing summary")
@@ -176,11 +230,25 @@ def main() -> int:
             f"===============")
         for registry, rebuilds in needed_rebuilds.items():
             if rebuilds:
-                print(
-                    f"{registry}:{os.linesep}"
-                    f"{os.linesep.join(f'  {entry}' for entry in rebuilds)}")
+                print(f"{registry}:")
+                for entry in rebuilds:
+                    print(f"  {entry}")
+                print("")  # Add extra newline between registries
     else:
         logger.info("No rebuilds needed")
+
+    # Print ineffective rebuilds if there are any
+    if any(ineffective_rebuilds[registry] for registry in ineffective_rebuilds):
+        logger.info("Ineffective rebuilds detected - review Dockerfiles")
+        print(
+            f"==================================={os.linesep}Ineffective Rebuilds (Review Dockerfile){os.linesep}"
+            f"===================================")
+        for registry, ineffectives in ineffective_rebuilds.items():
+            if ineffectives:
+                print(f"{registry}:")
+                for entry in ineffectives:
+                    print(f"  {entry}")
+                print("") # Add extra newline between registries
 
 
 if __name__ == '__main__':
