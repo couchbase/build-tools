@@ -1,0 +1,11 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.detect": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.detector.search.continue": true,
+        "detect.maven.included.modules": "couchbase-analytics-java-client,couchbase-analytics-java-client-reactor",
+        "detect.maven.included.scopes": "compile,runtime",
+        "detect.maven.build.command": "--batch-mode"
+    }
+}
