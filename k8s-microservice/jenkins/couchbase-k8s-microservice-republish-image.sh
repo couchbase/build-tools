@@ -18,13 +18,7 @@ function republish() {
     if [ "${REGISTRY}" = "dockerhub" ]; then
         vanilla_args="-d linux/amd64,linux/arm64"
     elif [ "${REGISTRY}" = "rhcc" ]; then
-        # Figure out if we need to do RHCC, and if so, what arches
-        NEXT_BLD=0
-        if product_in_rhcc "${PRODUCT}"; then
-                NEXT_BLD=$(${script_dir}/../../rhcc/scripts/compute-next-rhcc-build.sh \
-                    -p ${product} -v ${version})
-                rhcc_args="-o ${NEXT_BLD} -r linux/amd64,linux/arm64"
-        fi
+        rhcc_args="-r linux/amd64,linux/arm64"
     fi
 
     # Rebuild the images on internal registry - this will update the base image.

@@ -59,7 +59,7 @@ usage() {
     echo "  -P - Immediately Publish each product's images after building (will publish with just :VERSION tags)"
     echo "  -l - Also create :latest tags in each repository"
     echo "  -R - Specify the registry to use (dockerhub, rhcc, or all [default])"
-    echo "  -o - OPENSHIFT_BUILD (required when building RHCC images)"
+    echo "  -o - OPENSHIFT_BUILD (optional, will be generated if not provided when building RHCC images)"
     exit 1
 }
 
@@ -200,11 +200,6 @@ source ${script_dir}/funclib.sh
 chk_set PRODUCT
 chk_set VERSION
 
-# Check OPENSHIFT_BUILD is provided if building RHCC images
-if building_redhat; then
-    chk_set OPENSHIFT_BUILD
-fi
-
 if [ -z "${BLD_NUM}" ]; then
     # When no BLD_NUM, we need at least one of VANILLA_ARCHES or RHCC_ARCHES
     # depending on which registry we're building for
@@ -285,6 +280,9 @@ for local_product in *; do
         PUBLISH_CMD="${script_dir}/publish-k8s-images.sh -p ${local_product} -i ${tag} -t ${VERSION}"
         if [ -n "${OPENSHIFT_BUILD}" ]; then
             PUBLISH_CMD+=" -o ${OPENSHIFT_BUILD}"
+        elif building_redhat; then
+            NEXT_BLD=$(${script_dir}/../../../rhcc/scripts/compute-next-rhcc-build.sh -p ${local_product} -v ${VERSION})
+            PUBLISH_CMD+=" -o ${NEXT_BLD}"
         fi
         if [ "${REGISTRY}" != "all" ]; then
             PUBLISH_CMD+=" -r ${REGISTRY}"
