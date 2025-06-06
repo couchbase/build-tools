@@ -27,6 +27,13 @@ for dir in gen/nftp/client evaluator/impl/gen/parser evaluator/impl/v8wrapper/pr
     touch goproj/src/github.com/couchbase/eventing-ee/${dir}/foo.go
 done
 
+# Delete a bunch of unwanted cruft in flatbuffers
+if [ -d godeps/src/github.com/google/flatbuffers ]; then
+    pushd godeps/src/github.com/google/flatbuffers
+    rm -rf samples examples grpc/examples dart rust tests Package.swift pubspec.yaml
+    popd
+fi
+
 # Call "go mod tidy" in each directory with a go.mod file until there
 # are no further changes in the repo sync
 diff_checksum=$(repo diff -u | sha256sum)
