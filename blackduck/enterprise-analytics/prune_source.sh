@@ -35,6 +35,9 @@ rm -rf goproj/src/github.com/couchbase/docloader/examples
 rm -rf goproj/src/github.com/couchbase/indexing/secondary/docs
 find . -name rebar -print0 | xargs -0 rm -rf
 
+# remove stuff in couchdbx-app except the BD manifest
+find couchdbx-app -mindepth 1 -maxdepth 1 -name couchbase-server-black-duck-manifest.yaml -prune -or -print0 | xargs -0 rm -rf
+
 # General-purpose removal of test data, examples, docs, etc.
 find . -name analytics -prune -o -name regulator -prune -o -type d -name test\* -print0 | xargs -0 rm -rf
 find . -name analytics -prune -o -type d -name testdata -print0 | xargs -0 rm -rf
