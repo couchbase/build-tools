@@ -81,8 +81,24 @@ couchbase_lite_ios_publish() {
     git clone git@github.com:couchbase/couchbase-lite-ios.git
 
     # Figure out deployment targets
-    ios_target=$(cat ${SCRIPT_DIR}/couchbase-lite-ios/xcconfigs/Project.xcconfig |grep IPHONEOS_DEPLOYMENT_TARGET |awk '{print $3}')
-    osx_target=$(cat ${SCRIPT_DIR}/couchbase-lite-ios/xcconfigs/Project.xcconfig |grep MACOSX_DEPLOYMENT_TARGET |awk '{print $3}')
+    # CBD-6346, starting from 3.3, xcconfig file has been changed to CBL_OS_Target_Versions.xcconfig
+    pushd couchbase-lite-ios
+    git checkout ${BRANCH}
+    if [[ "$(printf '%s\n' "$VERSION" "3.3" | sort -V | head -n1)" != "3.3" ]]; then
+        xc_config="Project.xcconfig"
+    else
+        xc_config="CBL_OS_Target_Versions.xcconfig"
+    fi
+    ios_target=$(cat ${SCRIPT_DIR}/couchbase-lite-ios/xcconfigs/${xc_config} |grep IPHONEOS_DEPLOYMENT_TARGET |awk '{print $3}')
+    osx_target=$(cat ${SCRIPT_DIR}/couchbase-lite-ios/xcconfigs/${xc_config} |grep MACOSX_DEPLOYMENT_TARGET |awk '{print $3}')
+
+    if [[ -z "$ios_target" || -z "$osx_target" ]]; then
+        echo "Error: Unable to determine deployment target(s) in ${xc_config}:"
+        echo "IPHONEOS_DEPLOYMENT_TARGET is: ${ios_target}"
+        echo "MACOSX_DEPLOYMENT_TARGET is: ${osx_taget}"
+        exit 1
+    fi
+    popd
 
     pushd couchbase-lite-ios-ee/Podspecs
     git checkout ${BRANCH}
