@@ -42,19 +42,17 @@ else
 fi
 
 TARBALL=
-case "$VERSION" in
-    4.2.*)
-        gem install --user-install --no-document nokogiri
-        BUILD_NUMBER=0 ruby bin/package.rb
-        TARBALL=$(ls -1 couchbase-*.tgz | head -1)
-        mv $TARBALL ../
-        ;;
-
-    *)
-        # Work-around for Black Duck Detect bug
-        sed '/DOCTYPE/d' package.xml
-        ;;
-esac
+IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+if (( MAJOR > 4 || (MAJOR == 4 && MINOR >= 2) ))
+then
+    gem install --user-install --no-document nokogiri
+    BUILD_NUMBER=0 ruby bin/package.rb
+    TARBALL=$(ls -1 couchbase-*.tgz | head -1)
+    mv $TARBALL ../
+else
+    # Work-around for Black Duck Detect bug
+    sed '/DOCTYPE/d' package.xml
+fi
 
 popd
 
