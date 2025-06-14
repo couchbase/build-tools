@@ -19,6 +19,7 @@ cmake -G Ninja ^
   -DBUILD_SHARED_LIBS=ON ^
   -D CURL_ZLIB=ON -D ZLIB_ROOT=%ZLIB_PATH% ^
   -D CURL_USE_LIBPSL=OFF ^
+  -D CURL_USE_SCHANNEL=ON ^
   -DCMAKE_INSTALL_PREFIX=%INSTALL_DIR% .. || goto error
 ninja install || goto error
 
@@ -26,6 +27,10 @@ cd %ROOT_DIR%
 xcopy %OUTPUT_DIR% %INSTALL_DIR% /s || goto error
 
 cd %INSTALL_DIR%
+
+rem quick test to ensure https works
+.\bin\curl.exe https://www.google.com || goto error
+
 rmdir /s /q share
 cd bin
 del curl-config mk*.*
