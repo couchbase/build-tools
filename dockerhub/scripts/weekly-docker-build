@@ -41,7 +41,7 @@ EOF
     fi
 }
 
-for product in couchbase-server couchbase-columnar sync_gateway couchbase-edge-server; do
+for product in couchbase-server couchbase-columnar couchbase-edge-server enterprise-analytics sync_gateway; do
     for release in $(dbapi_releases ${product}); do
         for version in $(
             dbapi_versions ${product} ${release}

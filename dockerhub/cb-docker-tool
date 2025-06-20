@@ -176,6 +176,13 @@ class DockerTool:
                 f"build-docker.couchbase.com/cb-vanilla/columnar:{self.version}",
                 f"build-docker.couchbase.com/cb-vanilla/columnar:{plain_version}",
             ])
+        elif self.product == "enterprise-analytics":
+            self.imagenames.extend([
+                f"ghcr.io/cb-vanilla/enterprise-analytics:{self.version}",
+                f"ghcr.io/cb-vanilla/enterprise-analytics:{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics:{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics:{plain_version}",
+            ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
 
@@ -207,6 +214,9 @@ class DockerTool:
             self.imagenames.append(f"couchbase/server-sandbox:{self.version}")
         elif self.product == "couchbase-columnar":
             imagebase = "couchbase/columnar"
+            self.imagenames.append(f"{imagebase}:{self.version}")
+        elif self.product == "enterprise-analytics":
+            imagebase = "couchbase/enterprise-analytics"
             self.imagenames.append(f"{imagebase}:{self.version}")
         elif self.product == "couchbase-edge-server":
             imagebase = "couchbase/edge-server"
@@ -340,9 +350,9 @@ class DockerTool:
                 "single platform with --platform, or specify a filename with '%P' "
                 "to --docker-save"
             )
-        if self.product=="couchbase-columnar" and self.edition=="community":
+        if self.product in ("couchbase-columnar", "enterprise-analytics") and self.edition == "community":
             return (
-                "couchbase-columnar does not support CE builds."
+                f"{self.product} does not support CE builds."
             )
 
         return None
@@ -418,7 +428,7 @@ class DockerTool:
                     return "linux/amd64,linux/arm64"
                 else:
                     return "linux/amd64"
-            elif self.product == "couchbase-columnar":
+            elif self.product in ("couchbase-columnar", "enterprise-analytics"):
                 return "linux/amd64,linux/arm64"
             elif self.product == "couchbase-edge-server":
                 return "linux/amd64"
@@ -700,7 +710,8 @@ if __name__ == "__main__":
     )
     reqopts.add_argument(
         "-p", "--product", type=str, required=True,
-        choices=["couchbase-server", "sync-gateway", "server-sandbox", "couchbase-columnar", "couchbase-edge-server"],
+        choices=["couchbase-server", "sync-gateway", "server-sandbox",
+                 "couchbase-columnar", "enterprise-analytics", "couchbase-edge-server"],
         help="Product name"
     )
     reqopts.add_argument(
