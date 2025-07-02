@@ -1,0 +1,4 @@
+certifi
+lxml
+qualysapi==8.1.0
+six
