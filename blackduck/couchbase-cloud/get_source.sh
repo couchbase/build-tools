@@ -9,13 +9,18 @@ cbdep install -d "${WORKSPACE}/extra" golang ${GO_VER}
 
 export GONOSUMDB="github.com/prometheus/node_exporter"
 
-# Get all node versions mentioned in build-and-deliver-predev action and install the latest
-export NODE_VERSIONS=$(grep -oP '(?<=node-version: )\S+' .github/workflows/build-and-deliver-predev.yml | sed 's/[^0-9.]//g' | sort -V)
-NODE_VER=$(echo "${NODE_VERSIONS}" | tail -n 1)
-cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
+# Get all node versions mentioned in build-and-deliver-predev workflow
+# (including the default value for the setup-node action). This will be
+# used in `get_additional_source.sh` to determine which node version to
+# use for each package.
+export NODE_VERSIONS=$( (
+    grep -oP '(?<=node-version: )\S+' .github/workflows/build-and-deliver-predev.yml | sed 's/[^0-9.]//g'
+    yq '.inputs.node-version.default' .github/actions/setup-node/action.yml
+) | sort -V)
+echo "${NODE_VERSIONS}"
 
-# Ensure go + node are pathed
-export PATH="${WORKSPACE}/extra/go${GO_VER}/bin:${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
+# Ensure go is pathed
+export PATH="${WORKSPACE}/extra/go${GO_VER}/bin:$PATH"
 
 go mod download
 popd
