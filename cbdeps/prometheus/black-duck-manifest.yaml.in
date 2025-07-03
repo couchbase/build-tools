@@ -1,0 +1,4 @@
+components:
+    "cbdeps::prometheus":
+        bd-id: 02047c89-7a83-4481-8444-21e225ef33f2
+        versions: [ "@@BD_VERSION@@" ]

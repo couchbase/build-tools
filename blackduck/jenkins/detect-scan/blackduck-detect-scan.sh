@@ -81,27 +81,31 @@ else
   pushd "${WORKSPACE}"
 
   # Sync build-manifests
-  if [ ! -e build-manifests ]; then
-      git clone ssh://git@github.com/couchbase/build-manifests
+  if [[ ${BLD_NUM} -gt 50000 ]]; then
+    # If the build number is greater than 50000, it's a toy build -
+    # occasionally we need to scan one of these, most notably when
+    # creating a new `cbdeps::xxxx` product.
+    MANIFEST_REPO=ssh://git@github.com/couchbasebuild/toy-build-manifests
   else
-      (cd build-manifests && git pull)
+    MANIFEST_REPO=ssh://git@github.com/couchbase/build-manifests
   fi
+  clean_git_clone ${MANIFEST_REPO} build-manifests
 
-  # Find the requests build manifest
+  # Find the requested build manifest
   cd build-manifests
   SHA=$(git log --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
   if [ -z "${SHA}" ]; then
     echo "Build ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM} not found!"
     exit 1
   fi
-  MANIFEST=$(git diff-tree --no-commit-id --name-only -r $SHA)
+  MANIFEST=${PRODUCT_PATH}/${RELEASE}/${VERSION}.xml
 
   # Back to the src directory
   popd
 
   echo "Syncing manifest $MANIFEST at $SHA"
   echo ================================
-  repo_init -u ssh://git@github.com/couchbase/build-manifests -b $SHA -g all -m $MANIFEST
+  repo_init -u ${MANIFEST_REPO} -b $SHA -g all -m $MANIFEST
   repo sync --jobs=8
   repo manifest -r > manifest.xml
   echo

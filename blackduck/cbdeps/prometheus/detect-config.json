@@ -1,0 +1,9 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "detect.excluded.detector.types": "MAVEN,NUGET,GRADLE,PIP",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "logging.level.detect": "DEBUG",
+        "detect.detector.search.continue": true
+    }
+}
