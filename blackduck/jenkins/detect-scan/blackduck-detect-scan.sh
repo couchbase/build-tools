@@ -1,7 +1,6 @@
 #!/bin/bash -ex
 
 PRODUCT_PATH=${PRODUCT/::/\/}
-PRODUCT_BASENAME=$(basename $PRODUCT_PATH)
 PROD_DIR="${WORKSPACE}/build-tools/blackduck/${PRODUCT_PATH}"
 DETECT_SCRIPT_DIR="${WORKSPACE}/build-tools/blackduck/jenkins/detect-scan"
 GET_ADDITIONAL_SOURCE_SCRIPT="${PROD_DIR}/get_additional_source.sh"

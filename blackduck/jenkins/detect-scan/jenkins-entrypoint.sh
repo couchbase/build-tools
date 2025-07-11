@@ -14,6 +14,8 @@ chk_set VERSION
 chk_set BLD_NUM
 chk_set DRY_RUN
 
+PRODUCT_PATH=${PRODUCT/::/\/}
+
 # If testing locally, set this before running script
 export SKIP_GIT_PUSH=${SKIP_GIT_PUSH-false}
 
@@ -23,7 +25,7 @@ export SKIP_GIT_PUSH=${SKIP_GIT_PUSH-false}
 update_builddb() {
 
   # Exit early if this product isn't manifest-driven
-  if [ ! -d "${WORKSPACE}/build-manifests/${PRODUCT}" ]; then
+  if [ ! -d "${WORKSPACE}/build-manifests/${PRODUCT_PATH}" ]; then
     header "Product ${PRODUCT} is not manifest-driven, so not updating build database"
     exit
   fi
