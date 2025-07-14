@@ -49,7 +49,7 @@ def clone_repos():
         "couchbase/docker",
         "couchbase/manifest",
         "couchbase/product-metadata",
-        "couchbase-partners/redhat-openshift"
+        "couchbase-partners/redhat-openshift",
         "couchbase/couchbase-elasticsearch-connector",
     ]:
         git.repo(f"{repo}")
