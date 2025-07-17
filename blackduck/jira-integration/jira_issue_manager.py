@@ -70,8 +70,9 @@ class JiraIssueManager:
         #     We have to use "\\"couchbase-server\\"" in the JQL
         search_str = (
             f'project={constants.JIRA_PROJECT_KEY} and '
-            f'BD_COMPONENT~"\\"{bd_comp}\\"" and BD_COMP_VERSION~"'
-            f'{bd_comp_ver}" and BD_PROJECT~"\\"{bd_proj}\\""')
+            f'BD_COMPONENT~"\\"{bd_comp}\\"" and '
+            f'BD_COMP_VERSION~"\\"{bd_comp_ver}\\"" and '
+            f'BD_PROJECT~"\\"{bd_proj}\\""')
         issues = self.client.search_issues(search_str)
         for issue in issues:
             if getattr(issue.fields, constants.BD_COMPONENT_FIELD) == bd_comp:
@@ -84,8 +85,10 @@ class JiraIssueManager:
         # Double quotes in JQL are used to deal with spaces and special characters
         search_str = (
             f'project={constants.JIRA_PROJECT_KEY} and '
-            f'BD_COMPONENT~"\\"{bd_comp}\\"" and BD_COMP_VERSION~"'
-            f'{bd_comp_ver}" and BD_PROJECT~"\\"{bd_proj}\\"" and BD_PROJ_VERSION~"{bd_proj_ver}"')
+            f'BD_COMPONENT~"\\"{bd_comp}\\"" and '
+            f'BD_COMP_VERSION~"\\"{bd_comp_ver}\\"" and '
+            f'BD_PROJECT~"\\"{bd_proj}\\"" and '
+            f'BD_PROJ_VERSION~"\\"{bd_proj_ver}\\""')
         issues = self.client.search_issues(search_str)
         for issue in issues:
             if (
@@ -111,9 +114,9 @@ class JiraIssueManager:
         issues = []
         # Double quotes in JQL are used to deal with spaces and special characters
         search_str = (
-            f'project={constants.JIRA_PROJECT_KEY} '
-            f'and BD_PROJECT~"\\"{project_name}\\"" '
-            f'and BD_PROJ_VERSION~"{project_version}"'
+            f'project={constants.JIRA_PROJECT_KEY} and '
+            f'BD_PROJECT~"\\"{project_name}\\"" and '
+            f'BD_PROJ_VERSION~"\\"{project_version}\\""'
         )
         while True:
             response = self.client.search_issues(
