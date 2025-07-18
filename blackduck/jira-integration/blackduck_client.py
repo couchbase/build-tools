@@ -186,12 +186,18 @@ class BlackduckClient:
             cve_detail = self.hub_client.get_json(url)
             cve_link = next(
                 (x['href'] for x in cve_detail['_meta']['links'] if x['rel'] == 'nist'), '')
+
+            # Skip entries with null severity
+            severity = cve_detail.get('severity')
+            if severity is None:
+                logging.warning(f"CVE {cve_name} has null severity, skipping this entry")
+                continue
             cve_list.append({
                 'componentVersion': entry['componentVersion'],
                 'componentName': entry['componentName'],
                 'componentVersionName': entry['componentVersionName'],
                 'cve_name': cve_name,
-                'severity': cve_detail['severity'],
+                'severity': severity,
                 'updatedDate': cve_detail['updatedDate'],
                 'nist': cve_link
             })
