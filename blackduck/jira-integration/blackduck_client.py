@@ -56,7 +56,7 @@ class BlackduckClient:
         return result[0]
 
     def _fetch_all_links(self, url, headers=None):
-        '''Helper function to fetch paginated data from the given URL,'''
+        '''Helper function to fetch paginated data from the given URL'''
         all_items = []
         while url:
             result = self.hub_client.get_json(url, headers=headers)
@@ -83,6 +83,19 @@ class BlackduckClient:
         version = self._get_resource_by_name(
             'versionName', 'versions', version_name, project)
         return version
+
+    def is_version_archived(self, version):
+        '''Check if a project version is Archived'''
+        is_archived = False
+        phase = version.get('phase', '')
+        if phase.lower() == 'archived':
+            logging.info(f'Version {version.get("versionName")} is in {phase} phase.'
+                         'No new scan will be produced.')
+            is_archived = True
+        else:
+            logging.debug(f'Version {version.get("versionName")} is in {phase} phase.')
+
+        return is_archived
 
     def get_bom_files(self, version):
         '''Produce a dictionary of files associated with components in a project version.'''
