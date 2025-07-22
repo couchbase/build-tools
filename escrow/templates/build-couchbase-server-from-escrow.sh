@@ -1,34 +1,19 @@
 #!/bin/bash
 set -e
 
-# These platforms correspond to the available Docker worker images.
-PLATFORMS="amzn2 linux"
+# Build Couchbase Server from escrow using linux-single Docker image
+# Supports both x86_64 and aarch64 architectures
 
 usage() {
-  echo "Usage: $0 <platform> [<host_path>]"
+  echo "Usage: $0 [<host_path>]"
   echo "args:"
-  echo "  platform - one of: ${PLATFORMS}"
   echo "  host_path - path to the volume this script resides in (required only if script is being run in a container)"
   exit 1
 }
 
-# Check input argument
-if [ $# -eq 0 ]
-then
-  usage
-fi
-
-export PLATFORM=$1
-export HOST_VOLUME_PATH=$2
+export HOST_VOLUME_PATH=$1
 
 container_workdir=/home/couchbase
-
-sup=$(echo ${PLATFORMS} | egrep "\b${PLATFORM}\b" || true)
-if [ -z "${sup}" ]
-then
-  echo "Unknown platform $1"
-  usage
-fi
 
 # Ensure docker is present
 docker version > /dev/null 2>&1
@@ -44,7 +29,13 @@ fi
 # the host up front, create the docker group in the container
 # at startup (if missing), and then add the couchbase user
 # (if missing)
-dockergroup=$(getent group docker | cut -d: -f3)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # macOS
+  dockergroup=$(dscl . -read /Groups/docker PrimaryGroupID 2>/dev/null | awk '{print $2}' || echo "999")
+else
+  # Linux
+  dockergroup=$(getent group docker | cut -d: -f3)
+fi
 
 if [ "$HOST_VOLUME_PATH" = "" ]
 then
@@ -53,6 +44,7 @@ then
   # or move it out to a VM
   if [ -f "/.dockerenv" ]; then
     echo "Please run this script on bare metal/VM or provide an additional arg with the absolute *host* path to the directory containing the escrow deposit"
+    exit 1
   else
     MOUNT="-v $(pwd):/home/couchbase/escrow"
   fi
@@ -70,17 +62,20 @@ heading() {
 
 ROOT=`pwd`
 
-# Load Docker worker image for desired platform
+# Load Docker worker image
 cd docker_images
-IMAGE=couchbasebuild/$( basename -s .tar.gz $( ls server-${PLATFORM}* | head -1 ) )
+
+# Use linux-single image for both x86_64 and aarch64
+echo "Using linux-single Docker image for architecture $(uname -m)"
+IMAGE=couchbasebuild/$( basename -s .tar.gz $( ls server-linux* | head -1 ) )
 if [[ -z "`docker images -q ${IMAGE}`" ]]
 then
   heading "Loading Docker image ${IMAGE}..."
-  gzip -dc server-${PLATFORM}* | docker load
+  gzip -dc server-linux* | docker load
 fi
 
 # Run Docker worker
-WORKER="${PLATFORM}-worker"
+WORKER="linux-worker"
 cd ${ROOT}
 
 set +e
@@ -123,25 +118,26 @@ DOCKER_EXEC_OPTION="${DOCKER_EXEC_OPTION} -ucouchbase"
 docker exec ${DOCKER_EXEC_OPTION} ${WORKER} mkdir -p ${container_workdir}/escrow
 docker exec ${WORKER} rm -f ./src/godeps/src/github.com/google/flatbuffers/docs/source/CONTRIBUTING.md
 
-# heading "Copying escrowed dependencies into container"
+heading "Copying escrowed dependencies into container"
 docker cp ./.cbdepscache ${WORKER}:${container_workdir}
 docker cp ./deps ${WORKER}:${container_workdir}
 
-docker exec ${WORKER} chown -R couchbase:couchbase ${container_workdir}/escrow/in-container-build.sh ${container_workdir}/escrow/escrow_config
+# Fix ownership of copied directories and files
+docker exec ${WORKER} chown -R couchbase:couchbase ${container_workdir}/.cbdepscache ${container_workdir}/deps ${container_workdir}/escrow/in-container-build.sh ${container_workdir}/escrow/escrow_config
 
 # Launch build process
 heading "Running full Couchbase Server build in container..."
 echo "docker exec ${DOCKER_EXEC_OPTION} ${WORKER} bash \
-  ${container_workdir}/escrow/in-container-build.sh ${container_workdir} ${PLATFORM} @@VERSION@@"
+  ${container_workdir}/escrow/in-container-build.sh ${container_workdir} linux @@VERSION@@"
 docker exec ${DOCKER_EXEC_OPTION} ${WORKER} bash \
-  ${container_workdir}/escrow/in-container-build.sh ${container_workdir} ${PLATFORM} @@VERSION@@
+  ${container_workdir}/escrow/in-container-build.sh ${container_workdir} linux @@VERSION@@
 
 # And copy the installation packages out of the container.
 heading "Copying installer binaries"
 
 cd ${ROOT}
 
-for file in src/*${PLATFORM}*; do
+for file in src/*linux*; do
   ls $file
   filename=`basename ${file}`
   mv ${file} ../${basename/-9999/}

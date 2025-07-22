@@ -1,7 +1,7 @@
 # Need to update/sync latest required dependencies
 
 # Escrow Product
-VERSION=7.1.4
+VERSION=7.6.5
 PRODUCT=couchbase-server
-RELEASE=neo
+RELEASE=trinity
 MANIFEST_FILE=${PRODUCT}/${RELEASE}.xml

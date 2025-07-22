@@ -1,10 +1,9 @@
 # Couchbase @@VERSION@@ Escrow
 
 The scripts, source, and data in this directory can be used to produce
-installer binaries of Couchbase Server @@VERSION@@ Enterprise Edition for any
-supported version of CentOS, Debian, or Ubuntu Linux (SuSE 12 or later can be
-made to work with the information here, but we cannot provide the Docker
-worker image as it contains licensed code.)
+installer packages of Couchbase Server @@VERSION@@ Enterprise Edition
+in both RPM and DEB formats, compatible with all supported Linux
+distributions.
 
 ## Requirements
 
@@ -15,15 +14,13 @@ as it has:
 - Docker (at least 1.12)
 
 Because the build toolchain is run inside Docker containers, you may
-produce the installer for any or all of the above platforms while running
-on any platform. It is not necessary to have, for example, a
-Centos machine to produce a Centos binary. The operating system you are
-running on does not even have to be one of the supported platforms listed
-above.
+produce the installer packages for Linux while running on any platform.
+The operating system you are running on does not have to be one of the
+supported platforms.
 
-The host machine should have at least 15-20 GB of free disk space per
-flavor of Linux for which you wish to create installers. This does not
-include the space used by this escrow distribution itself.
+The host machine should have at least 20-25 GB of free disk space for
+the build process. This does not include the space used by this escrow
+distribution itself.
 
 The host machine should have at least two CPU cores (more preferred) and
 8 GB of RAM.
@@ -44,33 +41,41 @@ to the internet, with two exceptions:
 The escrow distribution contains a top-level directory named
 `couchbase-server-@@VERSION@@`. cd into this directory, and then run
 
-    ./build-couchbase-server-from-escrow.sh <platform>
+    ./build-couchbase-server-from-escrow.sh <host_path>
 
-where <platform> is one of the following exact strings:
-
-    @@PLATFORMS@@
+where <host_path> is the path to the volume the build script resides in
+(required only if script is being run in a container)
 
 That is all. The build will take roughly 30 minutes depending on the
 speed of the machine.
 
-Note: The `linux` worker is based on Centos7, and should be used for x86_64
-builds, to build on arm, use `amzn2`.
+Note: The `linux` worker is based on Centos7, and is used for both x86_64
+and arm64 builds.
 
-Once the build is complete, the requested installer will be located alongside
-the `couchbase-server-@@VERSION@@` directory. The name of the installer binary
-various from Linux flavor to flavor. For example, the Centos 7 binary is
-named:
+Once the build is complete, the installer packages and tools will be located
+alongside the `couchbase-server-@@VERSION@@` directory. The build produces
+multiple package types with consistent naming:
 
-    couchbase-server-enterprise-@@VERSION@@-centos7.x86_64.rpm
+**Main installer packages:**
+- RPM package:
+  `couchbase-server-enterprise-@@VERSION@@-9999-linux.x86_64.rpm`
+- DEB package:
+  `couchbase-server-enterprise_@@VERSION@@-9999-linux_amd64.deb`
 
-There will also be a corresponding debug-symbols package. This package
-occasionally made available by Couchbase Support when debugging specific
-problems on customer installations. This package should be installed on
-a customer machine _in addition_ to the main installer. The filename of
-this debug-symbols package again varies from flavor to flavor; on Centos
-7 it is named
+**Debug symbol packages:**
+These packages are occasionally made available by Couchbase Support when
+debugging specific problems. These packages should be installed _in addition_
+to the main installer for debugging purposes:
+- RPM debug package:
+  `couchbase-server-enterprise-debuginfo-@@VERSION@@-9999-linux.x86_64.rpm`
+- DEB debug package:
+  `couchbase-server-enterprise-dbg_@@VERSION@@-9999-linux_amd64.deb`
 
-    couchbase-server-enterprise-debug-@@VERSION@@-centos7.x86_64.rpm
+**Tools packages:**
+- Admin tools:
+  `couchbase-server-admin-tools-@@VERSION@@-9999-linux_x86_64.tar.gz`
+- Developer tools:
+  `couchbase-server-dev-tools-@@VERSION@@-9999-linux_x86_64.tar.gz`
 
 ## Build Synopsis
 
@@ -81,41 +86,41 @@ escrowed release.
 ### Setting up the container
 
 The `build-couchbase-server-from-escrow.sh` script creates an instance
-of a flavor-specific Docker container which contains all the necessary
-toolchain elements for that flavor (gcc, CMake, and so on). It starts this
-container and the copies the `deps`, `golang`, and `src` directories into
+of a Linux Docker container which contains all the necessary
+toolchain elements (gcc, CMake, and so on). It starts this
+container and then copies the `deps`, `golang`, and `src` directories into
 the container under `/home/couchbase`. Finally it launches the script
 `in-container-build.sh` inside the container to perform the actual build.
 
-### Building third-party dependencies
+### Using pre-built third-party dependencies
 
-The first stage of the `in-container-build.sh` script is creating packages
-for the third-party dependencies, known as "cbdeps". For each of these,
-the script `src/tlm/deps/scripts/build-one-cbdep` is run to perform the
-compilation. The source code for each of these cbdeps is located in the
-`deps` directory of the escrow distribution. Some of these dependencies
-are exactly the same code as the upstream third-party code. A few of them
-have some Couchbase-specific code modifications. The subdirectories of
-`deps` are in fact clones of the original Git repositories, and so you
-can use `git` to view the commit logs.
+The first stage of the `in-container-build.sh` script is setting up the
+third-party dependencies, known as "cbdeps". Rather than compiling these
+from source, the build uses pre-built packages that are included in the
+distribution. These pre-built packages are copied into
+`/home/couchbase/.cbdepscache` inside the container, where the main
+Couchbase Server build process expects to find them.
 
-The resulting cbdeps packages are stored in `/home/couchbase/.cbdepscache`
-inside the container. The main Couchbase Server build process expects
-to find them there.
+The source code for each of these cbdeps is included in the `deps` directory
+for reference and audit purposes only - it is not compiled during the build.
+Some of these dependencies are exactly the same code as the upstream
+third-party code, while others have Couchbase-specific code modifications.
+The subdirectories of `deps` are clones of the original Git repositories,
+so you can use `git` to view the commit logs and understand any modifications
+that were made.
 
 ### Go
 
-The Couchbase Server build also makes use of several version of the Go
-language. The original `golang.org` distribution packages of the necessary
-versions of Go are stored in the `golang` directory.
-`in-container-build.sh` simply copies these into
-`/home/couchbase/.cbdepscache`, where again the main Couchbase Server
-build will expect to find them.
+The Couchbase Server build requires one or more specific versions of the Go
+language. The necessary `golang.org` distribution packages are included in
+the `golang` directory. During the build, `in-container-build.sh` copies
+these Go installations into `/home/couchbase/.cbdepscache`, where the main
+Couchbase Server build process expects to find them.
 
 ### Couchbase Server source code
 
 The Couchbase Server source code is located in the `src` directory.
-Note: This directory is created originally by a tool named
+Note: This directory was created originally by a tool named
 [repo](https://source.android.com/docs/setup/download#repo), which
 was developed for the Google Android project. It takes as input an
 XML manifest which specifies a number of Git repositories. These
@@ -148,11 +153,11 @@ The main build script driving the Couchbase Server build is
 
 The path reflects the fact that this package was normally built from
 a Jenkins job. This script expects to be passed several parameters,
-including the Linux flavor to build; whether to build the Enterprise or
-Community Edition of Couchbase Server; the version number; and a
-build number. `in-container-build.sh` invokes this script with
-the appropriate arguments to build Couchbase Server @@VERSION@@ Enterprise
-Edition, specifying a fake build number "9999".
+including whether to build the Enterprise or Community Edition of
+Couchbase Server; the version number; and a build number.
+`in-container-build.sh` invokes this script with the appropriate arguments
+to build Couchbase Server @@VERSION@@ Enterprise Edition, specifying a fake
+build number "9999".
 
 Couchbase Server is built using [CMake](https://cmake.org/), and
 `server-linux-build.sh` mostly does some workspace initialization and
@@ -172,10 +177,11 @@ the specific build, and then invokes a Ruby script called `server-rpm.rb`
 or `server-deb.rb` in the `voltron` directory, passing a number of
 arguments.
 
-The resulting installer packages (one normal, one debug-symbol) are then
-moved to the top of the build workspace. Finally, outside the container,
-the original `build-couchbase-server-from-escrow.sh` script copies these
-installer packages from inside to the container to the host directory.
+The resulting packages (including RPM and DEB installers, debug symbol
+packages, and tools packages) are then moved to the top of the build
+workspace. Finally, outside the container, the original
+`build-couchbase-server-from-escrow.sh` script copies these packages
+from inside the container to the host directory.
 
 ## Escrow build notes
 
@@ -191,5 +197,5 @@ installer packages from inside to the container to the host directory.
   recommend that if you make local modifications, you should do one final
   clean build by first ensuring that the Docker worker container is
   destroyed. You can use `docker rm -f <worker>` for this. The worker
-  name will always be "<platform>`-worker`", eg. `linux-worker`.
-  You can use `docker ps -a` to show you any existing containers.
+  name will always be `linux-worker`. You can use `docker ps -a` to
+  show you any existing containers.

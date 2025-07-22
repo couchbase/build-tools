@@ -31,8 +31,8 @@ docker run -it --name escrow --rm \
   -e PUID=$uid \
   -e PGID=$gid \
   -e PLATFORM=${PLATFORM} \
-  -v ~/.ssh/known_hosts:/home/couchbase/.ssh/known_hosts \
-  -v ${ssh_key}:/home/couchbase/.ssh/id_rsa \
+  -v ~/.ssh/known_hosts:/ssh/known_hosts \
+  -v ${ssh_key}:/ssh/id_rsa \
   -v $(pwd):/app \
   -v ${host_path}:/output \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -40,6 +40,8 @@ docker run -it --name escrow --rm \
 
 # Test
 cd $escrow
-./build-couchbase-server-from-escrow.sh ubuntu18
+
+echo "Building for architecture $(uname -m)"
+./build-couchbase-server-from-escrow.sh $escrow
 
 echo "Finished"

@@ -58,12 +58,12 @@ mkdir -p "${WORKDIR}/.cbdepcache"
 
 (
   cd ${WORKDIR}/.cbdepscache/
-  for package in analytics*
+  for package in cbas-jars-all-noarch-*.tgz
   do
-    ver_build=$(echo $package | sed -e 's/analytics-jars-//' -e 's/\.tar\.gz//')
+    ver_build=$(echo $package | sed -e 's/cbas-jars-all-noarch-//' -e 's/\.tgz//')
     version=$(echo $ver_build | sed 's/-.*//')
     build=$(echo $ver_build | sed 's/.*-//')
-    ${WORKDIR}/deps/cbdep-1.1.2-linux-$(uname -m) install analytics-jars ${version}-${build} --cache-local-file analytics-jars-${version}-${build}.tar.gz
+    ${WORKDIR}/deps/cbdep-1.2.0-linux-$(uname -m) install analytics-jars ${version}-${build} --cache-local-file cbas-jars-all-noarch-${version}-${build}.tgz
   done
 )
 
@@ -88,7 +88,13 @@ done
 
 # Copy in all Go versions.
 heading "Copying Golang versions..."
-cp -a ${ROOT}/golang/* ${CACHE}
+if [ -d "${ROOT}/golang" ] && [ "$(ls -A ${ROOT}/golang 2>/dev/null)" ]; then
+  cp -a ${ROOT}/golang/* ${CACHE}
+else
+  echo "FATAL: No Go versions found in ${ROOT}/golang/"
+  echo "The build requires Go compilers to be available. This indicates the escrow preparation failed."
+  exit 1
+fi
 
 # Need to unset variables from cbdeps V2 build
   unset WORKSPACE

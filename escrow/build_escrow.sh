@@ -97,7 +97,7 @@ cache_deps() {
 
 cache_analytics() {
   echo "# Caching analytics"
-  VERSION_STRINGS=$(awk "/PACKAGE analytics-jars VERSION/ {print substr(\$5, 1, length(\$5)-1)}" "${ESCROW}/src/analytics/CMakeLists.txt") || fatal "Coudln't get analytics version"
+  VERSION_STRINGS=$(awk "/DECLARE_DEP.*cbas-jars.*VERSION/ {print \$4}" "${ESCROW}/src/analytics/CMakeLists.txt") || fatal "Coudln't get analytics version"
   if [ -z "$VERSION_STRINGS" ]
   then
     fatal "Failed to retrieve analytics versions"
@@ -114,17 +114,20 @@ cache_analytics() {
     analytics_version=$(echo $_v | sed 's/-.*//')
     analytics_build=$(echo $_v | sed 's/.*-//')
 
-    if [ ! -f "${ESCROW}/.cbdepscache/analytics-jars-${analytics_version}-${analytics_build}.tar.gz" ]
+    # Check if either .tgz or .md5 file is missing
+    if [ ! -f "${ESCROW}/.cbdepscache/cbas-jars-all-noarch-${analytics_version}-${analytics_build}.tgz" ] || [ ! -f "${ESCROW}/.cbdepscache/cbas-jars-all-noarch-${analytics_version}-${analytics_build}.md5" ]
     then
       (
         # .cbdepscache gets copied into the build container - this target is a
         # convenience to make sure the files are available later
         cd ${ESCROW}/.cbdepscache
-        curl --fail -LO https://packages.couchbase.com/releases/${analytics_version}/analytics-jars-${analytics_version}-${analytics_build}.tar.gz
+
+        # Download both .tgz and .md5 files
+        curl --fail -LO https://packages.couchbase.com/couchbase-server/deps/cbas-jars/${analytics_version}-${analytics_build}/cbas-jars-all-noarch-${analytics_version}-${analytics_build}.tgz
+        curl --fail -LO https://packages.couchbase.com/couchbase-server/deps/cbas-jars/${analytics_version}-${analytics_build}/cbas-jars-all-noarch-${analytics_version}-${analytics_build}.md5
       )
     fi
   done
-
   mkdir -p ${ESCROW}/src/analytics/cbas/cbas-install/target/cbas-install-1.0.0-SNAPSHOT-generic/cbas/repo/compat/60x
 }
 
@@ -226,29 +229,21 @@ copy_container_images() {
   heading "Saving Docker images..."
   mkdir -p "${ESCROW}/docker_images" 2>/dev/null || :
   pushd "${ESCROW}/docker_images"
-  for img in ${IMAGES}
-  do
-    if [[ "${img}" = *"amzn2"* ]]; then
-      platform_arg="--platform linux/arm64"
-    else
-      unset platform_arg
-    fi
-    heading "Saving Docker image ${img}"
-    echo "... Pulling ${img}..."
-    docker pull ${platform_arg} "${img}"
+  heading "Saving Docker image ${IMAGE}"
+  echo "... Pulling ${IMAGE}..."
+  docker pull "${IMAGE}"
 
-    output=$(basename "${img}").tar.gz
-    if [ ! -f ${output} ]
+  output=$(basename "${IMAGE}").tar.gz
+  if [ ! -f ${output} ]
+  then
+    echo "... Saving local copy of ${IMAGE}..."
+    if [ ! -s "${output}" ]
     then
-      echo "... Saving local copy of ${img}..."
-      if [ ! -s "${output}" ]
-      then
-        docker save "${img}" | gzip > "${output}"
-      fi
-    else
-      echo "... Local copy already exists (${output})"
+      docker save "${IMAGE}" | gzip > "${output}"
     fi
-  done
+  else
+    echo "... Local copy already exists (${output})"
+  fi
   popd
 }
 
@@ -275,19 +270,14 @@ get_cbdeps_versions() {
 # Retrieve list of current Docker image/tags from stackfile
 stackfile=$(curl -L --fail https://raw.githubusercontent.com/couchbase/build-infra/master/docker-stacks/couchbase-server/server-jenkins-agents.yaml)
 
-python3 -m venv escrow_venv
-source escrow_venv/bin/activate
-pip3 install pyyaml
-
-IMAGES=$(python3 - <<EOF
+IMAGE=$(python3 - <<EOF
 import yaml
 
 stack = yaml.safe_load("""
 ${stackfile}
 """)
 
-for service in ['amzn2', 'linux-single']:
-    print(stack['services'][service]['image'])
+print(stack['services']['linux-single']['image'])
 EOF
 )
 
@@ -299,6 +289,38 @@ git config --global user.name "Couchbase Build Team"
 git config --global user.email "build-team@couchbase.com"
 git config --global color.ui false
 git config --global url."https://github.com/".insteadOf git://github.com/
+git config --global --add safe.directory '*'
+
+# Set up SSH configuration for private repository access
+if [ -f /ssh/id_rsa ]; then
+  echo "Setting up SSH configuration for private repositories..."
+
+  mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
+
+
+  # Copy SSH files from mount to user directory
+  cp /ssh/id_rsa ~/.ssh/
+  chmod 600 ~/.ssh/id_rsa
+
+  # create and populate known_hosts
+  ssh-keyscan github.com >> /home/couchbase/.ssh/known_hosts
+  chmod 644 ~/.ssh/known_hosts
+
+  # Create SSH config
+  cat > ~/.ssh/config << EOF
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_rsa
+    StrictHostKeyChecking yes
+    UserKnownHostsFile ~/.ssh/known_hosts
+EOF
+  chmod 600 ~/.ssh/config
+
+  echo "SSH configuration complete"
+fi
+
 repo init -u ssh://git@github.com/couchbase/manifest -g all -m "${MANIFEST_FILE}"
 repo sync --jobs=6
 
@@ -343,7 +365,7 @@ do
   do
     dep=$(echo ${add_pack//:/ } | awk '{print $1}')
     ver=$(echo ${add_pack//:/ } | awk '{print $2}' | sed 's/-/ /' | awk '{print $1}')
-    bldnum=$(echo ${add_pack//:/ } | awk '{if ($2) { print $2 } else { print $1 }}' | sed 's/-/ /' | awk '{print $2}')
+    bldnum=$(echo ${add_pack//:/ } | awk '{if ($2) { print $2 } else { print $1 }}' | sed 's/-/ /' | awk '{print $2}' | sed 's/_.*//')
     pushd "${ESCROW}/build-manifests/cbdeps" > /dev/null
     sha=$(git log --pretty=oneline "${dep}/${ver}/${ver}.xml" | grep "${ver}-${bldnum}" | awk '{print $1}')
     get_cbdeps2_src ${dep} ${ver} ${dep}/${ver}/${ver}.xml ${sha} ${bldnum}
@@ -387,8 +409,63 @@ do
 done
 cbdep_ver_latest=$(echo ${CBDEP_VERSIONS} | tr ' ' '\n' | tail -1)
 
-# Get go versions
-GOVERS="$(echo $(find "${ESCROW}" -name CMakeLists.txt | xargs cat | awk '/GOVERSION [0-9]/ {print $2}' | grep -Eo "[0-9\.]+") | tr ' ' '\n' | sort -u | tr '\n' ' ') $EXTRA_GOLANG_VERSIONS"
+# Get go versions needed by the build
+echo "Detecting required Go versions..."
+
+# Find all GOVERSION references in CMakeLists.txt files
+SYMBOLIC_VERSIONS=""
+echo "Scanning CMakeLists.txt files for GOVERSION references..."
+
+# Extract direct symbolic references like "GOVERSION SUPPORTED_NEWER"
+DIRECT_REFS=$(find "${ESCROW}/src" -name CMakeLists.txt -exec grep -h "GOVERSION " {} \; | \
+  grep -o "GOVERSION [A-Z_][A-Z0-9_]*" | \
+  awk '{print $2}' | sort -u)
+
+echo "Found direct GOVERSION references: $DIRECT_REFS"
+SYMBOLIC_VERSIONS="$SYMBOLIC_VERSIONS $DIRECT_REFS"
+
+# Extract variable references like 'GOVERSION "${_backup_go_version}"' and resolve them
+VAR_REFS=$(find "${ESCROW}/src" -name CMakeLists.txt -exec grep -l "GOVERSION.*\${" {} \;)
+for cmake_file in $VAR_REFS; do
+  echo "Processing variable references in $cmake_file"
+
+  # Find variable references like ${_backup_go_version}
+  VARS=$(grep "GOVERSION.*\${" "$cmake_file" | grep -o "\${[^}]*}" | sed 's/[{}$]//g' | sort -u)
+
+  for var in $VARS; do
+    # Look for SET statements that define this variable
+    VAR_VALUE=$(grep "SET.*$var " "$cmake_file" | head -1 | awk '{print $3}' | sed 's/[)]*$//')
+    if [ -n "$VAR_VALUE" ]; then
+      echo "  Variable $var -> $VAR_VALUE"
+      SYMBOLIC_VERSIONS="$SYMBOLIC_VERSIONS $VAR_VALUE"
+    fi
+  done
+done
+
+# Remove duplicates and clean up
+SYMBOLIC_VERSIONS=$(echo $SYMBOLIC_VERSIONS | tr ' ' '\n' | sort -u | tr '\n' ' ')
+echo "All symbolic versions needed: $SYMBOLIC_VERSIONS"
+
+# Map symbolic versions to actual version numbers
+DETECTED_GOVERS=""
+for symbolic_version in $SYMBOLIC_VERSIONS; do
+  version_file="${ESCROW}/src/golang/versions/${symbolic_version}.txt"
+  if [ -f "$version_file" ]; then
+    version_number=$(cat "$version_file" 2>/dev/null | head -1)
+    if [ -n "$version_number" ]; then
+      echo "Mapping $symbolic_version -> $version_number"
+      DETECTED_GOVERS="$DETECTED_GOVERS $version_number"
+    fi
+  else
+    echo "Warning: No version file found for $symbolic_version (expected: $version_file)"
+  fi
+done
+
+echo "Required Go versions: ${DETECTED_GOVERS}"
+
+GOVERS="${DETECTED_GOVERS} ${EXTRA_GOLANG_VERSIONS}"
+GOVERS="$(echo ${GOVERS} | tr ' ' '\n' | sort -u | tr '\n' ' ')"
+
 heading "Downloading Go installers: ${GOVERS}"
 mkdir -p "${ESCROW}/golang"
 pushd "${ESCROW}/golang"
