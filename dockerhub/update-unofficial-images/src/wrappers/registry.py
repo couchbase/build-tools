@@ -9,6 +9,7 @@ from typing import Dict, List, Tuple, Optional
 
 from src.metadata import image_info, lifecycle_dates, REGISTRIES
 from src.wrappers import skopeo
+from src.wrappers.skopeo import SkopeoCommandError
 from src.wrappers.dockerfile import base_image
 from src.wrappers.collections import defaultdict
 from src.wrappers.docker import check_image_for_updates
@@ -116,57 +117,63 @@ def redhat_tags(product: str, edition: str) -> dict:
         logger.debug("Product/edition is absent from RHCC")
         return defaultdict()
 
-    # Regex to capture semver (X.Y.Z) and an optional build number (-N)
-    # Group 1: X.Y.Z (e.g., "1.2.3")
-    # Group 2 (optional): N (e.g., "10" from "-10")
-    semver_build_pattern = re.compile(r'^(\d+\.\d+\.\d+)(?:-(\d+))?$')
+    try:
+        # Regex to capture semver (X.Y.Z) and an optional build number (-N)
+        # Group 1: X.Y.Z (e.g., "1.2.3")
+        # Group 2 (optional): N (e.g., "10" from "-10")
+        semver_build_pattern = re.compile(r'^(\d+\.\d+\.\d+)(?:-(\d+))?$')
 
-    # Temporary storage for candidate tags, grouped by base semver
-    # Key: "X.Y.Z", Value: list of (build_number_int, full_tag_string)
-    # build_number_int is -1 for plain "X.Y.Z" tags, otherwise the parsed integer.
-    semver_candidates = defaultdict(list)
+        # Temporary storage for candidate tags, grouped by base semver
+        # Key: "X.Y.Z", Value: list of (build_number_int, full_tag_string)
+        # build_number_int is -1 for plain "X.Y.Z" tags, otherwise the parsed integer.
+        semver_candidates = defaultdict(list)
 
-    tags = skopeo.tags(image_uri("rhcc", product))
-    logger.debug(f"Found {len(tags)} total tags from skopeo for {product}")
+        tags = skopeo.tags(image_uri("rhcc", product))
+        logger.debug(f"Found {len(tags)} total tags from skopeo for {product}")
 
-    for tag_str in tags:
-        match = semver_build_pattern.match(tag_str)
-        if match:
-            base_semver = match.group(1)  # The "X.Y.Z" part
-            build_num_str = match.group(2) # The "N" part (string or None)
+        for tag_str in tags:
+            match = semver_build_pattern.match(tag_str)
+            if match:
+                base_semver = match.group(1)  # The "X.Y.Z" part
+                build_num_str = match.group(2) # The "N" part (string or None)
 
-            if build_num_str:
-                try:
-                    build_number = int(build_num_str)
-                except ValueError:
-                    logger.warning(
-                        f"Could not parse build number from tag {tag_str} for product {product}, skipping.")
-                    continue
-            else:
-                # Tag is like "1.2.3", no build number suffix.
-                # Assign a value that sorts it lower than actual positive build numbers.
-                build_number = -1
+                if build_num_str:
+                    try:
+                        build_number = int(build_num_str)
+                    except ValueError:
+                        logger.warning(
+                            f"Could not parse build number from tag {tag_str} for product {product}, skipping.")
+                        continue
+                else:
+                    # Tag is like "1.2.3", no build number suffix.
+                    # Assign a value that sorts it lower than actual positive build numbers.
+                    build_number = -1
 
-            semver_candidates[base_semver].append((build_number, tag_str))
+                semver_candidates[base_semver].append((build_number, tag_str))
 
-    filtered_tags = defaultdict()
-    for base_semver, candidates in semver_candidates.items():
-        if not candidates:
-            continue
+        filtered_tags = defaultdict()
+        for base_semver, candidates in semver_candidates.items():
+            if not candidates:
+                continue
 
-        # Sort candidates:
-        # Primary key: build_number (descending, so highest actual build number is first).
-        # A build_number of -1 (for plain semver X.Y.Z) will come after any positive build numbers.
-        candidates.sort(key=lambda x: x[0], reverse=True)
+            # Sort candidates:
+            # Primary key: build_number (descending, so highest actual build number is first).
+            # A build_number of -1 (for plain semver X.Y.Z) will come after any positive build numbers.
+            candidates.sort(key=lambda x: x[0], reverse=True)
 
-        # The best tag is the first one after sorting
-        best_tag_full_string = candidates[0][1]
-        filtered_tags[best_tag_full_string] = defaultdict()
-        logger.debug(
-            f"For product {product}, selected tag for base semver {base_semver}: {best_tag_full_string} from candidates: {candidates}")
+            # The best tag is the first one after sorting
+            best_tag_full_string = candidates[0][1]
+            filtered_tags[best_tag_full_string] = defaultdict()
+            logger.debug(
+                f"For product {product}, selected tag for base semver {base_semver}: {best_tag_full_string} from candidates: {candidates}")
 
-    logger.debug(f"Returning {len(filtered_tags)} filtered tags for {product}")
-    return filtered_tags
+        logger.debug(f"Returning {len(filtered_tags)} filtered tags for {product}")
+        return filtered_tags
+
+    except SkopeoCommandError as e:
+        logger.error(f"Failed to get RedHat tags for {product}-{edition}: {e}")
+        logger.info(f"Returning empty tag list for {product}-{edition} on rhcc")
+        return defaultdict()
 
 
 def docker_tags(product: str, edition: str) -> Dict:
@@ -179,37 +186,43 @@ def docker_tags(product: str, edition: str) -> Dict:
         logger.debug("Product/edition is absent from Docker Hub")
         return defaultdict()
 
-    versions = skopeo.tags(image_uri("dockerhub", product))
-    logger.debug(f"Found {len(versions)} total tags")
+    try:
+        versions = skopeo.tags(image_uri("dockerhub", product))
+        logger.debug(f"Found {len(versions)} total tags")
 
-    filtered_versions = defaultdict()
+        filtered_versions = defaultdict()
 
-    # We just grab whatever tags are there for server-sandbox
-    if product == "server-sandbox":
-        logger.debug("Processing server-sandbox tags")
-        filtered_versions = {version: defaultdict() for version in versions}
+        # We just grab whatever tags are there for server-sandbox
+        if product == "server-sandbox":
+            logger.debug("Processing server-sandbox tags")
+            filtered_versions = {version: defaultdict() for version in versions}
 
-    # for sgw and server, we can discover for a specified edition based on
-    # prefix/suffix
-    elif product in ["couchbase-server", "sync-gateway"]:
-        logger.debug("Processing server/sync-gateway tags")
-        pattern = re.compile(rf'^({edition}\-)?(\d+\.\d+\.\d+)(\-{edition})?$')
-        for version in versions:
-            if (match := pattern.match(version)) and (edition in version):
-                tag = "".join([m for m in match.groups() if m is not None])
-                filtered_versions[tag] = defaultdict()
-                logger.debug(f"Added tag {tag}")
+        # for sgw and server, we can discover for a specified edition based on
+        # prefix/suffix
+        elif product in ["couchbase-server", "sync-gateway"]:
+            logger.debug("Processing server/sync-gateway tags")
+            pattern = re.compile(rf'^({edition}\-)?(\d+\.\d+\.\d+)(\-{edition})?$')
+            for version in versions:
+                if (match := pattern.match(version)) and (edition in version):
+                    tag = "".join([m for m in match.groups() if m is not None])
+                    filtered_versions[tag] = defaultdict()
+                    logger.debug(f"Added tag {tag}")
 
-    # For anything else (CND) we're just looking for semvers
-    else:
-        logger.debug("Processing generic semver tags")
-        pattern = re.compile(rf'^(\d+\.\d+\.\d+)$')
-        filtered_versions = {
-            match.group(1): defaultdict() for version in versions if (
-                match := pattern.match(version))}
+        # For anything else (CND) we're just looking for semvers
+        else:
+            logger.debug("Processing generic semver tags")
+            pattern = re.compile(rf'^(\d+\.\d+\.\d+)$')
+            filtered_versions = {
+                match.group(1): defaultdict() for version in versions if (
+                    match := pattern.match(version))}
 
-    logger.debug(f"Returning {len(filtered_versions)} filtered tags")
-    return filtered_versions
+        logger.debug(f"Returning {len(filtered_versions)} filtered tags")
+        return filtered_versions
+
+    except SkopeoCommandError as e:
+        logger.error(f"Failed to get Docker Hub tags for {product}-{edition}: {e}")
+        logger.info(f"Returning empty tag list for {product}-{edition} on dockerhub")
+        return defaultdict()
 
 
 def github_tags(product: str, edition: str) -> Dict:
@@ -456,38 +469,52 @@ def process_single_tag(registry, product, edition, semver, tag):
     3. Check for package updates (rebuild if updates in product image
        which are not available in base image)
     """
-    tag_data = {'queried_tag': tag, 'rebuild_needed': False}
+    tag_data = {'queried_tag': tag, 'rebuild_needed': False, 'processing_failed': False}
 
-    # STEP 1: Check for .norebuild file
-    if has_norebuild_file(product, semver):
-        logger.info(
-            f"Skipping rebuild for {product}/{semver} on {registry} due to .norebuild file")
-        tag_data['skipped_reason'] = ".norebuild file"
+    try:
+        # STEP 1: Check for .norebuild file
+        if has_norebuild_file(product, semver):
+            logger.info(
+                f"Skipping rebuild for {product}/{semver} on {registry} due to .norebuild file")
+            tag_data['skipped_reason'] = ".norebuild file"
+            return tag_data
+
+        # STEP 2: Check if base image is newer
+        logger.debug(f"Checking if base image is newer for {product}/{semver}")
+        tag_data.update(get_base_image_and_dates(registry, product, edition, tag))
+
+        if tag_data['rebuild_needed']:
+            if 'base_created' in tag_data and 'product_created' in tag_data:
+                if tag_data['base_created'] > tag_data['product_created']:
+                    logger.info(
+                        f"Rebuild needed for {registry}/{product}/{edition}/{semver}: "
+                        f"Base image {tag_data['base_image']} is newer")
+            return tag_data
+
+        # Skip package checks for distroless images
+        distroless = tag_data.get('distroless', False)
+        if distroless:
+            logger.debug(f"Skipping package update check for {product}/{semver} (distroless image)")
+            return tag_data
+
+        # STEP 3: Check for package updates
+        update_data = check_package_updates(registry, product, semver, tag, tag_data)
+        tag_data.update(update_data)
+
         return tag_data
 
-    # STEP 2: Check if base image is newer
-    logger.debug(f"Checking if base image is newer for {product}/{semver}")
-    tag_data.update(get_base_image_and_dates(registry, product, edition, tag))
-
-    if tag_data['rebuild_needed']:
-        if 'base_created' in tag_data and 'product_created' in tag_data:
-            if tag_data['base_created'] > tag_data['product_created']:
-                logger.info(
-                    f"Rebuild needed for {registry}/{product}/{edition}/{semver}: "
-                    f"Base image {tag_data['base_image']} is newer")
+    except SkopeoCommandError as e:
+        logger.error(f"Skopeo command failed for {registry}/{product}/{edition}/{semver}: {e}")
+        logger.info(f"Continuing with next image")
+        tag_data['processing_failed'] = True
+        tag_data['skipped_reason'] = f"skopeo command failed: {str(e)}"
         return tag_data
-
-    # Skip package checks for distroless images
-    distroless = tag_data.get('distroless', False)
-    if distroless:
-        logger.debug(f"Skipping package update check for {product}/{semver} (distroless image)")
+    except Exception as e:
+        logger.error(f"Unexpected error processing {registry}/{product}/{edition}/{semver}: {e}")
+        logger.info(f"Continuing with next image")
+        tag_data['processing_failed'] = True
+        tag_data['skipped_reason'] = f"unexpected error: {str(e)}"
         return tag_data
-
-    # STEP 3: Check for package updates
-    update_data = check_package_updates(registry, product, semver, tag, tag_data)
-    tag_data.update(update_data)
-
-    return tag_data
 
 
 def check_package_updates(registry, product, semver, tag, tag_data):

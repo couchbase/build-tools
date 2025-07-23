@@ -10,6 +10,7 @@ import argparse
 import logging
 import os
 import shutil
+import sys
 from src.wrappers.registry import analyze_images
 from src.wrappers.logging import setup_logging
 from src.wrappers.collections import defaultdict
@@ -157,6 +158,8 @@ def main() -> int:
     needed_rebuilds = {registry: [] for registry in REGISTRIES}
     skipped_rebuilds = {registry: [] for registry in REGISTRIES}
     ineffective_rebuilds = {registry: [] for registry in REGISTRIES}
+    failed_processing = {registry: [] for registry in REGISTRIES}
+    has_failures = False
 
     for registry, products_data in image_update_info.items():
         for product, editions_data in products_data.items():
@@ -174,7 +177,13 @@ def main() -> int:
                     if base_image:
                         details.append(f"  Base image: {base_image}")
 
-                    if info.get('rebuild_ineffective', False):
+                    if info.get('processing_failed', False):
+                        skipped_reason = info.get('skipped_reason', 'unknown processing error')
+                        details.append(f"  Status: Processing failed ({skipped_reason})")
+                        failed_processing[registry].append(heading)
+                        failed_processing[registry].extend(details)
+                        has_failures = True
+                    elif info.get('rebuild_ineffective', False):
                         packages_in_common = info.get('packages_in_common', [])
                         if packages_in_common:
                             details.append(f"  Common package updates (also in base): {', '.join(packages_in_common)}")
@@ -251,6 +260,26 @@ def main() -> int:
                     print(f"  {entry}")
                 print("") # Add extra newline between registries
 
+    # Print any failures that occurred during processing
+    if any(failed_processing[registry] for registry in failed_processing):
+        logger.error("Processing failures detected - some images could not be analyzed")
+        print(
+            f"================================{os.linesep}Processing Failures{os.linesep}"
+            f"================================")
+        for registry, failures in failed_processing.items():
+            if failures:
+                print(f"{registry}:")
+                for entry in failures:
+                    print(f"  {entry}")
+                print("") # Add extra newline between registries
+
+    # Exit with error code if errors occurred
+    if has_failures:
+        logger.error("Job completed with failures")
+        return 1
+
+    return 0
+
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

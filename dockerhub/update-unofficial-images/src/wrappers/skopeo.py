@@ -30,6 +30,11 @@ def _timestamp_from_iso(iso_timestamp: str) -> int:
     return timestamp
 
 
+class SkopeoCommandError(Exception):
+    """Exception raised when a skopeo command fails after all retries"""
+    pass
+
+
 @lru_cache
 def _run_cmd(cmd: str, retries: int = 3) -> str:
     """
@@ -49,7 +54,7 @@ def _run_cmd(cmd: str, retries: int = 3) -> str:
         else:
             logger.error(
                 f"Command failed after all retries: {cmd}. Error: {result.stderr}")
-            sys.exit(1)
+            raise SkopeoCommandError(f"Command failed after all retries: {cmd}. Error: {result.stderr}")
 
 
 @lru_cache
@@ -117,9 +122,9 @@ class Image():
             logger.debug(f"Raw inspection complete for {image}")
 
             return amd64_result, raw_result
-        except SystemExit:
+        except (SystemExit, SkopeoCommandError):
             logger.error(f"Both inspection attempts failed for {image}")
-            sys.exit(1)
+            raise SkopeoCommandError(f"Both inspection attempts failed for {image}")
 
     def _get_architectures(self) -> List[str]:
         """
