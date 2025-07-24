@@ -5,19 +5,33 @@ import re
 
 def connect_jira():
   """
-  Uses cloud-jira-creds.json in ~/.ssh to authenticate to jira cloud.
-  cloud-jira-creds.json contains:
+  Connects to JIRA using credentials from either:
+  1. Environment variables JIRA_URL, JIRA_USERNAME, and JIRA_API_TOKEN (for GitHub Actions)
+  2. cloud-jira-creds.json in ~/.ssh (for Gerrit)
+
+  For file-based auth, cloud-jira-creds.json contains:
       username
       apitoken
       url
       cloud=true
   """
-  cloud_jira_creds_file = f'{os.environ["HOME"]}/.ssh/cloud-jira-creds.json'
-  cloud_jira_creds = json.loads(open(cloud_jira_creds_file).read())
-  jira = JIRA(cloud_jira_creds['url'], basic_auth=(
-              f"{cloud_jira_creds['username']}",
-              f"{cloud_jira_creds['apitoken']}"))
-  return jira
+  # Check if environment variables are set (GitHub Actions)
+  jira_url = os.getenv("JIRA_URL")
+  jira_user = os.getenv("JIRA_USERNAME")
+  jira_token = os.getenv("JIRA_API_TOKEN")
+
+  if jira_url and jira_user and jira_token:
+    # Use GitHub Actions credentials
+    jira = JIRA(jira_url, basic_auth=(jira_user, jira_token))
+    return jira
+  else:
+    # Fall back to file-based credentials (Gerrit)
+    cloud_jira_creds_file = f'{os.environ["HOME"]}/.ssh/cloud-jira-creds.json'
+    cloud_jira_creds = json.loads(open(cloud_jira_creds_file).read())
+    jira = JIRA(cloud_jira_creds['url'], basic_auth=(
+                f"{cloud_jira_creds['username']}",
+                f"{cloud_jira_creds['apitoken']}"))
+    return jira
 
 def get_tickets(message):
   """

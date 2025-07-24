@@ -6,8 +6,10 @@ import argparse
 import pprint
 from subprocess import check_call, check_output
 
-from importmonkey import add_path
-add_path("../build-from-manifest")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+build_from_manifest_path = os.path.abspath(os.path.join(script_dir, "..", "build-from-manifest"))
+if build_from_manifest_path not in sys.path:
+    sys.path.insert(0, build_from_manifest_path)
 from manifest_util import get_manifest_dir, scan_manifests
 
 """

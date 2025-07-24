@@ -1,0 +1,299 @@
+name: Restricted Branch Check
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'PR number'
+        required: true
+        type: string
+      pr_title:
+        description: 'PR title for ticket extraction'
+        required: true
+        type: string
+    secrets:
+      JIRA_URL: { required: true }
+      JIRA_USERNAME: { required: true }
+      JIRA_API_TOKEN: { required: true }
+    outputs:
+      check_status:
+        description: 'Status of the restricted branch check'
+        value: ${{ jobs.restricted-branch-check.outputs.status }}
+
+jobs:
+  restricted-branch-check:
+    name: Check Branch Restrictions
+    runs-on: ubuntu-latest
+    env:
+      ALLOWED_ORGS: "couchbase couchbasedeps couchbaselabs"
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      status: ${{ steps.final-status.outputs.status }}
+    steps:
+      - name: Validate inputs
+        run: |
+          # Validate PR number is numeric
+          PR_INPUT="${{ inputs.pr_number }}"
+          if [[ ! "$PR_INPUT" =~ ^[0-9]+$ ]]; then
+            echo "::error::PR number must be numeric only"
+            exit 1
+          fi
+
+          # Bound check PR number
+          if (( PR_INPUT <= 0 || PR_INPUT > 50000 )); then
+            echo "::error::PR number out of reasonable range (1-50000)"
+            exit 1
+          fi
+
+          # Check base ref length
+          BASE_REF="${{ github.base_ref }}"
+          if [[ ${#BASE_REF} -gt 100 ]]; then
+            echo "::error::Base ref too long (max 100 characters)"
+            exit 1
+          fi
+
+          # Branch name validation
+          if [[ ! "$BASE_REF" =~ ^[a-zA-Z0-9]([a-zA-Z0-9._/-]{0,98}[a-zA-Z0-9])?$ ]] || \
+             [[ "$BASE_REF" =~ (\.\.|//|\$|\`|\\|\'|\"|;|\||\&|\<|\>|\(|\)|\[|\]|\{|\}|\*|\?|\~) ]]; then
+            echo "::error::Invalid base ref format"
+            echo "Base ref must be a valid branch name (alphanumeric, dots, underscores, hyphens, slashes only)"
+            echo "No path traversal sequences or shell metacharacters allowed"
+            exit 1
+          fi
+
+          # Check branch name for common dangerous patterns
+          if [[ "$BASE_REF" == *".."* ]] || [[ "$BASE_REF" == *"//"* ]] || [[ "$BASE_REF" == "."* ]] || [[ "$BASE_REF" == *"~"* ]]; then
+            echo "::error::Base ref contains dangerous patterns"
+            exit 1
+          fi
+
+      - name: Validate target repository organization
+        run: |
+          # Validate the target repository organization
+          target_org=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          if [[ ! " $ALLOWED_ORGS " =~ " $target_org " ]]; then
+            echo "::error::Target repository organization '$target_org' is not in the allowlist"
+            echo "This workflow can only be used for repositories in allowed organizations: $ALLOWED_ORGS"
+            echo "::notice::SECURITY_AUDIT: Unauthorized target repository access attempt: $target_org"
+            exit 1
+          fi
+          echo "::notice::SECURITY_AUDIT: Target repository organization validation passed: $target_org"
+          echo "::notice::Repository validation: Protecting ${{ github.repository }}"
+
+      - name: Validate environment setup
+        env:
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          # Validate secrets
+          validation_failed=false
+
+          if [[ -z "$JIRA_URL" ]]; then
+            echo "::error::JIRA_URL secret is required but not provided"
+            validation_failed=true
+          fi
+
+          if [[ -z "$JIRA_USERNAME" ]]; then
+            echo "::error::JIRA_USERNAME secret is required but not provided"
+            validation_failed=true
+          fi
+
+          if [[ -z "$JIRA_API_TOKEN" ]]; then
+            echo "::error::JIRA_API_TOKEN secret is required but not provided"
+            validation_failed=true
+          fi
+
+          # Additional validation: check secret format without exposing values
+          if [[ -n "$JIRA_URL" ]] && [[ ! "$JIRA_URL" =~ ^https?:// ]]; then
+            echo "::error::JIRA_URL must be a valid HTTP/HTTPS URL"
+            validation_failed=true
+          fi
+
+          if [[ -n "$JIRA_USERNAME" ]] && [[ ${#JIRA_USERNAME} -lt 1 || ${#JIRA_USERNAME} -gt 100 ]]; then
+            echo "::error::JIRA_USERNAME must be between 1-100 characters"
+            validation_failed=true
+          fi
+
+          if [[ -n "$JIRA_API_TOKEN" ]] && [[ ${#JIRA_API_TOKEN} -lt 10 || ${#JIRA_API_TOKEN} -gt 200 ]]; then
+            echo "::error::JIRA_API_TOKEN length is invalid"
+            validation_failed=true
+          fi
+
+          if [[ "$validation_failed" == "true" ]]; then
+            echo "::error::Environment validation failed - check secrets configuration"
+            exit 1
+          fi
+
+          echo "::notice::Environment validation passed - all secrets are properly configured"
+
+      - name: Checkout build-tools repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: couchbase/build-tools
+          ref: master
+          path: build-tools
+          fetch-depth: 1
+
+      - name: Checkout manifest repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: couchbase/manifest
+          ref: master
+          path: manifest
+          fetch-depth: 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba
+        with:
+          version: latest
+
+      - name: Run restriction checker
+        id: branch-check
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_TITLE: ${{ inputs.pr_title }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          echo "::notice::RESTRICTION_CHECK: Starting restriction check for target=${{ github.repository }} pr=${{ inputs.pr_number }} base_ref=${{ github.base_ref }}"
+
+          # Secure validation of environment variables without exposing sensitive values
+          validation_failed=false
+
+          # Validate non-sensitive variables
+          if [[ -z "$GITHUB_BASE_REF" ]]; then
+            echo "::error::GITHUB_BASE_REF environment variable is not set"
+            validation_failed=true
+          fi
+
+          if [[ -z "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::GITHUB_REPOSITORY environment variable is not set"
+            validation_failed=true
+          fi
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "::error::PR_NUMBER environment variable is not set"
+            validation_failed=true
+          fi
+
+          if [[ -z "$PR_TITLE" ]]; then
+            echo "::error::PR_TITLE environment variable is not set"
+            validation_failed=true
+          fi
+
+          # Validate sensitive variables exist without exposing values
+          if [[ -z "$GITHUB_TOKEN" ]]; then
+            echo "::error::GITHUB_TOKEN is not available"
+            validation_failed=true
+          fi
+
+          if [[ -z "$JIRA_URL" ]]; then
+            echo "::error::JIRA_URL is not available"
+            validation_failed=true
+          fi
+
+          if [[ -z "$JIRA_USERNAME" ]]; then
+            echo "::error::JIRA_USERNAME is not available"
+            validation_failed=true
+          fi
+
+          if [[ -z "$JIRA_API_TOKEN" ]]; then
+            echo "::error::JIRA_API_TOKEN is not available"
+            validation_failed=true
+          fi
+
+          if [[ "$validation_failed" == "true" ]]; then
+            echo "::error::Environment validation failed - required variables missing"
+            exit 1
+          fi
+
+          echo "::notice::All required environment variables are properly configured"
+
+          (cd build-tools/restriction && uv run restricted-branch-check && (echo "status=success" >> $GITHUB_OUTPUT)) || {
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "::notice::RESTRICTION_ENFORCEMENT: PR blocked due to restriction policy for target=${{ github.repository }} pr=${{ inputs.pr_number }}"
+            exit 1
+          }
+          echo "::notice::RESTRICTION_CHECK: Completed successfully - no restrictions apply for target=${{ github.repository }} pr=${{ inputs.pr_number }}"
+
+      - name: Set final status
+        if: always()
+        id: final-status
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "::notice::WORKFLOW_STATUS: Restriction check passed for target=${{ github.repository }} pr=${{ inputs.pr_number }}"
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "::notice::WORKFLOW_STATUS: Restriction check failed for target=${{ github.repository }} pr=${{ inputs.pr_number }}"
+          fi
+
+      - name: Generate summary
+        if: always()
+        run: |
+          if [[ "${{ steps.final-status.outputs.status }}" == "failure" ]]; then
+            echo "## ❌ Restricted Branch Check Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Check if we have detailed restriction information
+            if [[ -n "${{ steps.branch-check.outputs.restriction_reason }}" ]]; then
+              echo "**Reason:** ${{ steps.branch-check.outputs.restriction_reason }}" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              if [[ -n "${{ steps.branch-check.outputs.restriction_release }}" ]]; then
+                echo "**Release:** ${{ steps.branch-check.outputs.restriction_release }}" >> $GITHUB_STEP_SUMMARY
+              fi
+
+              if [[ -n "${{ steps.branch-check.outputs.restriction_approval_ticket }}" ]]; then
+                echo "**Approval Ticket:** [${{ steps.branch-check.outputs.restriction_approval_ticket }}](https://issues.couchbase.com/browse/${{ steps.branch-check.outputs.restriction_approval_ticket }})" >> $GITHUB_STEP_SUMMARY
+              fi
+
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              # Add specific guidance based on restriction type
+              if [[ "${{ steps.branch-check.outputs.restriction_type }}" == "missing_ticket" ]]; then
+                echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+                echo "- Add a JIRA ticket reference to your PR title (e.g., 'CBD-1234: Fix important bug')" >> $GITHUB_STEP_SUMMARY
+                echo "- The ticket should be approved for this release" >> $GITHUB_STEP_SUMMARY
+              elif [[ "${{ steps.branch-check.outputs.restriction_type }}" == "unapproved_ticket" ]]; then
+                echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+                echo "- Ensure your JIRA ticket is linked to the approval ticket [${{ steps.branch-check.outputs.restriction_approval_ticket }}](https://issues.couchbase.com/browse/${{ steps.branch-check.outputs.restriction_approval_ticket }})" >> $GITHUB_STEP_SUMMARY
+                echo "- Contact Product Management if you believe this change should be approved" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+                echo "- Review the restriction requirements for this release branch" >> $GITHUB_STEP_SUMMARY
+                echo "- Contact the Build Team if you need assistance" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "This PR cannot be merged until all the restricted branch requirements are met or the workflow is fixed." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Check the workflow logs for more details." >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "## ✅ Restricted Branch Check Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Show what was actually checked
+            if [[ "${{ steps.branch-check.outputs.check_result }}" == "approved" ]]; then
+              echo "All JIRA tickets referenced in commits are approved for all restricted manifests." >> $GITHUB_STEP_SUMMARY
+              if [[ -n "${{ steps.branch-check.outputs.checked_manifests }}" ]]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "**Checked manifests:** ${{ steps.branch-check.outputs.checked_manifests }}" >> $GITHUB_STEP_SUMMARY
+              fi
+            elif [[ "${{ steps.branch-check.outputs.check_result }}" == "unrestricted" ]]; then
+              echo "This branch is not part of any restricted release manifest." >> $GITHUB_STEP_SUMMARY
+              if [[ -n "${{ steps.branch-check.outputs.checked_project }}" && -n "${{ steps.branch-check.outputs.checked_branch }}" ]]; then
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "**Checked:** ${{ steps.branch-check.outputs.checked_project }}/${{ steps.branch-check.outputs.checked_branch }}" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "All required approvals are in place for the target branch." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi

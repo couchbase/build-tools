@@ -37,7 +37,14 @@ def scan_manifests(manifest_repo="ssh://git@github.com/couchbase/manifest"):
     returns a list of metadata about all discovered manifests. This does
     leave things in a "manifest" subdir of the current working
     directory.
+
+    If manifest_repo is a local path, uses it directly without cloning.
     """
+    # Check if manifest_repo is a local directory path
+    if os.path.isdir(manifest_repo):
+        print(f"Using existing local manifest directory: {manifest_repo}")
+        return get_metadata_for_products(manifest_repo)
+
     # Sync manifest project into local directory based on mangled URL
     os.makedirs("manifest", exist_ok=True)
     manifest_dir = get_manifest_dir(manifest_repo)
