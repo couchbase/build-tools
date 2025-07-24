@@ -1,5 +1,8 @@
 {
     "versions": {
+        "master": {
+            "interval": 1440
+        },
         "2.3.4": {
             "interval": 1440
         },

@@ -1,5 +1,8 @@
 #!/bin/bash -ex
 
+# current repo, do not remove:
+# github.com/couchbase/couchbase-ruby-client
+
 SCRIPT_ROOT="$(dirname ${BASH_SOURCE[0]})"
 
 WORKDIR="${WORKSPACE}/src"
