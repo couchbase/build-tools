@@ -38,7 +38,7 @@ def main():
   files = check_output([
     "git", "diff-tree", "--no-commit-id", "--name-only", "-r", "FETCH_HEAD"])
   failed = False
-  for manifest in files.splitlines():
+  for manifest in files.decode('utf-8').splitlines():
     if (manifest in manifests and
         "restricted" in manifests[manifest] and
          manifests[manifest]["restricted"]):
