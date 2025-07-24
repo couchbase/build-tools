@@ -7,36 +7,53 @@ PRODUCT=$4
 
 if [ "${PRODUCT}" = "couchbase-columnar" ]; then
   JAR_PREFIX=columnar
+  PACKAGE_SUFFIX=-enterprise
 elif [ "${PRODUCT}" = "couchbase-server" ]; then
   JAR_PREFIX=cbas
+  PACKAGE_SUFFIX=-enterprise
+elif [ "${PRODUCT}" = "enterprise-analytics" ]; then
+  JAR_PREFIX=columnar
+  unset PACKAGE_SUFFIX
 else
-  echo PRODUCT must be 'couchbase-columnar' or 'couchbase-server' but was $PRODUCT
+  echo PRODUCT must be one of 'couchbase-columnar', 'couchbase-server', or 'enterprise-analytics' but was $PRODUCT
   exit 1
 fi
 
 # Download named build (try linux, falling back to Ubuntu 20 then debian10)
-curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-linux_amd64.deb -o ${PRODUCT}.deb ||
-  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o ${PRODUCT}.deb ||
-  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-debian10_amd64.deb -o ${PRODUCT}.deb
+curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}${PACKAGE_SUFFIX}_${VERSION}-${BLD_NUM}-linux_amd64.deb -o ${PRODUCT}.deb ||
+  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}${PACKAGE_SUFFIX}_${VERSION}-${BLD_NUM}-ubuntu20.04_amd64.deb -o ${PRODUCT}.deb ||
+  curl -f -L http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${RELEASE}/${BLD_NUM}/${PRODUCT}${PACKAGE_SUFFIX}_${VERSION}-${BLD_NUM}-debian10_amd64.deb -o ${PRODUCT}.deb
 
 # Extract jar contents
 ar x ${PRODUCT}.deb
-tar xf data.tar.xz --wildcards --strip-components 5 './opt/couchbase/lib/c*/repo/*.jar'
+if [ "${PRODUCT}" = "enterprise-analytics" ]; then
+  tar xf data.tar.xz --wildcards --strip-components 5 './opt/enterprise-analytics/lib/c*/repo/*.jar'
+else
+  tar xf data.tar.xz --wildcards --strip-components 5 './opt/couchbase/lib/c*/repo/*.jar'
+fi
 
 # Create new jarball and checksum
 TARGET_NAME=${JAR_PREFIX}-jars-all-noarch-${VERSION}-${BLD_NUM}
 pushd repo
 
-INSTALLER_JAR=${JAR_PREFIX}-install-${VERSION}.jar
-INSTALLER_JAR_ALT=${JAR_PREFIX}-install-${VERSION}-${BLD_NUM}.jar
-if [ ! -f "${INSTALLER_JAR}" ]; then
-  if [ ! -f "${INSTALLER_JAR_ALT}" ]; then
-    echo "Cannot locate installer jar (tried ${INSTALLER_JAR} and ${INSTALLER_JAR_ALT})"
-    exit 1
-  else
-    INSTALLER_JAR=${INSTALLER_JAR_ALT}
+unset INSTALLER_JAR
+unset TRIED
+
+for jar in "${JAR_PREFIX}-install-${VERSION}.jar" \
+           "${JAR_PREFIX}-install-${VERSION}-${BLD_NUM}.jar" \
+           "cbas-install-${VERSION}-${BLD_NUM}.jar"; do
+  TRIED="$TRIED $jar"
+  if [ -f "$jar" ]; then
+    INSTALLER_JAR="$jar"
+    break
   fi
+done
+
+if [ -z "$INSTALLER_JAR" ]; then
+  echo "Cannot locate installer jar (tried:$TRIED)"
+  exit 1
 fi
+
 # TODO(mblow): this will need to be reworked if we ever have jars with a space in the name...
 unzip -p ${INSTALLER_JAR} META-INF/MANIFEST.MF | sed 's/^ /@@/g' | sed 's/@@@/#/g' | grep '\(^Class-Path\|^@@\)' \
   | tr -d '\r' | tr -d '\n' | sed -e 's/@@//g' -e 's/^Class-Path: //' | xargs -n1 \
