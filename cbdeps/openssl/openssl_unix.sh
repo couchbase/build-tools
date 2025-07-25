@@ -18,7 +18,6 @@ OPENSSLDIR=${PREFIX}/etc/openssl
 if [ -f 'VERSION.dat' ]; then
     # openssl 3.x.x
     DYLIB_VER="3"
-    NO_SSL2=""
     if [[ "${VERSION}" == *"fips"* ]]; then
         OPENSSLDIR=${PREFIX}/etc/openssl/fips
         ENABLE_FIPS="enable-fips"
@@ -29,7 +28,6 @@ if [ -f 'VERSION.dat' ]; then
 else
     # openssl 1.1.x
     DYLIB_VER="1.1"
-    NO_SSL2="no-ssl2"
 fi
 
 OS=`uname -s`
@@ -53,7 +51,7 @@ esac
             threads \
             no-tests \
             no-ssl \
-            ${NO_SSL2} \
+            no-ssl2 \
             no-ssl3 \
             ${ENABLE_FIPS} \
             --libdir=lib \
@@ -65,7 +63,9 @@ esac
 # There's a race which causes frequent build failures.
 make && make install DESTDIR=${INSTALL_DIR}
 
+# Prune the install directory
 rm -f ${INSTALL_DIR}/${OPENSSLDIR}/*.dist
+rm -rf ${INSTALL_DIR}/share
 
 if [ "$OS" == "Darwin" ]
 then

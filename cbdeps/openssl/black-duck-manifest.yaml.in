@@ -1,0 +1,4 @@
+components:
+    openssl:
+        bd-id: cd7c0bf1-7757-4ce9-bcc0-46332273dc27
+        versions: [ "@@BD_VERSION@@" ]

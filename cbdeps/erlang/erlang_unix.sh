@@ -7,7 +7,7 @@ PLATFORM=$3
 JIT_OPTIONS="--enable-jit"
 
 NCURSES_VER=6.4-1
-OPENSSL_VER=3.1.4-1
+OPENSSL_VER=3.5.1-1
 
 pushd erlang
 if [[ "$(cat OTP_VERSION)"  == 24.* && "${PLATFORM}" = "linux" && "$(uname -m)" = "aarch64" ]]; then

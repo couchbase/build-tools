@@ -28,7 +28,7 @@ fi
 # builds of OpenSSL (otherwise we assume the build agent has libssl available)
 CBDEPS_DIR=$(pwd)/cbdeps
 if [ ${PROFILE} == "server" -o ${SYSTEM} == "Darwin" ]; then
-    export OPENSSL_VER=3.1.4-1
+    export OPENSSL_VER=3.5.1-1
     mkdir -p ${CBDEPS_DIR}
     cd ${CBDEPS_DIR}
     cbdep --platform ${PLATFORM} install -d ${CBDEPS_DIR} openssl ${OPENSSL_VER}

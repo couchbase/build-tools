@@ -14,7 +14,7 @@ cd ${ROOT_DIR}/curl
 if [ "${PROFILE}" = "openssl111" ]; then
     OPENSSL_VER=1.1.1t-1
 else
-    OPENSSL_VER=3.1.1-1
+    OPENSSL_VER=3.5.1-1
 fi
 ZLIB_VER=1.2.13-2
 
@@ -41,9 +41,7 @@ get_dep() {
 }
 
 get_dep openssl ${OPENSSL_VER}
-rm -rf ${openssl_DIR}/lib/pkgconfig
 get_dep zlib ${ZLIB_VER}
-rm -rf ${zlib_DIR}/lib/pkgconfig
 
 # Patch
 if [[ $(uname -s) != "Darwin" ]]; then
