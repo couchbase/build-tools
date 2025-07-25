@@ -42,7 +42,7 @@ def main():
     if (manifest in manifests and
         "restricted" in manifests[manifest] and
          manifests[manifest]["restricted"]):
-      print("\n\n\n*********\n{} is restricted and is being changed by {}!\n*********\n".format(
+      print("\n\n\n*********\n{} is restricted and is being changed by {} !\n*********\n".format(
         manifest, os.environ["GERRIT_CHANGE_URL"]))
       failed = True
   if failed:
