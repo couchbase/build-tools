@@ -53,6 +53,24 @@ When running in GitHub Actions, the script uses these environment variables:
 - `JIRA_USERNAME` - JIRA username
 - `JIRA_API_TOKEN` - JIRA API token
 
+## Exit Codes
+
+The script uses different exit codes to communicate status to the calling workflow:
+- `0` - Check passed, no restrictions apply
+- `5` - Legitimate branch restriction applies (PR blocked)
+- `6` - Technical error occurred (e.g., JIRA authentication, network issues)
+
+The script also writes detailed error information to `$GITHUB_OUTPUT` for consumption by the workflow.
+
+## Error Handling
+
+The script provides detailed error information for various failure scenarios:
+
+- **JIRA Authentication Issues**: Detailed errors for expired tokens, invalid credentials, etc.
+- **JIRA Connection Issues**: Problems with JIRA URL, network connectivity, etc.
+- **Missing Tickets**: When PR title doesn't reference any JIRA tickets
+- **Unapproved Tickets**: When tickets aren't linked to the appropriate release approval ticket
+
 ## Setting Up the Workflow
 
 To enable restriction checking on a repository:
@@ -85,10 +103,12 @@ jobs:
 
 ## Repository Organization Allowlist
 
-This workflow can only be used by repositories in approved organizations. The current allowlist includes:
+For security, this workflow contains a hardcoded allowlist of approved organizations:
 - `couchbase` - Main Couchbase repositories
 - `couchbasedeps` - Couchbase dependency repositories
 - `couchbaselabs` - Couchbase Labs experimental repositories
+
+The organization allowlist is not configurable by workflow consumers to prevent security bypass.
 
 The workflow protects the **target repository** (where the PR is going) and allows contributions from **any fork**. For example:
 - ✅ Fork `alice/server` → Target `couchbase/server` (allowed - target is in allowlist)
@@ -102,4 +122,4 @@ You must also enable branch protection rules to prevent PRs from being merged if
 2. Add a branch protection rule for restricted branches
 3. Enable "Require status checks to pass before merging"
 4. Add "Check Branch Restrictions" to required status checks
-5. Enable "Restrict pushes that create files"
+5. Ensure "Enforcement Status" is active

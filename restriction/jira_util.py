@@ -1,5 +1,6 @@
 import json
 from jira import JIRA
+from jira.exceptions import JIRAError
 import os
 import re
 
@@ -22,16 +23,63 @@ def connect_jira():
 
   if jira_url and jira_user and jira_token:
     # Use GitHub Actions credentials
-    jira = JIRA(jira_url, basic_auth=(jira_user, jira_token))
-    return jira
+    try:
+      # First validate that credentials have reasonable format
+      if not jira_url.startswith(('http://', 'https://')):
+        raise Exception(f"JIRA connection failed: Invalid JIRA URL format '{jira_url}'. URL must start with http:// or https://")
+
+      if len(jira_token) < 5:  # Very basic sanity check
+        raise Exception("JIRA authentication failed: API token is too short. Please check your JIRA_API_TOKEN secret.")
+
+      jira = JIRA(jira_url, basic_auth=(jira_user, jira_token))
+      # Test the connection with a simple query to verify authentication
+      jira.myself()
+      return jira
+    except JIRAError as e:
+      if e.status_code == 401:
+        raise Exception("JIRA authentication failed: Invalid username or API token. Please check your JIRA credentials and ensure the API token is not expired.")
+      elif e.status_code == 403:
+        raise Exception("JIRA authentication failed: Access forbidden. Please check your JIRA permissions.")
+      elif e.status_code == 404:
+        raise Exception(f"JIRA connection failed: Invalid JIRA URL '{jira_url}'. Please verify the URL is correct.")
+      else:
+        raise Exception(f"JIRA connection failed: {e.text if hasattr(e, 'text') else str(e)}")
+    except Exception as e:
+      if "401" in str(e) or "Unauthorized" in str(e):
+        raise Exception("JIRA authentication failed: Invalid username or API token. Please check your JIRA credentials and ensure the API token is not expired.")
+      elif "403" in str(e) or "Forbidden" in str(e):
+        raise Exception("JIRA authentication failed: Access forbidden. Please check your JIRA permissions.")
+      elif "timeout" in str(e).lower() or "connection" in str(e).lower():
+        raise Exception(f"JIRA connection failed: Unable to connect to '{jira_url}'. Please check the URL and network connectivity.")
+      else:
+        raise Exception(f"JIRA connection failed: {str(e)}")
   else:
     # Fall back to file-based credentials (Gerrit)
-    cloud_jira_creds_file = f'{os.environ["HOME"]}/.ssh/cloud-jira-creds.json'
-    cloud_jira_creds = json.loads(open(cloud_jira_creds_file).read())
-    jira = JIRA(cloud_jira_creds['url'], basic_auth=(
-                f"{cloud_jira_creds['username']}",
-                f"{cloud_jira_creds['apitoken']}"))
-    return jira
+    try:
+      cloud_jira_creds_file = f'{os.environ["HOME"]}/.ssh/cloud-jira-creds.json'
+      cloud_jira_creds = json.loads(open(cloud_jira_creds_file).read())
+      jira = JIRA(cloud_jira_creds['url'], basic_auth=(
+                  f"{cloud_jira_creds['username']}",
+                  f"{cloud_jira_creds['apitoken']}"))
+      # Test the connection
+      jira.myself()
+      return jira
+    except FileNotFoundError:
+      raise Exception(f"JIRA credentials file not found at {cloud_jira_creds_file}")
+    except json.JSONDecodeError:
+      raise Exception(f"Invalid JSON in JIRA credentials file: {cloud_jira_creds_file}")
+    except JIRAError as e:
+      if e.status_code == 401:
+        raise Exception("JIRA authentication failed: Invalid username or API token in credentials file. Please check the token is not expired.")
+      elif e.status_code == 403:
+        raise Exception("JIRA authentication failed: Access forbidden. Please check your JIRA permissions.")
+      else:
+        raise Exception(f"JIRA connection failed: {e.text if hasattr(e, 'text') else str(e)}")
+    except Exception as e:
+      if "401" in str(e) or "Unauthorized" in str(e):
+        raise Exception("JIRA authentication failed: Invalid username or API token in credentials file. Please check the token is not expired.")
+      else:
+        raise Exception(f"JIRA connection failed: {str(e)}")
 
 def get_tickets(message):
   """

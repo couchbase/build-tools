@@ -1,0 +1,230 @@
+name: 'Run Restriction Check'
+description: 'Runs the restricted branch check script and processes results'
+
+inputs:
+  # Primary parameters (required)
+  base_ref:
+    description: 'Base reference (branch) to check'
+    required: true
+  pr_number:
+    description: 'PR number'
+    required: true
+  pr_title:
+    description: 'PR title for ticket extraction'
+    required: true
+  repository:
+    description: 'Repository in owner/repo format'
+    required: true
+
+  # JIRA credentials (required)
+  jira_api_token:
+    description: 'JIRA API token'
+    required: true
+  jira_url:
+    description: 'JIRA URL'
+    required: true
+  jira_username:
+    description: 'JIRA username'
+    required: true
+
+  # Optional configuration
+  build_tools_path:
+    description: 'Path to build-tools repository'
+    required: false
+    default: 'build-tools'
+
+outputs:
+  # Primary status
+  status:
+    description: 'Check status (success, restriction, or error)'
+    value: ${{ steps.run-check.outputs.status }}
+
+  # Error information
+  error_message:
+    description: 'Error message if check failed'
+    value: ${{ steps.run-check.outputs.error_message }}
+  error_type:
+    description: 'Type of error if check failed (jira_auth, jira_connection, etc.)'
+    value: ${{ steps.run-check.outputs.error_type }}
+
+  # Restriction details (when status=restriction)
+  restriction_type:
+    description: 'Type of restriction (missing_ticket, unapproved_ticket, etc.)'
+    value: ${{ steps.run-check.outputs.restriction_type }}
+  restriction_reason:
+    description: 'Reason for restriction if branch is restricted'
+    value: ${{ steps.run-check.outputs.restriction_reason }}
+  restriction_release:
+    description: 'Release information if branch is restricted'
+    value: ${{ steps.run-check.outputs.restriction_release }}
+  restriction_approval_ticket:
+    description: 'Approval ticket if branch is restricted'
+    value: ${{ steps.run-check.outputs.restriction_approval_ticket }}
+
+  # Success details (when status=success)
+  check_result:
+    description: 'Result of the check (approved, unrestricted)'
+    value: ${{ steps.run-check.outputs.check_result }}
+  checked_branch:
+    description: 'Branch checked'
+    value: ${{ steps.run-check.outputs.checked_branch }}
+  checked_manifests:
+    description: 'Manifests checked for restrictions'
+    value: ${{ steps.run-check.outputs.checked_manifests }}
+  checked_project:
+    description: 'Project checked'
+    value: ${{ steps.run-check.outputs.checked_project }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run restricted branch check
+      id: run-check
+      shell: bash
+      env:
+        GITHUB_BASE_REF: ${{ inputs.base_ref }}
+        GITHUB_REPOSITORY: ${{ inputs.repository }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        PR_TITLE: ${{ inputs.pr_title }}
+        JIRA_URL: ${{ inputs.jira_url }}
+        JIRA_USERNAME: ${{ inputs.jira_username }}
+        JIRA_API_TOKEN: ${{ inputs.jira_api_token }}
+      run: |
+        echo "::notice::Starting restriction check for target=${{ inputs.repository }} pr=${{ inputs.pr_number }} base_ref=${{ inputs.base_ref }}"
+
+        # Validate the build_tools_path for path traversal prevention
+        BUILD_TOOLS_PATH="${{ inputs.build_tools_path }}"
+
+        # Security check for path traversal
+        if [[ "$BUILD_TOOLS_PATH" == *".."* || "$BUILD_TOOLS_PATH" != "build-tools"* ]]; then
+          echo "::error::Invalid build tools path: possible path traversal attempt"
+          echo "status=error" >> $GITHUB_OUTPUT
+          echo "error_type=security_violation" >> $GITHUB_OUTPUT
+          echo "error_message=Path validation failed: Security violation detected" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        # Validate that restricted_branch_check.py exists in the expected location
+        if [ ! -f "$BUILD_TOOLS_PATH/restriction/restricted_branch_check.py" ]; then
+          echo "::error::Cannot find restricted_branch_check.py in the expected location"
+          echo "status=error" >> $GITHUB_OUTPUT
+          echo "error_type=setup_error" >> $GITHUB_OUTPUT
+          echo "error_message=Required script not found at $BUILD_TOOLS_PATH/restriction/restricted_branch_check.py" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        # Function to safely get a value from GITHUB_OUTPUT using grep/cut
+        safe_get_output() {
+          local pattern="$1"
+          if [[ ! -f "$GITHUB_OUTPUT" ]]; then
+            return 1
+          fi
+          # Safely search for pattern and extract value
+          local value=""
+          value=$(grep -m 1 "^$pattern=" "$GITHUB_OUTPUT" 2>/dev/null | cut -d= -f2- || echo "")
+          echo "$value"
+        }
+
+        # Function to sanitize error messages
+        sanitize_error_message() {
+          local message="$1"
+
+          # Remove actual credentials if they appear in error messages
+          if [[ -n "$message" ]]; then
+            # Redact JIRA API token if it appears in error message
+            if [[ -n "${{ inputs.jira_api_token }}" ]]; then
+              message=$(echo "$message" | sed "s/${{ inputs.jira_api_token }}/[REDACTED_API_TOKEN]/g")
+            fi
+
+            # Redact JIRA username if it appears in error message
+            if [[ -n "${{ inputs.jira_username }}" ]]; then
+              message=$(echo "$message" | sed "s/${{ inputs.jira_username }}/[REDACTED_USERNAME]/g")
+            fi
+
+            # Replace URL connection error messages with a generic message
+            if [[ "$message" == *"Unable to connect to"* || "$message" == *"connection failed"* ]]; then
+              message="JIRA connection failed. Please verify your JIRA credentials and network connectivity."
+            fi
+
+            # Redact Basic Auth headers (commonly found in error responses)
+            message=$(echo "$message" | sed -E 's/Authorization: Basic [A-Za-z0-9+\/=]*/Authorization: Basic [REDACTED]/g')
+            message=$(echo "$message" | sed -E 's/Authorization: Bearer [A-Za-z0-9_\.\-]*/Authorization: Bearer [REDACTED]/g')
+
+            # Redact any base64-encoded credential strings (common in basic auth)
+            # Look for typical base64 patterns that might be credentials (30-100 chars)
+            message=$(echo "$message" | sed -E 's/([A-Za-z0-9+\/=]{30,100})/[POSSIBLE_ENCODED_CREDENTIALS]/g')
+
+            # Remove potentially dangerous content but preserve quotes for readability
+            message=$(echo "$message" | sed 's/[`$()&|<>]//g' | tr -d '\r\n')
+
+            # Limit length for security
+            if [[ ${#message} -gt 200 ]]; then
+              message="${message:0:197}..."
+            fi
+          fi
+
+          echo "$message"
+        }
+
+        # Run the restriction check and capture exit code
+        (cd "$BUILD_TOOLS_PATH/restriction" && uv run restricted-branch-check) && CHECK_STATUS=$? || CHECK_STATUS=$?
+
+        # Process exit code and determine status
+        if [ $CHECK_STATUS -eq 0 ]; then
+          # Verify we have expected outputs for a successful check
+          CHECK_RESULT=$(safe_get_output "check_result")
+          if [[ "$CHECK_RESULT" == "approved" || "$CHECK_RESULT" == "unrestricted" ]]; then
+            # We have explicit confirmation of success
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "::notice::RESTRICTION_CHECK: Completed successfully - no restrictions apply for target=${{ inputs.repository }} pr=${{ inputs.pr_number }}"
+          else
+            # Exit code is 0 but we don't have expected outputs - treat as an error
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "error_type=incomplete_check" >> $GITHUB_OUTPUT
+            echo "error_message=Check returned success code but without expected result data" >> $GITHUB_OUTPUT
+            echo "::warning::RESTRICTION_CHECK: Incomplete check detected - script exited successfully but didn't provide expected outputs"
+          fi
+
+        elif [ $CHECK_STATUS -eq 5 ]; then
+          # Exit code 5 is for legitimate restrictions (from output_report)
+          echo "status=restriction" >> $GITHUB_OUTPUT
+          echo "::notice::RESTRICTION_POLICY: Branch restrictions apply to target=${{ inputs.repository }} pr=${{ inputs.pr_number }}"
+
+        elif [ $CHECK_STATUS -eq 6 ]; then
+          # Exit code 6 is for technical errors (from failed_output)
+          echo "status=error" >> $GITHUB_OUTPUT
+
+          # Set error type if present in GITHUB_OUTPUT, otherwise default to general
+          ERROR_TYPE=$(safe_get_output "error_type")
+          if [[ "$ERROR_TYPE" == "jira_auth" || "$ERROR_TYPE" == "jira_connection" ]]; then
+            echo "error_type=$ERROR_TYPE" >> $GITHUB_OUTPUT
+            echo "::notice::JIRA_CONNECTION_ISSUE: Authentication or connection error for target=${{ inputs.repository }} pr=${{ inputs.pr_number }}"
+          else
+            # If Python script didn't set an error type, set a default
+            if [[ -z "$ERROR_TYPE" ]]; then
+              echo "error_type=general" >> $GITHUB_OUTPUT
+            else
+              # Validate the error_type doesn't contain dangerous characters
+              SAFE_ERROR_TYPE=$(echo "$ERROR_TYPE" | tr -cd 'a-zA-Z0-9_-')
+              echo "error_type=$SAFE_ERROR_TYPE" >> $GITHUB_OUTPUT
+            fi
+            echo "::notice::TECHNICAL_ERROR: Tool failure for target=${{ inputs.repository }} pr=${{ inputs.pr_number }}"
+          fi
+
+          # Set default error message if none was provided
+          ERROR_MESSAGE=$(safe_get_output "error_message")
+          if [[ -z "$ERROR_MESSAGE" ]]; then
+            echo "error_message=Unexpected error during restriction check" >> $GITHUB_OUTPUT
+          else
+            # Sanitize error message before output
+            SAFE_ERROR_MESSAGE=$(sanitize_error_message "$ERROR_MESSAGE")
+            echo "error_message=$SAFE_ERROR_MESSAGE" >> $GITHUB_OUTPUT
+          fi
+
+        else
+          # Unknown exit code
+          echo "status=error" >> $GITHUB_OUTPUT
+          echo "error_type=unknown_exit_code" >> $GITHUB_OUTPUT
+          echo "error_message=Unknown exit code: $CHECK_STATUS" >> $GITHUB_OUTPUT
+          echo "::error::Unexpected exit code from restriction check: $CHECK_STATUS"
+        fi

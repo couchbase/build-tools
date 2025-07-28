@@ -1,0 +1,144 @@
+name: 'Setup Environment for Restriction Check'
+description: 'Checks out required repositories and sets up tools for the restriction check'
+
+inputs:
+  # Authentication (required)
+  jira_api_token:
+    description: 'JIRA API token for checking authentication configuration'
+    required: true
+  jira_url:
+    description: 'JIRA URL for checking authentication configuration'
+    required: true
+  jira_username:
+    description: 'JIRA username for checking authentication configuration'
+    required: true
+
+  # Repository configuration (optional with defaults)
+  build_tools_repo:
+    description: 'Repository path for build tools'
+    required: false
+    default: 'couchbase/build-tools'
+  build_tools_ref:
+    description: 'Reference to checkout for build tools'
+    required: false
+    default: 'master'
+  manifest_repo:
+    description: 'Repository path for manifest'
+    required: false
+    default: 'couchbase/manifest'
+  manifest_ref:
+    description: 'Reference to checkout for manifest'
+    required: false
+    default: 'master'
+
+outputs:
+  # Status output
+  status:
+    description: 'Setup status (success or failure)'
+    value: ${{ steps.check-environment.outputs.status }}
+
+  # Error information
+  error_message:
+    description: 'Error message if setup failed'
+    value: ${{ steps.check-environment.outputs.error_message }}
+  error_type:
+    description: 'Error type if setup failed (setup_error)'
+    value: ${{ steps.check-environment.outputs.error_type }}
+
+  # Path outputs
+  build_tools_path:
+    description: 'Path to the build-tools repository'
+    value: 'build-tools'
+  manifest_path:
+    description: 'Path to the manifest repository'
+    value: 'manifest'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout build-tools repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: ${{ inputs.build_tools_repo }}
+        ref: ${{ inputs.build_tools_ref }}
+        path: build-tools
+        fetch-depth: 1
+
+    - name: Checkout manifest repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        repository: ${{ inputs.manifest_repo }}
+        ref: ${{ inputs.manifest_ref }}
+        path: manifest
+        fetch-depth: 1
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba
+      with:
+        version: latest
+
+    - name: Validate environment setup
+      id: check-environment
+      shell: bash
+      run: |
+        validation_failed=false
+        error_message=""
+        error_type="setup_error"
+
+        # Validate build-tools checkout
+        if [ ! -d "build-tools" ] || [ ! -f "build-tools/restriction/restricted_branch_check.py" ]; then
+          validation_failed=true
+          error_message="Failed to checkout build-tools repository or restriction script is missing"
+          echo "::error::$error_message"
+        fi
+
+        # Validate manifest checkout
+        if [ ! -d "manifest" ] || [ ! -f "manifest/manifest-cv" ]; then
+          validation_failed=true
+          error_message="Failed to checkout manifest repository or manifest files are missing"
+          echo "::error::$error_message"
+        fi
+
+        # Validate uv is installed
+        if ! command -v uv &> /dev/null; then
+          validation_failed=true
+          error_message="uv is not installed or not available in PATH"
+          echo "::error::$error_message"
+        fi
+
+        # Validate JIRA environment variables
+        if [[ -z "${{ inputs.jira_url }}" ]]; then
+          validation_failed=true
+          error_message="JIRA_URL is not provided"
+          echo "::error::$error_message"
+        fi
+
+        if [[ -z "${{ inputs.jira_username }}" ]]; then
+          validation_failed=true
+          error_message="JIRA_USERNAME is not provided"
+          echo "::error::$error_message"
+        fi
+
+        if [[ -z "${{ inputs.jira_api_token }}" ]]; then
+          validation_failed=true
+          error_message="JIRA_API_TOKEN is not provided"
+          echo "::error::$error_message"
+        fi
+
+        # Additional validation: check format without exposing values
+        if [[ -n "${{ inputs.jira_url }}" ]] && [[ ! "${{ inputs.jira_url }}" =~ ^https?:// ]]; then
+          validation_failed=true
+          error_message="JIRA_URL must be a valid HTTP/HTTPS URL"
+          echo "::error::$error_message"
+        fi
+
+        # Output setup status
+        if [[ "$validation_failed" == "true" ]]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "error_message=$error_message" >> $GITHUB_OUTPUT
+          echo "error_type=$error_type" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "::notice::Environment validation passed - all components are properly configured"
+        fi

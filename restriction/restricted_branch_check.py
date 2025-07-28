@@ -166,7 +166,7 @@ def can_bypass_restriction(ticket, jira):
     try:
         jira_ticket = jira.issue(ticket)
         return any(label in bypass_labels for label in jira_ticket.raw['fields']['labels'])
-    except:
+    except Exception as e:
         # If the above jira call failed, it was most likely due to the
         # message naming a non-existent ticket eg. due to a typo or
         # similar. We don't want to fail with an error about retrieving
@@ -179,17 +179,25 @@ def get_approved_tickets(approval_ticket, jira):
     """
     Given a Jira approval ticket ID, return all linked ticket IDs
     """
-    jira_ticket = jira.issue(approval_ticket)
-    depends = [
-        link.outwardIssue.key for link in jira_ticket.fields.issuelinks
-        if hasattr(link, "outwardIssue")
-    ]
-    relates = [
-        link.inwardIssue.key for link in jira_ticket.fields.issuelinks
-        if hasattr(link, "inwardIssue")
-    ]
-    subtasks = [subtask.key for subtask in jira_ticket.fields.subtasks]
-    return depends + relates + subtasks + [approval_ticket]
+    try:
+        jira_ticket = jira.issue(approval_ticket)
+        depends = [
+            link.outwardIssue.key for link in jira_ticket.fields.issuelinks
+            if hasattr(link, "outwardIssue")
+        ]
+        relates = [
+            link.inwardIssue.key for link in jira_ticket.fields.issuelinks
+            if hasattr(link, "inwardIssue")
+        ]
+        subtasks = [subtask.key for subtask in jira_ticket.fields.subtasks]
+        return depends + relates + subtasks + [approval_ticket]
+    except Exception as e:
+        # Error handling in connect_jira handles auth issues
+        if "404" in str(e) or "does not exist" in str(e):
+            raise Exception(f"JIRA approval ticket '{approval_ticket}' not found. Please verify the ticket ID is correct.")
+        else:
+            # Re-raise all other errors to be handled by the main error handler
+            raise
 
 
 def validate_change_in_ticket(meta):
@@ -342,8 +350,62 @@ def failed_output_github(exc_message):
     and exits with a non-0 return value
     """
     safe_message = sanitize_for_template(exc_message)
-    print(f"::error::FAILURE: Restriction check failed")
-    print(f"❌ restricted branch check encountered an error. Check logs for details.")
+
+    # Check if this is a JIRA-related error and provide more specific guidance
+    if "JIRA authentication failed" in safe_message:
+        print(f"::error::JIRA Authentication Error: {safe_message}")
+        print(f"❌ JIRA authentication failed - PR check cannot continue")
+        print(f"This is likely due to:")
+        print(f"   • Expired API token - please rotate your JIRA_API_TOKEN secret")
+        print(f"   • Incorrect username or token - verify JIRA_USERNAME and JIRA_API_TOKEN")
+        print(f"   • Network connectivity issues to JIRA server")
+        print(f"Contact the Build Team to resolve this issue with JIRA credentials.")
+
+        # Output error type for GitHub Actions summary
+        github_output_file = os.environ.get("GITHUB_OUTPUT")
+        if github_output_file:
+            try:
+                with open(github_output_file, "a") as f:
+                    f.write("error_type=jira_auth\n")
+                    f.write(f"error_message={safe_message}\n")
+            except Exception as e:
+                print(f"::warning::Failed to write error info to GITHUB_OUTPUT: {e}")
+
+    elif "JIRA connection failed" in safe_message:
+        print(f"::error::JIRA Connection Error: {safe_message}")
+        print(f"❌ Unable to connect to JIRA - PR check cannot continue")
+        print(f"This could be due to:")
+        print(f"   • Invalid JIRA URL - verify JIRA_URL is correct")
+        print(f"   • Network connectivity issues")
+        print(f"   • JIRA server temporarily unavailable")
+        print(f"Contact the Build Team to resolve this issue.")
+
+        # Output error type for GitHub Actions summary
+        github_output_file = os.environ.get("GITHUB_OUTPUT")
+        if github_output_file:
+            try:
+                with open(github_output_file, "a") as f:
+                    f.write("error_type=jira_connection\n")
+                    f.write(f"error_message={safe_message}\n")
+            except Exception as e:
+                print(f"::warning::Failed to write error info to GITHUB_OUTPUT: {e}")
+
+    else:
+        print(f"::error::FAILURE: Restriction check failed")
+        print(f"❌ restricted branch check encountered an error. Check logs for details.")
+        if safe_message:
+            print(f"   Error details: {safe_message}")
+
+        # Output generic error type for GitHub Actions summary
+        github_output_file = os.environ.get("GITHUB_OUTPUT")
+        if github_output_file:
+            try:
+                with open(github_output_file, "a") as f:
+                    f.write("error_type=general\n")
+                    f.write(f"error_message={safe_message}\n")
+            except Exception as e:
+                print(f"::warning::Failed to write error info to GITHUB_OUTPUT: {e}")
+
     sys.exit(6)
 
 

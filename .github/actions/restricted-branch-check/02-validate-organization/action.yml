@@ -1,0 +1,58 @@
+name: 'Validate Repository Organization'
+description: 'Validates that the repository belongs to an allowed organization'
+
+inputs:
+  # Primary required inputs
+  repository:
+    description: 'Repository in owner/repo format'
+    required: true
+
+outputs:
+  # Status output
+  status:
+    description: 'Organization validation status (org_validated or org_not_allowed)'
+    value: ${{ steps.validate-org.outputs.status }}
+
+  # Error information
+  error_message:
+    description: 'Error message if validation failed'
+    value: ${{ steps.validate-org.outputs.error_message }}
+  error_type:
+    description: 'Type of error if validation failed (org_not_allowed)'
+    value: ${{ steps.validate-org.outputs.error_type }}
+
+  # Data output
+  organization:
+    description: 'Repository organization'
+    value: ${{ steps.validate-org.outputs.organization }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate repository organization
+      id: validate-org
+      shell: bash
+      run: |
+        # Extract organization from repository
+        target_org=$(echo "${{ inputs.repository }}" | cut -d'/' -f1)
+        echo "organization=$target_org" >> $GITHUB_OUTPUT
+
+        # Hardcoded allowed organizations list - not configurable by consumers
+        ALLOWED_ORGS="couchbase couchbasedeps couchbaselabs"
+
+        # Check if organization is in the allowed list
+        if [[ ! " $ALLOWED_ORGS " =~ " $target_org " ]]; then
+          error_message="Organization '$target_org' is not authorized to use this workflow. Allowed organizations: $ALLOWED_ORGS"
+          echo "::error::Target repository organization '$target_org' is not in the allowlist"
+          echo "::error::This workflow can only be used for repositories in allowed organizations: $ALLOWED_ORGS"
+          echo "::notice::SECURITY_AUDIT: Unauthorized target repository access attempt: $target_org"
+
+          echo "status=org_not_allowed" >> $GITHUB_OUTPUT
+          echo "error_message=$error_message" >> $GITHUB_OUTPUT
+          echo "error_type=org_not_allowed" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "::notice::SECURITY_AUDIT: Target repository organization validation passed: $target_org"
+          echo "::notice::Repository validation: Protecting ${{ inputs.repository }}"
+          echo "status=org_validated" >> $GITHUB_OUTPUT
+        fi

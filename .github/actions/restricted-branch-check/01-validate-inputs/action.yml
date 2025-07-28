@@ -1,0 +1,100 @@
+name: 'Validate Input Parameters'
+description: 'Validates PR number and base ref parameters for the restricted branch check'
+
+inputs:
+  # Primary required inputs
+  base_ref:
+    description: 'Base ref (branch) to validate'
+    required: true
+  pr_number:
+    description: 'PR number to validate'
+    required: true
+  pr_title:
+    description: 'PR title to validate'
+    required: true
+
+outputs:
+  # Status output
+  status:
+    description: 'Validation status (valid or invalid)'
+    value: ${{ steps.validate.outputs.status }}
+  # Error information
+  error_message:
+    description: 'Error message if validation failed'
+    value: ${{ steps.validate.outputs.error_message }}
+  error_type:
+    description: 'Error type if validation failed (input_validation_error)'
+    value: ${{ steps.validate.outputs.error_type }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate inputs
+      id: validate
+      shell: bash
+      run: |
+        # Initialize validation status
+        validation_failed=false
+        error_message=""
+        error_type="input_validation_error"
+
+        # Validate PR number is numeric
+        PR_INPUT="${{ inputs.pr_number }}"
+        if [[ ! "$PR_INPUT" =~ ^[0-9]+$ ]]; then
+          validation_failed=true
+          error_message="PR number must be numeric, got: $PR_INPUT"
+          echo "::error::$error_message"
+        # Bound check PR number
+        elif (( PR_INPUT <= 0 || PR_INPUT > 50000 )); then
+          validation_failed=true
+          error_message="PR number out of reasonable range (1-50000), got: $PR_INPUT"
+          echo "::error::$error_message"
+        fi
+
+        # Check base ref length
+        BASE_REF="${{ inputs.base_ref }}"
+        if [[ ${#BASE_REF} -gt 100 ]]; then
+          validation_failed=true
+          error_message="Base ref too long (max 100 characters), got: ${#BASE_REF} characters"
+          echo "::error::$error_message"
+        fi
+
+        # Branch name validation
+        if [[ ! "$BASE_REF" =~ ^[a-zA-Z0-9]([a-zA-Z0-9._/-]{0,98}[a-zA-Z0-9])?$ ]] || \
+           [[ "$BASE_REF" =~ (\.\.|//|\$|\`|\\|\'|\"|;|\||\&|\<|\>|\(|\)|\[|\]|\{|\}|\*|\?|\~) ]]; then
+          validation_failed=true
+          error_message="Invalid base ref format: $BASE_REF"
+          echo "::error::$error_message"
+          echo "::error::Base ref must be a valid branch name (alphanumeric, dots, underscores, hyphens, slashes only)"
+          echo "::error::No path traversal sequences or shell metacharacters allowed"
+        fi
+
+        # Check branch name for common dangerous patterns
+        if [[ "$BASE_REF" == *".."* ]] || [[ "$BASE_REF" == *"//"* ]] || [[ "$BASE_REF" == "."* ]] || [[ "$BASE_REF" == *"~"* ]]; then
+          validation_failed=true
+          error_message="Base ref contains dangerous patterns: $BASE_REF"
+          echo "::error::$error_message"
+        fi
+
+        # Validate PR title is not empty and not too long
+        PR_TITLE="${{ inputs.pr_title }}"
+        if [[ -z "$PR_TITLE" ]]; then
+          validation_failed=true
+          error_message="PR title cannot be empty"
+          echo "::error::$error_message"
+        elif [[ ${#PR_TITLE} -gt 500 ]]; then
+          validation_failed=true
+          error_message="PR title too long (max 500 characters), got: ${#PR_TITLE} characters"
+          echo "::error::$error_message"
+        fi
+
+        # Output validation status
+        if [[ "$validation_failed" == "true" ]]; then
+          echo "status=invalid" >> $GITHUB_OUTPUT
+          echo "error_message=$error_message" >> $GITHUB_OUTPUT
+          echo "error_type=$error_type" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "status=valid" >> $GITHUB_OUTPUT
+          echo "All input parameters are valid"
+        fi

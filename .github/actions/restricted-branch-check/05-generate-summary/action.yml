@@ -1,0 +1,189 @@
+name: 'Generate Summary'
+description: 'Generates a GitHub summary based on the restriction check results'
+
+inputs:
+  # Status input (required)
+  status:
+    description: 'Status of the restriction check (success, restriction, or error)'
+    required: true
+
+  # Error information
+  error_message:
+    description: 'Error message for any failure'
+    required: false
+  error_type:
+    description: 'Type of error (org_not_allowed, jira_auth, jira_connection, etc.)'
+    required: false
+
+  # Restriction details
+  restriction_approval_ticket:
+    description: 'Approval ticket'
+    required: false
+  restriction_reason:
+    description: 'Reason for restriction'
+    required: false
+  restriction_release:
+    description: 'Release information'
+    required: false
+  restriction_type:
+    description: 'Type of restriction'
+    required: false
+
+  # Success details
+  check_result:
+    description: 'Result of the check (approved, unrestricted)'
+    required: false
+  checked_branch:
+    description: 'Branch checked'
+    required: false
+  checked_manifests:
+    description: 'Manifests checked for restrictions'
+    required: false
+  checked_project:
+    description: 'Project checked'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate summary
+      shell: bash
+      run: |
+        # Create the summary header
+        if [[ "${{ inputs.status }}" != "success" ]]; then
+          echo "## ❌ Restricted Branch Check Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ inputs.status }}" == "restriction" && -n "${{ inputs.restriction_reason }}" ]]; then
+            # Branch restricted
+            echo "**Reason:** ${{ inputs.restriction_reason }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [[ -n "${{ inputs.restriction_release }}" ]]; then
+              echo "**Release:** ${{ inputs.restriction_release }}" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [[ -n "${{ inputs.restriction_approval_ticket }}" ]]; then
+              echo "**Approval Ticket:** [${{ inputs.restriction_approval_ticket }}](https://issues.couchbase.com/browse/${{ inputs.restriction_approval_ticket }})" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Add specific guidance based on restriction type
+            if [[ "${{ inputs.restriction_type }}" == "missing_ticket" ]]; then
+              echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Add a JIRA ticket reference to your PR title (e.g., 'CBD-1234: Fix important bug')" >> $GITHUB_STEP_SUMMARY
+              echo "- The ticket should be approved for this release" >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ inputs.restriction_type }}" == "unapproved_ticket" ]]; then
+              echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Ensure your JIRA ticket is linked to the approval ticket [${{ inputs.restriction_approval_ticket }}](https://issues.couchbase.com/browse/${{ inputs.restriction_approval_ticket }})" >> $GITHUB_STEP_SUMMARY
+              echo "- Contact Product Management if you believe this change should be approved" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**⚠️ Unexpected Restriction Type**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "An unusual or undefined error has occurred (type: ${{ inputs.restriction_type || 'unspecified' }})." >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Review the restriction requirements for this release branch" >> $GITHUB_STEP_SUMMARY
+              echo "- Contact the Build Team for assistance about this message" >> $GITHUB_STEP_SUMMARY
+            fi
+
+          elif [[ "${{ inputs.error_type }}" == "input_validation_error" ]]; then
+            # Input validation failed
+            echo "**⚠️ Invalid Input Parameters**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "${{ inputs.error_message }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Please verify the PR number and base branch name are valid" >> $GITHUB_STEP_SUMMARY
+            echo "- Contact the Build Team if you believe this is an error" >> $GITHUB_STEP_SUMMARY
+
+          elif [[ "${{ inputs.error_type }}" == "setup_error" ]]; then
+            # Environment setup failed
+            echo "**⚠️ Environment Setup Failure**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "${{ inputs.error_message }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- This is likely a temporary infrastructure issue" >> $GITHUB_STEP_SUMMARY
+            echo "- Please try again or contact the Build Team" >> $GITHUB_STEP_SUMMARY
+
+          elif [[ "${{ inputs.error_type }}" == "jira_auth" ]]; then
+            # JIRA authentication failed
+            echo "**🔐 JIRA Authentication Error**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The restriction check failed due to JIRA authentication issues." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Common causes:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Expired JIRA API token" >> $GITHUB_STEP_SUMMARY
+            echo "- Incorrect JIRA username or token" >> $GITHUB_STEP_SUMMARY
+            echo "- Network connectivity issues to JIRA server" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Contact the Build Team to rotate the JIRA credentials" >> $GITHUB_STEP_SUMMARY
+            echo "- Verify your JIRA credentials are correctly configured" >> $GITHUB_STEP_SUMMARY
+
+          elif [[ "${{ inputs.error_type }}" == "jira_connection" ]]; then
+            # JIRA connection failed
+            echo "**🌐 JIRA Connection Error**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The restriction check failed due to JIRA connectivity issues." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Common causes:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Invalid JIRA URL configuration" >> $GITHUB_STEP_SUMMARY
+            echo "- Network connectivity issues" >> $GITHUB_STEP_SUMMARY
+            echo "- JIRA server temporarily unavailable" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Verify your JIRA connection settings are correct" >> $GITHUB_STEP_SUMMARY
+            echo "- Contact the Build Team if the issue persists" >> $GITHUB_STEP_SUMMARY
+
+          elif [[ "${{ inputs.error_type }}" == "org_not_allowed" ]]; then
+            # Organization validation failed
+            echo "**⚠️ Organization Not Authorized**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "${{ inputs.error_message }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- This workflow can only be used with repositories in approved organizations" >> $GITHUB_STEP_SUMMARY
+            echo "- Contact the Build Team if you believe your organization should be allowed" >> $GITHUB_STEP_SUMMARY
+
+          else
+            # Unknown/unexpected error
+            echo "**❓ Unexpected Error in Restriction Check**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The restriction check encountered an unexpected error." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Check the workflow logs for specific error details" >> $GITHUB_STEP_SUMMARY
+            echo "- This could be due to an issue in the restriction checker script" >> $GITHUB_STEP_SUMMARY
+            echo "- Contact the Build Team for assistance with this error" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Add error details for errors that don't already show them inline
+          if [[ -n "${{ inputs.error_message }}" && "${{ inputs.error_type }}" != "org_not_allowed" && "${{ inputs.error_type }}" != "input_validation_error" && "${{ inputs.error_type }}" != "setup_error" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Error details:** ${{ inputs.error_message }}" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          # Check passed successfully
+          echo "## ✅ Restricted Branch Check Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Show what was actually checked
+          if [[ "${{ inputs.check_result }}" == "approved" ]]; then
+            echo "All JIRA tickets referenced in commits are approved for all restricted manifests." >> $GITHUB_STEP_SUMMARY
+            if [[ -n "${{ inputs.checked_manifests }}" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Checked manifests:** ${{ inputs.checked_manifests }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          elif [[ "${{ inputs.check_result }}" == "unrestricted" ]]; then
+            echo "This branch is not part of any restricted release manifest." >> $GITHUB_STEP_SUMMARY
+            if [[ -n "${{ inputs.checked_project }}" && -n "${{ inputs.checked_branch }}" ]]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Checked:** ${{ inputs.checked_project }}/${{ inputs.checked_branch }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "All required approvals are in place for the target branch." >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
