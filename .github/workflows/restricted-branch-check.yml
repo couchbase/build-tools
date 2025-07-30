@@ -51,7 +51,7 @@ jobs:
       # Step 2: Validate inputs
       - name: Validate inputs
         id: validate-inputs
-        uses: couchbase/build-tools/.github/actions/restricted-branch-check/01-validate-inputs@main
+        uses: couchbase/build-tools/.github/actions/restricted-branch-check/01-validate-inputs@master
         with:
           pr_number: ${{ inputs.pr_number }}
           pr_title: ${{ steps.sanitize-inputs.outputs.pr_title_safe }}
@@ -60,7 +60,7 @@ jobs:
       # Step 3: Validate repository organization
       - name: Validate organization
         id: validate-org
-        uses: couchbase/build-tools/.github/actions/restricted-branch-check/02-validate-organization@main
+        uses: couchbase/build-tools/.github/actions/restricted-branch-check/02-validate-organization@master
         with:
           repository: ${{ github.repository }}
 
@@ -68,7 +68,7 @@ jobs:
       - name: Setup environment
         id: setup-env
         if: steps.validate-inputs.outputs.status == 'valid' && steps.validate-org.outputs.status == 'org_validated'
-        uses: couchbase/build-tools/.github/actions/restricted-branch-check/03-setup-environment@main
+        uses: couchbase/build-tools/.github/actions/restricted-branch-check/03-setup-environment@master
         with:
           jira_url: ${{ secrets.JIRA_URL }}
           jira_username: ${{ secrets.JIRA_USERNAME }}
@@ -113,7 +113,7 @@ jobs:
       - name: Run restriction check
         id: run-check
         if: steps.validate-inputs.outputs.status == 'valid' && steps.validate-org.outputs.status == 'org_validated' && steps.setup-env.outputs.status == 'success' && steps.validate-paths.outputs.status == 'paths_validated'
-        uses: couchbase/build-tools/.github/actions/restricted-branch-check/04-run-restriction-check@main
+        uses: couchbase/build-tools/.github/actions/restricted-branch-check/04-run-restriction-check@master
         with:
           base_ref: ${{ github.base_ref }}
           repository: ${{ github.repository }}
@@ -220,7 +220,7 @@ jobs:
       - name: Generate summary
         if: always()
         id: generate-summary
-        uses: couchbase/build-tools/.github/actions/restricted-branch-check/05-generate-summary@main
+        uses: couchbase/build-tools/.github/actions/restricted-branch-check/05-generate-summary@master
         with:
           # Status input
           status: ${{ steps.run-check.outputs.status || 'error' }}

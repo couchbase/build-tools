@@ -91,7 +91,7 @@ on:
 
 jobs:
   run-check:
-    uses: couchbase/build-tools/.github/workflows/restricted-branch-check.yml@main
+    uses: couchbase/build-tools/.github/workflows/restricted-branch-check.yml@master
     with:
       pr_number: ${{ github.event.pull_request.number }}
       pr_title: ${{ github.event.pull_request.title }}
