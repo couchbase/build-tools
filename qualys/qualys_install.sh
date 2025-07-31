@@ -36,7 +36,6 @@ http://${TEST_VM_IP}:8091/settings/analytics -d blobStorageScheme=none
 curl --fail http://${TEST_VM_IP}:8091/clusterInit \
 -d username=${ADMIN_UID} \
 -d password=${ADMIN_PW} \
--d memoryQuota=256 \
 -d cbasMemoryQuota=1024 \
 -d port=SAME"
   ;;
