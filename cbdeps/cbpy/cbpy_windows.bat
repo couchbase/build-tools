@@ -40,6 +40,8 @@ rmdir /s /q Scripts || goto error
 rmdir /s /q include || goto error
 rmdir /s /q libs || goto error
 rmdir /s /q tcl || goto error
+cd Lib || goto error
+rmdir /s /q ensurepip || goto error
 
 rem Quick installation test
 %INSTALL_DIR%\python.exe "%SRC_DIR%/test_cbpy.py" || goto error

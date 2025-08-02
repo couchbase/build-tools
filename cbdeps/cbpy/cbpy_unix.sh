@@ -58,7 +58,8 @@ rm -f 2to3* idle* natsort normalizer pydoc*
 cd ${INSTALL_DIR}/lib
 rm -rf itcl* pkgconfig tcl* tk* Tix*
 
-cd ${INSTALL_DIR}/lib/python*/site-packages
+cd ${INSTALL_DIR}/lib/python*
+rm -rf ensurepip
 
 # Quick installation test
 "${INSTALL_DIR}/bin/python" "${SRC_DIR}/test_cbpy.py"
