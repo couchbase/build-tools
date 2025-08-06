@@ -1,0 +1,9 @@
+{
+    "versions": {
+        "1.0.0": {
+            "__comment": "NOTE: this version points to the future release",
+            "release": "main",
+            "interval": 1440
+        }
+    }
+}
