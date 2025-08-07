@@ -5,6 +5,8 @@
 INSTALL_DIR=$1
 ROOT_DIR=$2
 
+export PATH=/opt/gcc-13.2.0/bin:$PATH
+
 # Ensure depot_tools is present and pathed
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 pushd depot_tools && git checkout df336feec9a9f43a9239634e763cc7530f5216ca && popd
@@ -26,6 +28,8 @@ pushd breakpad
     # to tweak some structs to fix it
     patch -p1 <"${ROOT_DIR}/build-tools/cbdeps/breakpad/patches/0001-Fix-glibc2.17-arm-build.patch"
   fi
+  # Fix gcc13 compilation issues
+  patch -p1 <"${ROOT_DIR}/build-tools/cbdeps/breakpad/patches/0002-Fix-gcc13-compilation.patch"
   # gclient sync expects an upstream remote called 'origin' but after a sync
   # we end up with a mix of remotes - either 'google,' 'googlesource,' 'origin'
   # or a combination of google.* + origin. So we need to prune this down to

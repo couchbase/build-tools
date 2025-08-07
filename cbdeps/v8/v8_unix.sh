@@ -1,38 +1,50 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 
 INSTALL_DIR=$1
 ROOT_DIR=$2
 PLATFORM=$3
+DEPS=/tmp/deps
+NINJA=""
+V8_ARGS=""
 
 pushd $(dirname $0) > /dev/null
 SCRIPTPATH=$(pwd -P)
 popd > /dev/null
 
-DEPS=/tmp/deps
-rm -rf ${DEPS}
-mkdir -p ${DEPS}
-
-# Install ninja if necessary.
-if command -v ninja > /dev/null; then
-    NINJA=ninja
-elif command -v ninja-build > /dev/null; then
-    NINJA=ninja-build
-else
-    cbdep install -d ${DEPS} ninja 1.11.0
-    NINJA=${DEPS}/ninja-1.11.0/bin/ninja
+if [ "${PLATFORM}" = "linux" ]; then
+    export PATH=/opt/gcc-13.2.0/bin:$PATH
 fi
 
-# Use gcc10 on Linux, to maintain compatibility with Server 7.2.x.
-if [ "${PLATFORM}" = "linux" ]; then
-    export PATH=/opt/gcc-10.2.0/bin:$PATH
+recreate_deps_dir() {
+    rm -rf ${DEPS}
+    mkdir -p ${DEPS}
+}
 
+#
+# Install ninja if not available on system
+#
+install_ninja() {
+    if command -v ninja > /dev/null; then
+        NINJA=ninja
+    elif command -v ninja-build > /dev/null; then
+        NINJA=ninja-build
+    else
+        cbdep install -d ${DEPS} ninja 1.11.0
+        NINJA=${DEPS}/ninja-1.11.0/bin/ninja
+    fi
+}
+
+#
+# Set up binutils for aarch64 Linux builds
+#
+setup_binutils() {
     if [ "$(uname -m)" = "aarch64" ]; then
         # And for aarch64, build with newest binutils too
         mkdir -p ${DEPS}/binutils
 
         pushd ${DEPS}/binutils
         BINUTILS_VER=2.42
-        curl -Lf https://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.xz -o binutils.tar.xz
+        curl -Lf https://sourceware.org/pub/binutils/releases/binutils-${BINUTILS_VER}.tar.xz -o binutils.tar.xz
         mkdir binutils && cd binutils
         tar xf ../binutils.tar.xz --strip-components=1
         ./configure --prefix=${DEPS}/binutils-${BINUTILS_VER} --enable-gold
@@ -42,83 +54,98 @@ if [ "${PLATFORM}" = "linux" ]; then
 
         export PATH=${DEPS}/binutils-${BINUTILS_VER}/bin:$PATH
     fi
-fi
+}
 
 #
-# Build gn (including platform-specific hacks and patches)
+# Build gn build tool with platform-specific configuration
 #
+build_gn() {
+    # Build gn using the stock compiler on the system. gn will find "clang"
+    # automatically on Macs; on Linux, it will use CC/CXX.
+    pushd gn
+    if [ "${PLATFORM}" = "linux" ]; then
+        export CC=gcc
+        export CXX=g++
+    fi
 
-# Build gn using the stock compiler on the system. gn will find "clang"
-# automatically on Macs; on Linux, it will use CC/CXX.
-pushd gn
-if [ "${PLATFORM}" = "linux" ]; then
-    export CC=gcc
-    export CXX=g++
-fi
-
-# MB-60408: Newer gn builds set '-std=c++20', but our Mac x86_64
-# build agent is running Xcode 12 which doesn't honor that flag.
-# Revert to an older SHA which uses c++17.
-if [ "${PLATFORM}" = "macosx" -a "$(uname -m)" = "x86_64" ]; then
-    git checkout d4be45bb28fbfc16a41a1e02c86137df6815f2dd
-fi
-
-python3 build/gen.py
-${NINJA} -C out
-unset CC CXX
-popd
-export PATH=$(pwd)/gn/out:$PATH
-
-cd v8
+    python3 build/gen.py
+    ${NINJA} -C out
+    unset CC CXX
+    popd
+    export PATH=$(pwd)/gn/out:$PATH
+}
 
 #
-# HACKS AND PATCHES for v8 build
+# Apply necessary hacks and patches for v8 build
 #
+apply_v8_patches() {
+    pushd v8
 
-# icu apparently expects to be built with clang on arm, this flag isn't
-# present in gcc
-if [ "${PLATFORM}" = "linux" -a "$(uname -m)" = "aarch64" ]; then
-    sed -i 's/-mmark-bti-property//g' third_party/icu/BUILD.gn
-fi
+    if [ "$(uname -m)" = "aarch64" ]; then
+        # Don't let it force weird toolchain-specific names for
+        # all the command-line utilities like gcc and readelf.
+        sed -ie 's/toolprefix = ".*"/toolprefix = ""/' build/toolchain/linux/BUILD.gn
+    fi
 
-# Cherry-pick back this fix for arm64 processors, if we don't already have it
-if ! git merge-base --is-ancestor 2bb1e2026176 HEAD; then
-    git cherry-pick 2bb1e2026176
-fi
+    # icu apparently expects to be built with clang on arm, this flag isn't
+    # present in gcc
+    if [ "${PLATFORM}" = "linux" -a "$(uname -m)" = "aarch64" ]; then
+        sed -i 's/-mmark-bti-property//g' third_party/icu/BUILD.gn
+    fi
 
-# This change is required for building on gcc < 13.
-# https://groups.google.com/g/v8-reviews/c/mns34cDIvDo
-if ! git merge-base --is-ancestor de611e69ad51; then
-    git cherry-pick de611e69ad51
-fi
+    # Cherry-pick back this fix for arm64 processors, if we don't already have it
+    if ! git merge-base --is-ancestor 2bb1e2026176 HEAD; then
+        git cherry-pick 2bb1e2026176
+    fi
+    popd
+}
 
+#
+# Configure V8 build arguments for different platforms
+#
+configure_v8_build_args() {
+    V8_ARGS="treat_warnings_as_errors=false"
 
-V8_ARGS=""
+    if [ "${PLATFORM}" = "linux" ]; then
+        configure_linux_build_args
+    else
+        configure_macos_build_args
+    fi
 
-if [ "${PLATFORM}" = "linux" ]; then
+    # One little dropping left over from "gclient sync" that isn't actually
+    # from git...
+    touch v8/build/config/gclient_args.gni
+
+    # Common V8 arguments for all platforms
+    V8_ARGS="${V8_ARGS} v8_enable_webassembly=false use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false"
+}
+
+#
+# Configure build arguments specific to Linux
+#
+configure_linux_build_args() {
     # On Linux, we need to use our stock GCC. Google's clang actually
     # works well (with some coddling) on x86_64, and does a fine job of
     # cross-compiling to aarch64... except that when cross-compiling, it
     # uses the downloaded sysroot's glibc, which is much newer than the
     # one in aarch amzn2. :( So, configure the build to skip everything
     # Google wants us to use.
-    V8_ARGS="${V8_ARGS} is_clang=false use_lld=false use_gold=false use_custom_libcxx=false use_glib=false use_sysroot=false"
+    V8_ARGS="${V8_ARGS} is_clang=false use_lld=false use_custom_libcxx=false use_custom_libcxx_for_host=false use_glib=false use_sysroot=false"
 
-    if [ "${ARCH}" = "aarch64" ]; then
-        # Also, don't let it force weird toolchain-specific names for
-        # all the command-line utilities like gcc and readelf.
-        sed -ie 's/toolprefix = ".*"/toolprefix = ""/' build/toolchain/linux/BUILD.gn
+    # Enable relaxed vector conversions for NEON intrinsics compatibility
+    # This allows implicit conversions between signed/unsigned vector types
+    # which is needed for proper NEON code compilation with GCC 13
+    # This wrapper also enforces the use of C++20.
+    V8_ARGS="${V8_ARGS} cc_wrapper=\"$(pwd)/build-tools/cbdeps/v8/gcc-wrapper.sh\" fatal_linker_warnings=false"
+}
 
-        # And don't make ld warnings fatal, since the version of
-        # binutils we have is too old to understand everything gcc10
-        # spits out.
-        V8_ARGS="${V8_ARGS} fatal_linker_warnings=false"
-    fi
-
-else
+#
+# Configure build arguments specific to macOS
+#
+configure_macos_build_args() {
     # On Macs, it's easier to just grab Google's clang build and use
     # that.
-    python3 tools/clang/scripts/update.py
+    python3 v8/tools/clang/scripts/update.py
 
     # However, the libc++ headers are squirreled away in strange corners
     # of MacOS, and it seems to vary from OS version to OS version. It's
@@ -175,66 +202,105 @@ else
     # crashes when trying to free an allocation from a mismatched heap.
     # Fix by disabling lld and using system linker.
     V8_ARGS="use_lld=false"
-fi
+}
 
-# One little dropping left over from "gclient sync" that isn't actually
-# from git...
-touch build/config/gclient_args.gni
+#
+# Build V8 in both debug and release configurations
+#
+build_v8() {
+    # Actual v8 configure and build steps - we build debug and release.
+    # Ideally this set of args should match the corresponding set in
+    # v8_windows.bat.
 
-# Actual v8 configure and build steps - we build debug and release.
-# Ideally this set of args should match the corresponding set in
-# v8_windows.bat.
+    pushd v8
+    gn gen out/release --args="${V8_ARGS} is_debug=false dcheck_always_on=false"
+    ${NINJA} -j4 -C out/release v8
 
-V8_ARGS="${V8_ARGS} v8_enable_webassembly=false use_custom_libcxx=false is_component_build=true v8_enable_backtrace=true v8_use_external_startup_data=false v8_enable_pointer_compression=false treat_warnings_as_errors=false icu_use_data_file=false"
+    gn gen out/debug --args="${V8_ARGS} is_debug=true v8_optimized_debug=true symbol_level=1 v8_enable_slow_dchecks=true"
+    ${NINJA} -j4 -C out/debug v8
+    popd
+}
 
-gn gen out/release --args="$V8_ARGS is_debug=false dcheck_always_on=false"
-${NINJA} -j4 -C out/release v8
+#
+# Copy build artifacts to the installation directory
+#
+copy_artifacts() {
+    pushd v8
+    # Copy right stuff to output directory.
+    mkdir -p \
+        $INSTALL_DIR/lib/Release \
+        $INSTALL_DIR/lib/Debug \
+        $INSTALL_DIR/include/libplatform \
+        $INSTALL_DIR/include/cppgc \
+        $INSTALL_DIR/include/unicode
 
-gn gen out/debug --args="$V8_ARGS is_debug=true v8_optimized_debug=true symbol_level=1 v8_enable_slow_dchecks=true"
-${NINJA} -j4 -C out/debug v8
+    # Copy release libraries
+    (
+        cd out/release
+        rm *.TOC
+        cp -avi libv8*.* $INSTALL_DIR/lib/Release
+        cp -avi libchrome*.* $INSTALL_DIR/lib/Release
+        cp -avi libicu*.* $INSTALL_DIR/lib/Release
+        cp -avi libthi*.* $INSTALL_DIR/lib/Release
+    )
 
-# Copy right stuff to output directory.
-mkdir -p \
-    $INSTALL_DIR/lib/Release \
-    $INSTALL_DIR/lib/Debug \
-    $INSTALL_DIR/include/libplatform \
-    $INSTALL_DIR/include/cppgc \
-    $INSTALL_DIR/include/unicode
-(
-    cd out/release
-    rm *.TOC
-    cp -avi libv8*.* $INSTALL_DIR/lib/Release
-    cp -avi libchrome*.* $INSTALL_DIR/lib/Release
-    cp -avi libicu*.* $INSTALL_DIR/lib/Release
-    cp -avi libthi*.* $INSTALL_DIR/lib/Release
-)
-(
-    cd out/debug
-    rm *.TOC
-    cp -avi libv8*.* $INSTALL_DIR/lib/Debug
-    cp -avi libchrome*.* $INSTALL_DIR/lib/Debug
-    cp -avi libicu*.* $INSTALL_DIR/lib/Debug
-    cp -avi libthi*.* $INSTALL_DIR/lib/Debug
-)
-(
-    cd include
-    cp -avi v8*.h $INSTALL_DIR/include
-    cp -avi libplatform/[a-z]*.h $INSTALL_DIR/include/libplatform
-    cp -avi cppgc/[a-z]* $INSTALL_DIR/include/cppgc
-)
-(
-    cd third_party/icu/source/common/unicode
-    cp -avi *.h $INSTALL_DIR/include/unicode
-)
-(
-    cd third_party/icu/source/io/unicode
-    cp -avi *.h $INSTALL_DIR/include/unicode
-)
-(
-    cd third_party/icu/source/i18n/unicode
-    cp -avi *.h $INSTALL_DIR/include/unicode
-)
-(
-    cd third_party/icu/source/extra/uconv/unicode
-    cp -avi *.h $INSTALL_DIR/include/unicode
-)
+    # Copy debug libraries
+    (
+        cd out/debug
+        rm *.TOC
+        cp -avi libv8*.* $INSTALL_DIR/lib/Debug
+        cp -avi libchrome*.* $INSTALL_DIR/lib/Debug
+        cp -avi libicu*.* $INSTALL_DIR/lib/Debug
+        cp -avi libthi*.* $INSTALL_DIR/lib/Debug
+    )
+
+    # Copy headers
+    (
+        cd include
+        cp -avi v8*.h $INSTALL_DIR/include
+        cp -avi libplatform/[a-z]*.h $INSTALL_DIR/include/libplatform
+        cp -avi cppgc/[a-z]* $INSTALL_DIR/include/cppgc
+    )
+
+    # Copy ICU headers
+    (
+        cd third_party/icu/source/common/unicode
+        cp -avi *.h $INSTALL_DIR/include/unicode
+    )
+    (
+        cd third_party/icu/source/io/unicode
+        cp -avi *.h $INSTALL_DIR/include/unicode
+    )
+    (
+        cd third_party/icu/source/i18n/unicode
+        cp -avi *.h $INSTALL_DIR/include/unicode
+    )
+    (
+        cd third_party/icu/source/extra/uconv/unicode
+        cp -avi *.h $INSTALL_DIR/include/unicode
+    )
+    popd v8
+}
+
+#
+# Main execution flow
+#
+echo "=== V8 Unix ==="
+echo "Install Dir: $INSTALL_DIR"
+echo "Root Dir: $ROOT_DIR"
+echo "Platform: $PLATFORM"
+echo ""
+
+recreate_deps_dir
+
+install_ninja
+build_gn
+setup_binutils
+
+apply_v8_patches
+configure_v8_build_args
+build_v8
+
+copy_artifacts
+
+echo "=== Build completed successfully ==="

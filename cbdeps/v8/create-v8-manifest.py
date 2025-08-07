@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = "==3.11.11"
+# dependencies = ['httplib2', 'xmltodict']
+# [tool.uv]
+# exclude-newer = "2025-05-16T00:00:00Z"
+# ///
 
 import argparse
 import contextlib
@@ -9,6 +15,7 @@ import shutil
 import sys
 import subprocess
 import xmltodict # type: ignore
+import re
 
 from typing import Dict, Iterator, List
 from urllib.parse import urlsplit
@@ -71,6 +78,7 @@ class V8ManifestGenerator:
 
         self.tag = tag
         self.work_dir = pathlib.Path(work_dir).resolve()
+        self.depot_tools_dir = self.work_dir / "depot_tools"
         if not self.work_dir.exists():
             logging.debug(f"Creating work dir {work_dir}")
             self.work_dir.mkdir(parents=True)
@@ -154,7 +162,7 @@ class V8ManifestGenerator:
             with open(fake_bin / tool, "w") as f:
                 f.write(f"#!/bin/bash\n\necho 'Not running {tool}'\n")
                 os.chmod(fake_bin / tool, 0o755)
-        os.environ["PATH"] = f'{fake_bin}:{os.environ["PATH"]}'
+        os.environ["PATH"] = f'{fake_bin}:{self.depot_tools_dir}:{os.environ["PATH"]}'
 
 
     def fetch_v8(self) -> None:
@@ -183,8 +191,13 @@ class V8ManifestGenerator:
         # This should work anywhere, and avoids as much of depot_tools
         # as possible
         os.environ["DEPOT_TOOLS_UPDATE"] = "0"
+        os.environ["VPYTHON_BYPASS"] = "manually managed python not supported by chrome operations"
+
         self.run([
-            sys.executable,
+            "uv", "run",
+            "-p", f"{sys.version.split()[0]}",
+            "--with", "httplib2",
+            "--with", "xmltodict",
             self.work_dir / "depot_tools" / "gclient.py",
             "sync", "--with_tags", "--reset", "--delete_unversioned_trees",
             "--nohooks", "--no_bootstrap", "--shallow", "--no-history", "-vvv"

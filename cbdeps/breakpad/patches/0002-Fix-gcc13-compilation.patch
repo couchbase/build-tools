@@ -1,0 +1,24 @@
+diff --git a/src/client/linux/handler/minidump_descriptor.cc b/src/client/linux/handler/minidump_descriptor.cc
+index bd94474e..51d01ebc 100644
+--- a/src/client/linux/handler/minidump_descriptor.cc
++++ b/src/client/linux/handler/minidump_descriptor.cc
+@@ -32,6 +32,7 @@
+ #include "client/linux/handler/minidump_descriptor.h"
+
+ #include "common/linux/guid_creator.h"
++#include <cstdint>
+
+ namespace google_breakpad {
+
+diff --git a/src/client/linux/handler/minidump_descriptor.h b/src/client/linux/handler/minidump_descriptor.h
+index c7e4f2b3..799f6a73 100644
+--- a/src/client/linux/handler/minidump_descriptor.h
++++ b/src/client/linux/handler/minidump_descriptor.h
+@@ -37,6 +37,7 @@
+
+ #include "client/linux/handler/microdump_extra_info.h"
+ #include "common/using_std_string.h"
++#include <cstdint>
+
+ // This class describes how a crash dump should be generated, either:
+ // - Writing a full minidump to a file in a given directory (the actual path,
