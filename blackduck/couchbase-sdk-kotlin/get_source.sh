@@ -12,7 +12,14 @@ export PATH="${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:${PATH}"
 
 git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
-TAG="kotlin-client-${VERSION}"
+
+if [[ "$VERSION" == 1.* ]]
+then
+    TAG=kotlin-client-$VERSION
+else
+    TAG=$VERSION
+fi
+
 if git rev-parse --verify --quiet $TAG >& /dev/null
 then
     echo "$TAG exists, checking it out"
