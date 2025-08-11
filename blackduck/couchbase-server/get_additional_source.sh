@@ -71,13 +71,12 @@ cmake \
 # be under ${BUILD_DIR} and so will get picked up automatically. However, cbpy
 # gets unpacked into the install directory, which we will shortly delete. Copy
 # that file into ${BUILD_DIR} to keep it safe, if it exists.
-# 3.11.10 or later, cbpy's black-duck-manifest.yaml is under blackduck subfolder.
-CBPY_MANIFEST=""
-if [ -e "${WORKSPACE}/src/install/lib/python/interp/blackduck/cbpy-black-duck-manifest.yaml" ]; then
-  CBPY_MANIFEST="${WORKSPACE}/src/install/lib/python/interp/blackduck/cbpy-black-duck-manifest.yaml"
-elif [ -e "${WORKSPACE}/src/install/lib/python/interp/cbpy-black-duck-manifest.yaml" ]; then
-  CBPY_MANIFEST="${WORKSPACE}/src/install/lib/python/interp/cbpy-black-duck-manifest.yaml"
-fi
+# It could exist in 3 different locations depending on the version:
+#   ${WORKSPACE}/src/install/lib/python/interp/cbpy-black-duck-manifest.yaml
+#   ${WORKSPACE}/src/install/lib/python/interp/blackduck/cbpy-black-duck-manifest.yaml
+#   ${WORKSPACE}/src/install/lib/python/interp/META/blackduck/cbpy-black-duck-manifest.yaml
+CBPY_MANIFEST=$(find ${WORKSPACE}/src/install/lib/python/interp \
+  -type f -name "cbpy-black-duck-manifest.yaml" -exec realpath {} \; 2>/dev/null)
 
 if [ -n "${CBPY_MANIFEST}" ]; then
   cp "${CBPY_MANIFEST}" .
