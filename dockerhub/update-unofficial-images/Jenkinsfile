@@ -39,8 +39,9 @@ pipeline {
                         cmd += " --registry ${params.REGISTRY}"
                     }
 
-                    // Run it
-                    sh cmd
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        sh cmd
+                    }
                 }
             }
         }
