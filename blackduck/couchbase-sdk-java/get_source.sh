@@ -8,11 +8,6 @@ BLD_NUM=$4
 # current repo, do not remove:
 # github.com/couchbase/couchbase-jvm-clients
 
-MAVEN_VERSION=3.6.3
-
-cbdep install -d "${WORKSPACE}/extra" mvn ${MAVEN_VERSION}
-export PATH="${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:${PATH}"
-
 if [[ "$VERSION" == 3.8.* ]]
 then
     TAG=java-client-$VERSION
@@ -20,7 +15,7 @@ else
     TAG=$VERSION
 fi
 
-git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
+git clone https://github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
 if git rev-parse --verify --quiet $TAG >& /dev/null
 then
@@ -34,14 +29,12 @@ fi
 # jar, so they'll never be shipped; but their poms mess up the scans.
 rm -rf *-fit-performer
 
+make deps-only
+# test-utils is in Makefile now and this line can be removed when we don't need to build older versions
+./mvnw -B -DskipTests install -pl test-utils -am
+
 # And now we actually need to build stuff for it to be found
 # by the detector
-mvn --batch-mode dependency:resolve || {
-    for project in protostellar core-io-deps test-utils tracing-opentelemetry-deps . ; do
-        if [ -e "$project" ]; then
-            mvn --batch-mode -f "$project/pom.xml" -Dmaven.test.skip=true clean install
-        fi
-    done
-}
+./mvnw --batch-mode compile dependency:resolve
 
 popd
