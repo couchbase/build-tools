@@ -36,12 +36,14 @@ DONE_STATUSES = {
     'Component Not Applicable',
     'Fixed In Later Version',
     'Mitigated',
-    'Done'
+    'Done',
+    'Obsolete'
 }
 DO_NOT_REOPEN_STATUSES = {
     'To Do',
     'Component Not Applicable',
-    'Fixed In Later Version'
+    'Fixed In Later Version',
+    'Obsolete'
 }
 
 # Set of CVE IDs to exclude from vulnerability reporting
