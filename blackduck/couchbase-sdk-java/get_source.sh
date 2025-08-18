@@ -30,8 +30,6 @@ fi
 rm -rf *-fit-performer
 
 make deps-only
-# test-utils is in Makefile now and this line can be removed when we don't need to build older versions
-./mvnw -B -DskipTests install -pl test-utils -am
 
 # And now we actually need to build stuff for it to be found
 # by the detector
