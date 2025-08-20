@@ -158,6 +158,10 @@ build-image() {
         external_org=${external_registry}/${org}
     fi
 
+    if [ "${org}" = "cb-rhcc" ]; then
+        PROVENANCE_ARG="--provenance=false"
+    fi
+
     # Are we doing :latest?
     if ${LATEST}; then
         tags="$tag latest"
@@ -182,6 +186,7 @@ build-image() {
         --build-arg PROD_VERSION=${VERSION} \
         --build-arg PROD_BUILD=${BLD_NUM} \
         --build-arg GO_VERSION=${GOVERSION} \
+        ${PROVENANCE_ARG} \
         .
 }
 

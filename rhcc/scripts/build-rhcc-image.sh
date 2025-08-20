@@ -156,6 +156,9 @@ if ${FORCE}; then
     BUILD_ARGS+=" --no-cache"
 fi
 
+# Disable provenance attestations - not supported on quay.io
+PROVENANCE_ARG="--provenance=false"
+
 # Compute array of image names
 IMAGES=()
 for registry in ghcr.io build-docker.couchbase.com; do
@@ -175,7 +178,7 @@ if [[ "${DRYRUN}" = "yes" && multiarch ]]; then
         echo Building ${ARCHIMAGES[@]}
         echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
         docker buildx build --pull --platform linux/${arch} --load \
-            ${BUILD_ARGS} -f ${DOCKERFILE} ${ARCHIMAGES[@]/#/-t } .
+            ${BUILD_ARGS} ${PROVENANCE_ARG} -f ${DOCKERFILE} ${ARCHIMAGES[@]/#/-t } .
     done
 else
     if multiarch; then
@@ -187,5 +190,5 @@ else
     echo Building and Pushing ${IMAGES[@]}
     echo @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     docker buildx build --pull --platform ${PLATFORMS} --push \
-        ${BUILD_ARGS} -f ${DOCKERFILE} ${IMAGES[@]/#/-t } .
+        ${BUILD_ARGS} ${PROVENANCE_ARG} -f ${DOCKERFILE} ${IMAGES[@]/#/-t } .
 fi
