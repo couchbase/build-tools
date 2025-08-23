@@ -1,13 +1,13 @@
 {
     "versions": {
         "master": {
-            "interval": 1440
+            "interval": 1460
         },
         "3.9.0": {
-            "interval": 1440
+            "interval": 10790
         },
         "1.5.3": {
-            "interval": 1440
+            "interval": 11111
         }
     }
 }

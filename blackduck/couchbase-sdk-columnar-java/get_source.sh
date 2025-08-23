@@ -8,12 +8,6 @@ BLD_NUM=$4
 # current repo, do not remove:
 # github.com/couchbase/couchbase-jvm-clients
 
-MAVEN_VERSION=3.6.3
-
-cbdep install -d "${WORKSPACE}/extra" mvn ${MAVEN_VERSION}
-export PATH="${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:${PATH}"
-
-
 TAG=columnar-java-client-$VERSION
 git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
@@ -29,14 +23,18 @@ fi
 # jar, so they'll never be shipped; but their poms mess up the scans.
 rm -rf *-fit-performer
 
-# And now we actually need to build stuff for it to be found
-# by the detector
-mvn --batch-mode dependency:resolve || {
-    for project in protostellar core-io-deps test-utils tracing-opentelemetry-deps . ; do
-        if [ -e "$project" ]; then
-            mvn --batch-mode -f "$project/pom.xml" -Dmaven.test.skip=true clean install
-        fi
-    done
-}
+# Black Duck needs either `mvn` on the PATH, or a `.mvnw` executable
+# next to each `pom.xml`. We'd prefer not to do the former since it
+# depends on us remembering to update Maven every so often. Since `mvnw`
+# should be constant, just copy it everywhere.
+for pom in $(find . -mindepth 2 -name pom.xml -print); do
+    cp -v ./mvnw "$(dirname "$pom")"
+done
+
+# And now we actually need to build stuff for it to be found by the
+# detector :( Use a custom local Maven repository per-product to ensure
+# SNAPSHOT stuff doesn't cross-polinate.
+export MAVEN_CONFIG="--batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository -Dmaven.test.skip=true"
+make install
 
 popd
