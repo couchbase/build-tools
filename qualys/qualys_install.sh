@@ -31,8 +31,10 @@ rm -f /etc/couchbase.d/*"
     INSTALL_CMD="dpkg -i /tmp/${PKG_FILE_NAME}
 systemctl restart enterprise-analytics"
 
-    CONFIGURE_CMD="curl --retry 30 --retry-delay 5 --retry-all-errors --fail \
-http://${TEST_VM_IP}:8091/settings/analytics -d blobStorageScheme=none
+    CONFIGURE_CMD="mkdir -p /etc/couchbase.d
+echo 'analytics_provisioned' > /etc/couchbase.d/config_profile
+curl --retry 30 --retry-delay 5 --retry-all-errors --fail \
+http://${TEST_VM_IP}:8091
 curl --fail http://${TEST_VM_IP}:8091/clusterInit \
 -d username=${ADMIN_UID} \
 -d password=${ADMIN_PW} \
@@ -49,7 +51,8 @@ dpkg --remove --force-all enterprise-analytics
 dpkg --purge ${PKG_NAME}
 dpkg --purge enterprise-analytics
 rm -rf /opt/couchbase
-rm -rf /opt/enterprise-analytics"
+rm -rf /opt/enterprise-analytics
+rm -rf /etc/couchbase.d/*"
     INSTALL_CMD="dpkg -i /tmp/${PKG_FILE_NAME}
 systemctl restart couchbase-server"
     CONFIGURE_CMD="curl --retry 30 --retry-delay 5 --retry-all-errors --fail \
