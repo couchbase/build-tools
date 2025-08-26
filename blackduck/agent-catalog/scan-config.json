@@ -1,6 +1,6 @@
 {
     "versions": {
-        "0.0.1": {
+        "snapshot": {
             "release": "master",
             "interval": 1440
         }

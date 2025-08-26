@@ -1,11 +1,11 @@
 {
     "versions": {
-        "3.6.0": {
-            "interval": 1440
-        },
-        "3.5.7": {
+        "snapshot": {
             "__comment": "NOTE: this version points to the future release",
             "release": "main",
+            "interval": 1440
+        },
+        "3.6.0": {
             "interval": 1440
         },
         "3.5.6": {

@@ -1,6 +1,6 @@
 {
     "versions": {
-        "1.0.0": {
+        "snapshot": {
             "__comment": "NOTE: this version points to the future release",
             "release": "main",
             "interval": 1440

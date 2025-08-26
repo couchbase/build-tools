@@ -6,6 +6,7 @@
 # exclude-newer = "2025-07-24T00:00:00Z"
 # ///
 
+import argparse
 import git
 import json
 import logging
@@ -13,6 +14,7 @@ import os
 import re
 import shutil
 import time
+from packaging.version import Version, InvalidVersion
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BUILD_TOOLS_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
@@ -137,9 +139,25 @@ def load_json_file(json_file):
     return data
 
 
+def parse_version(version_string):
+    """
+    Safely parse a version string using packaging.version.Version
+
+    Parameters:
+    version_string (str): Version string to parse
+
+    Returns:
+    Version or None: Parsed version object, or None if invalid
+    """
+    try:
+        return Version(version_string)
+    except InvalidVersion:
+        logging.debug(f"Invalid version format: {version_string}")
+        return None
+
 def sort_dict(d, reverse=True):
     """
-    Sort a dict by key alphanumerically - e.g: a1 < a2 < a10
+    Sort a dict by key using semantic versioning where possible, fallback to alphanumeric
 
     Parameters:
     d (dict): Unsorted dict
@@ -148,8 +166,14 @@ def sort_dict(d, reverse=True):
     dict: Sorted dict
     """
     def sort_key(version_string):
+        # Try semantic version first
+        parsed_version = parse_version(version_string)
+        if parsed_version is not None:
+            return (0, parsed_version)  # 0 = valid semver, gets priority
+
+        # Fallback to alphanumeric sorting
         segments = re.split(r'(\d+)', version_string)
-        return [int(segment) if segment.isdigit() else segment for segment in segments]
+        return (1, [int(segment) if segment.isdigit() else segment for segment in segments])
 
     return dict(sorted(d.items(), key=lambda x: sort_key(x[0]), reverse=reverse))
 
@@ -170,6 +194,29 @@ def has_master_release(versions, main_branch):
             return True
     return False
 
+def are_same_major_minor(version1, version2):
+    """
+    Check if two versions are in the same major.minor series using semantic versioning
+
+    Parameters:
+    version1 (str): First version string
+    version2 (str): Second version string
+
+    Returns:
+    bool: True if both versions have the same major.minor, False otherwise
+    """
+    v1 = parse_version(version1)
+    v2 = parse_version(version2)
+
+    # If either version can't be parsed as semver, fall back to string comparison
+    if v1 is None or v2 is None:
+        v1_parts = version1.split('.')[:2]
+        v2_parts = version2.split('.')[:2]
+        return v1_parts == v2_parts
+
+    # Use semantic version major.minor comparison
+    return (v1.major, v1.minor) == (v2.major, v2.minor)
+
 
 def get_latest_timestamp(versions, tags):
     """
@@ -182,19 +229,30 @@ def get_latest_timestamp(versions, tags):
     Returns:
     str: timestamp
     """
+    # Filter out versions that have a "release" field (these point to branches, not tags)
+    tag_versions = {k: v for k, v in versions.items()
+                   if not (isinstance(v, dict) and 'release' in v)}
+
     try:
-        latest_version = list(sort_dict(versions).items())[0][0]
+        sorted_versions = sort_dict(tag_versions)
+        latest_version = list(sorted_versions.items())[0][0]
+        logging.debug(f"Latest tag version from scan-config: {latest_version}")
     except IndexError:
-        # If there are no versions in scan-config.json, return zero timestamp
+        # If there are no tag versions in scan-config.json, return zero timestamp
         # as we'll need to check all tags
+        logging.debug("No tag versions in scan-config, returning timestamp 0")
         return 0
     if latest_version in tags:
-        return tags[latest_version]['timestamp']
+        timestamp = tags[latest_version]['timestamp']
+        logging.debug(f"Found {latest_version} in repo tags, timestamp: {timestamp}")
+        return timestamp
     else:
         # If the most recent tag in scan-config.json isn't in the repo
         # tags, it'll be master/main so we don't need to consider
         # anything newer
-        return time.time()
+        current_time = time.time()
+        logging.debug(f"{latest_version} not found in repo tags, returning current time: {current_time}")
+        return current_time
 
 
 def update_scan_config(product_dir):
@@ -221,6 +279,8 @@ def update_scan_config(product_dir):
         latest_timestamp = get_latest_timestamp(
             scan_config['versions'], repo_tags)
 
+        logging.debug(f"Latest timestamp for {product_dir}: {latest_timestamp}")
+
         repo_tags[main_branch] = {
             'commit': repo.head.commit.hexsha,
             'timestamp': repo.head.commit.committed_date,
@@ -228,6 +288,8 @@ def update_scan_config(product_dir):
         }
 
         tag_prefix = tag_prefixes.get(product_dir, "")
+
+        logging.debug(f"Available tags for {product_dir}: {list(repo_tags.keys())}")
 
         # We walk through repo tags in chronological order since we're
         # comparing them to existing tags, and removing  previous version
@@ -250,19 +312,23 @@ def update_scan_config(product_dir):
                     logging.debug(f"* Skipping {stripped_tag} - already have version with release={main_branch}")
                     continue
 
-                if repo_tags[tag]['timestamp'] >= latest_timestamp or tag == main_branch:
+                tag_timestamp = repo_tags[tag]['timestamp']
+                logging.debug(f"* Evaluating tag {stripped_tag}: timestamp={tag_timestamp}, latest_timestamp={latest_timestamp}, newer={tag_timestamp >= latest_timestamp}")
+
+                if tag_timestamp >= latest_timestamp or tag == main_branch:
 
                     # Adding a newer version than the most recent in
                     # scan-config.json, so we need to remove any previous
-                    # versions with the same major.minor if they are the
-                    # same length or 1 char shorter (to account for versions
-                    # such as 1.0.0-dp.9), and add an interval to the version
-                    # we're adding
+                    # versions with the same major.minor series
                     logging.info(f"* Adding {stripped_tag}")
                     superceded_versions = []
                     for k in scan_config['versions']:
-                        if k.split('.')[:2] == stripped_tag.split('.')[:2] and (len(k) == len(stripped_tag) or len(k) == len(stripped_tag)-1):
-                            logging.info(f"* Removing {k}")
+                        # Skip versions that have a "release" field (these point to branches)
+                        if isinstance(scan_config['versions'][k], dict) and 'release' in scan_config['versions'][k]:
+                            continue
+
+                        if are_same_major_minor(k, stripped_tag):
+                            logging.info(f"* Removing {k} (same major.minor as {stripped_tag})")
                             superceded_versions.append(k)
                     for version in superceded_versions:
                         scan_config['versions'].pop(version)
@@ -280,8 +346,15 @@ def update_scan_config(product_dir):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO,
+    parser = argparse.ArgumentParser(description='Check for new releases and update scan configurations')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    args = parser.parse_args()
+
+    # Set logging level based on debug flag
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level,
                         format='%(asctime)s - %(levelname)s - %(message)s')
+
     logging.info("Checking for new releases...")
     for product_dir in os.listdir(BLACKDUCK_DIR):
         if product_dir in ignorelist:
