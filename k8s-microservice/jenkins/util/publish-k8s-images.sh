@@ -144,17 +144,13 @@ if publishing_redhat; then
     internal_key=$(image_key ${internal_image})
     external_key=$(image_key ${external_base})
     if [ "${internal_key}" = "${external_key}" ]; then
-        status "Keys match, skipping copy!"
+        status "Keys match, skipping publish!"
     else
-        status "Keys don't match, performing copy"
+        status "Keys don't match, performing publish"
         if ${LATEST}; then
             LATEST_ARG="-l"
         fi
-        # Important to push the unique X.Y.Z-B version first, as that's the
-        # one that rhcc-certify-and-publish.sh will attempt to preflight
-        # check. When republishing, preflight will fail if asked to verify
-        # an already-published tag.
-        ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh -B \
+        ${build_tools_dir}/rhcc/scripts/rhcc-certify-and-publish.sh \
             -c ${HOME}/.docker/rhcc-metadata.json \
             -p ${PRODUCT} -t ${INTERNAL_TAG} \
             -r ${PUBLIC_TAG} -b ${OPENSHIFT_BUILD} ${LATEST_ARG}

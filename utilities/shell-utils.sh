@@ -154,15 +154,17 @@ function clean_git_clone() {
 # Given a fully-qualified Docker image name:tag from a registry,
 # returns 0 (success) if the image is available for arm64, or 1
 # (failure) otherwise.
-function image_has_armarch() {
-    # If the image in the registry has an arm64 version, this will
-    # display "arm64". Otherwise it will display some other arch. "grep
-    # -q" will then set the return value of the function to 0 or 1
-    # depending on whether "arm64" is in the output.
-    skopeo --override-arch arm64 --override-os linux \
+function image_has_arch() {
+    local image=$1
+    local arch=$2
+    # If the image in the registry has the specified arch, this will
+    # display that arch. "grep -q" will then set the return value of the
+    # function to 0 or 1 depending on whether the specified arch is in
+    # the output.
+    skopeo --override-arch ${arch} --override-os linux \
         inspect --format '{{ .Architecture }}' \
-        docker://$1 \
-        | grep -q arm64
+        docker://${image} 2> /dev/null \
+        | grep -q ${arch}
 }
 
 # Given a fully-qualified Docker image name:tag from a registry,

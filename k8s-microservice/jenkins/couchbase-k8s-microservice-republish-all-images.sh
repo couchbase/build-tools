@@ -19,7 +19,7 @@ vanilla-arches() {
     # we can assume it's at least for amd64.
     image=docker.io/couchbase/${short_product}:${version}
     if image_exists ${image}; then
-        if image_has_armarch ${image}; then
+        if image_has_arch ${image} arm64; then
             arches="linux/amd64,linux/arm64"
         else
             arches="linux/amd64"

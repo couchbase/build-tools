@@ -184,37 +184,38 @@ if "${SAFETY_CHECKS}"; then
     fi
 fi
 
-# Now it should be safe to upload the new image to the new tag
-upload_image ${internal_image} ${image_base}:${new_image_tag}
+# Now it should be safe to upload the new image to the new tag, followed
+# by the "floating" tags
+for tag in ${new_image_tag} ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
+    upload_image ${internal_image} ${image_base}:${tag}
+done
 
-# Preflight the uploaded image so it is published
+# Preflight the new image so it is published
 echo
 status "Running preflight on container ${image_base}:${new_image_tag}..."
 "${PREFLIGHT_EXE}" check container --submit ${image_base}:${new_image_tag}
 
+# Unset REGISTRY_AUTH_FILE since it doesn't have the creds for
+# registry.connect.redhat.com
+unset REGISTRY_AUTH_FILE
+
 # Wait for auto-publish to succeed
-echo
-status Waiting for auto-publish...
-final_image=registry.connect.redhat.com/couchbase/${image_basename}:${new_image_tag}
-for i in {200..0}; do
-    # Temporarily unset REGISTRY_AUTH_FILE since it doesn't have the creds
-    # for registry.connect.redhat.com
-    if REGISTRY_AUTH_FILE= image_exists ${final_image}; then
-        status "Auto-publish succeeded!"
-        break
-    fi
-    if [ "${i}" == "0" ]; then
-        error "Auto-publish timed out!"
-    fi
-    status "Still waiting ($i)..."
-    sleep 3
+header Waiting for auto-publish...
+for tag in ${new_image_tag} ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
+    final_image=registry.connect.redhat.com/couchbase/${image_basename}
+    for arch in amd64 arm64; do
+        status "Waiting for auto-publish of ${final_image}:${tag} (${arch})..."
+        for i in {200..0}; do
+            if image_has_arch ${final_image}:${tag} ${arch}; then
+                status "Auto-publish of ${final_image}:${tag} (${arch}) succeeded!"
+                break
+            fi
+            if [ "${i}" == "0" ]; then
+                error "Auto-publish timed out!"
+            fi
+            status "Still waiting ($i)..."
+            sleep 3
+        done
+    done
 done
-
-# Finally, upload the (possibly-existing) :VERSION and :VERSION-rhcc tags.
-# This should, at a minimum, cause `docker pull` to work for those tags.
-echo
-status "Uploading remaining images"
-for tag in ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
-    upload_image ${internal_image} ${image_base}:${tag}
-
-done
+header Auto-publish complete!
