@@ -33,6 +33,6 @@ done
 # detector :( Use a custom local Maven repository per-product to ensure
 # SNAPSHOT stuff doesn't cross-polinate.
 export MAVEN_CONFIG="--batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository -Dmaven.test.skip=true"
-make install
+./mvnw install
 
 popd
