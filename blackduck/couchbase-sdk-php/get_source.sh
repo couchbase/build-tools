@@ -43,7 +43,7 @@ fi
 
 TARBALL=
 IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-if (( MAJOR > 4 || (MAJOR == 4 && MINOR >= 2) ))
+if [[ "$VERSION" == "snapshot" ]] || (( MAJOR > 4 || (MAJOR == 4 && MINOR >= 2) ))
 then
     gem install --user-install --no-document nokogiri
     BUILD_NUMBER=0 ruby bin/package.rb
