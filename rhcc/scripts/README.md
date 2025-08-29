@@ -4,20 +4,6 @@ Uploading images to RHCC
 This is complicated, because RHCC's upload procedure is a moving target
 and they lack basic automation features. The following things seem to be
 *usually* true, although it has been incredibly inconsistent over time.
-It also seems to work somewhat better for multi-arch images, so this
-suggests we should switch ASAP to using only those.
-
-# Background
-
-A docker image has a SHA. (A multi-arch image actually has three SHAs --
-one for the actual amd64 image, one for the actual arm64 image, and a
-third for the manifest-list which binds those two together. When
-discussing an "image SHA" for a multi-arch image, I am referring to the
-latter.)
-
-Docker images can also have a tag, such as :3.0.5. This is a N:1
-relationship - multiple tag can refer to the same image SHA in a given
-context.
 
 # What we want
 
@@ -30,12 +16,16 @@ RHCC, for Couchbase Server 7.6.1, there are
     registry.connect.redhat.com/couchbase/server:7.6.1-1
     registry.connect.redhat.com/couchbase/server:7.6.1-rhcc
 
-which all point to the same image.
+which all point to the same image, where "same image" seems to mean "the
+same multi-architecture manifest".
 
-We need to rebuild this image on a regular basis (monthly?) to pick up
-security updates in the ubi8 base image. This results in a new image SHA
-that we upload to RHCC. We want this new image to be associated with the
-tags
+(As an aside, we don't actually *want* the `:VERSION-xx` tag; however,
+we *need* it, for reasons that will be explained below.)
+
+We need to rebuild this image on a regular basis to pick up security
+updates in the UBI base image. This results in a new image (more
+specifically, a new multi-arch manifest) upload to RHCC. We want this
+new image to be associated with the tags
 
     registry.connect.redhat.com/couchbase/server:7.6.1
     registry.connect.redhat.com/couchbase/server:7.6.1-2
@@ -49,106 +39,100 @@ image with the most recent security updates.
 
 # Why it's so complicated
 
-There are four contexts in Red Hat-land where tags are mapped to image
-SHAs:
+RHCC requires us to upload our images to a non-published site (specific
+repositories on quay.io), and then "certify" them by running a tool
+called `preflight`. Preflight posts the certification results to
+something called "Pyxis", which in turn triggers auto-publish (which we
+have enabled for all of our RHCC repositories).
 
-1. `quay.io/redhat-isv-containers/xxxxxxx`, a Docker registry that we
-   upload new images to when publishing.
-2. https://connect.redhat.com/component/view/xxxxxxx, the Connect web UI
-   for seeing what images exist; what tags they're associated with; and
-   whether those images are Published, meaning that they're available
-   for public use.
-3. https://catalog.redhat.com/software/containers/xxxxxx, the public web
-   interface where customers can see what tags exist.
-4. https://registry.connect.redhat.com/couchbase/xxxxxxx, the public
-   Docker registry where customers pull our images.
+The relationship between:
 
-After many hours of experimentation, at this time (July 17, 2024) the
-only rules I can find that are *usually* true are:
+- what tags we have uploaded
+- what tag we run `preflight` on
+- what tags show up in their Partner Connect UI and in the public
+  catalog
+- what tags are actually available via `docker pull`
 
-- If an image is Published, then the set of tags in (2) and (3) above
-  will match.
-- If an image is Published, then the set of tags we uploaded to (1)
-  will match the set available for customers at (4). This includes if
-  we upload a new tag to an existing Published image; it will
-  immediately be available for `docker pull` via the public registry.
-- If the *project* at (2) has Auto-Publish enabled (which I believe we
-  do for all our projects), then when we run `preflight` for an image,
-  that image will become Published.
+is inscrutable at best, and frequently seems completely random. Worse,
+it's dynamic; what is true one minute may well not be true the next
+minute, up to and including tags that were previously available via
+`docker pull` suddenly no longer being there, or even image manifests
+disappearing entirely from the Partner Connect UI. So far we have
+absolute 100% confidence, backed by many years of experience, that
+whatever seems to work today will no longer work at some point in the
+future. Also, whatever we do, something will go catastrophically wrong
+sooner or later. The best we can do is experiment at random and attempt
+to find a working method that seems the least unstable.
 
-No other relationships are guaranteed:
+A few things that currently seem to be true are:
 
-- If we upload a *new* image with a *new* tag to (1) and then run
-  `preflight` (which triggers Auto-Publish), then most of the time the
-  image and tag will appear in (2), (3), and (4) as expected.
-- However if we upload a *new* image with an *existing* tag to (1) and
-  then run `preflight`, all we have reasonable confidence of is that the
-  corresponding image and tag will become available at (4). In (2) and
-  (3), the existing tag may simply disappear; it may remain associated
-  with the older image it was previously pointing to; or it may update
-  to be associated with the new image.
-  - Note: in this scenario, when we upload a new image (which by
-    definition cannot be Published) with an existing tag, that tag
-    *immediately* is no longer pullable from (4), although the tag will
-    likely still be visible (referencing whatever image it previously
-    did) at (2) and (3). This can break customers.
-- If we upload an *existing* Published image with a *new* tag to (1),
-  all we have reasonable confidence of is that pulling that new tag at
-  (4) will pull the image. In (2) and (3), the new tag may or may not
-  appear at all, although if it does, it will probably be associated
-  with the correct image.
-- If we upload an *existing* Published image with an *existing* tag
-  (that is associated with a different image) to (1), similarly, all we
-  have reasonable confidence of is that pulling that existing tag at (4)
-  will now pull the updated image. In (2) and (3), the existing tag may
-  disappear; it may continue to point to the older image SHA; or it
-  occasionally will do the right thing and start pointing at the new
-  image SHA.
+- uploading a tag to quay.io that is already published will cause that
+  tag to immediately become un-pullable
+- running preflight against a tag (assuming it succeeds) will trigger
+  auto-publish of that tag
+- if you run preflight against a tag, and that image is also associated
+  with other tags, you can't make any predictions about what will happen
+  to those tags
+- if a tag has been preflighted and successfully published, and you then
+  re-upload that image associated with a new tag, then that new tag will
+  also immediately become pullable
+- running preflight on a tag, and the image associated with that tag is
+  already published, preflight will fail
 
-Further notes:
+# So, the process
 
-- The *only* control over tags we have is via pushing images to (1). We
-  cannot delete nor add tags via the Connect UI (2). The only option we
-  have via (2) is to Unpublish and then Delete the entire image, which
-  will also wipe out all tags pointing to that image.
-- The Connect UI (2) has a "Sync Tags" link on each image. This is
-  supposed to update the set of tags associated with that image by
-  pulling them from (1) and then reflecting them to (3). However, this
-  does not appear to work reliably, especially as regards removing tags
-  that no longer point to that image.
+The sequence of operations that, as of today (August 28, 2025), appears
+to work vaguely consistently is as follows:
 
-Upshot
-======
+- Create a completely new image manifest, every time. We do this by
+  first creating the multi-arch image on build-docker that we want to
+  publish, and then creating a trivial Dockerfile that looks like this:
+```
+FROM build-docker.couchbase.com/cb-rhcc/fooo:x.y.z
+ARG CACHEBUST
+```
+- We pick a random number (literally).
+- We use `docker buildx build --push --build-arg CACHEBUST=<random>` to
+  build a new image manifest and push it to quay.io, associated with the
+  `:VERSION-xx` tag which should be an entirely new, never-before-seen
+  tag.
+- Next, we run preflight against that tagged image.
+- Assuming that succeeds, we poll the public registry to ensure that
+  both the amd64 and arm64 images for this new tag become pullable, AND
+  that they're associated with the same manifest (as identified by its
+  sha256 digest).
+- Now, we re-run `docker buildx build` with all the same arguments as
+  before, including the *same* random number, but supply the `:VERSION`
+  and `:VERSION-rhcc` (and possibly `:latest`) tags. Due to buildx's
+  caching, this will push the exact same image manifest to quay.io
+  associated with these new tags. Since the corresponding image is
+  already published, in theory those new tags should immediately become
+  pullable and pull the new image.
+- Finally, we poll the public registry again waiting for the amd64 and
+  arm64 images for all new tags become pullable, and that they're
+  associated with the same new image manifest.
 
-Given all the above, the way that rhcc-certify-and-publish.sh works is:
+Note: most of the time, all these pullable tags will NOT appear in the
+Partner Connect UI. The most common variant is that only the
+`:VERSION-xx` tag shows up, but sometimes it's exactly the reverse.
+Clicking "Sync Tags" sometimes helps, sometimes doesn't. The same is
+true for the public catalog; there doesn't seem to be a consistent way
+to ensure that it actually reflects reality.
 
-1. It first ensures that the `:VERSION-xx` tag is *new*, not previously
-   known on RHCC, by using `skopeo inspect` on the upload site (1).
+# Random notes
 
-   If the image is already known, it aborts, because the whole point of
-   the rebuild number is that it is unique and should only ever point to
-   a single image SHA. Also, if we attempt to re-`preflight` an
-   already-existing image, it fails.
+Previously we used `skopeo copy` to upload the already-built image
+directly from `build-docker.couchbase.com` to `quay.io`. This worked for
+a while, but has been failing catastrophically for some time, often with
+images disappearing entirely. I switched to `docker buildx build --push`
+instead. I have no idea if skopeo was actually doing something "wrong"
+or if it just did something slightly differently than RHCC wanted (I
+know what I'd bet on, though).
 
-2. It also ensures that the image SHA it is going to push is not
-   previously known on RHCC, for the same basic reasons - things are far
-   more likely to go wrong when attempting to change existing
-   image<->tag associations than when dealing with entirely new
-   images/tags.
-
-3. It then uploads the new image to the `:VERSION-xx` tag. This should
-   not have any customer-visible impact since that tag would not have
-   been in use by anyone.
-
-4. It runs `preflight` on this new tag.
-
-5. It polls the public Docker registry (4) until the new tag is
-   available (ensuring that Auto-Publish worked).
-
-6. Finally it re-uploads the same new image to to upload site (1) with
-   the possibly-existing `:VERSION` and `:VERSION-rhcc` tags.
-
-   This *should* at least result in those tags becoming visible at the
-   public registry (4), which is the most important thing. If it happens
-   to cause the public web UI (3) to reflect the new tag associations,
-   great.
+The main reason we still want the `:VERSION-xx` tag is to ensure that we
+can upload and preflight a new image successfully before pushing any
+already-existing tags. If we did the more straightforward thing where we
+just uploaded the `:VERSION` tag, then there would be a window of time
+between pushing and preflight where the image would become un-pullable.
+Worse, if anything went wrong (preflight failed, etc), the image would
+*remain* un-pullable.

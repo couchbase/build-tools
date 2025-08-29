@@ -5,7 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 usage() {
     set +x
-    echo "Usage: $0 -p PRODUCT -t INTERNAL_TAG -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l] [-B] [-f]"
+    echo "Usage: $0 -p PRODUCT -t INTERNAL_TAG -r RELEASE_TAG_BASE -b REBUILD_NUM -c RHCC_CONFILE_FILE [-l]"
     echo
     echo "Handles the complete release-to-RHCC process - pulls the staged image"
     echo "(presumed to exist on the internal Docker registry with the correct"
@@ -26,17 +26,12 @@ usage() {
     echo "  <RELEASE_TAG_BASE>"
     echo "  <RELEASE_TAG_BASE>-rhcc"
     echo
-    echo "  -B: build preflight from source"
     echo "  -l: also update :latest tag on RHCC"
-    echo "  -f: force - skip some safety checks when uploading image (may be necessary"
-    echo "      when retrying upload after preflight failure)"
     exit 1
 }
 
 LATEST="false"
-BUILD_PREFLIGHT="false"
-SAFETY_CHECKS="true"
-while getopts :i:p:t:r:b:c:lBfh opt; do
+while getopts :i:p:t:r:b:c:lh opt; do
     case ${opt} in
         p) PRODUCT="$OPTARG"
            ;;
@@ -49,10 +44,6 @@ while getopts :i:p:t:r:b:c:lBfh opt; do
         b) REBUILD_NUM="$OPTARG"
            ;;
         l) LATEST="true"
-           ;;
-        B) BUILD_PREFLIGHT="true"
-           ;;
-        f) SAFETY_CHECKS="false"
            ;;
         h) usage
            ;;
@@ -71,18 +62,6 @@ fi
 mkdir -p ${WORKSPACE}/workdir
 cd ${WORKSPACE}/workdir
 
-function upload_image {
-    local internal_image=$1
-    local external_image=$2
-
-    status "Uploading ${internal_image} to ${external_image}..."
-    skopeo copy \
-        --multi-arch all \
-        --override-os linux \
-        --format oci \
-        docker://${internal_image} docker://${external_image}
-}
-
 # preflight makes this 'artifacts' directory to store various logs, but
 # apparently not until after it tries to create PFLT_LOGFILE as you'll
 # get an error if the directory doesn't already exist.
@@ -94,26 +73,6 @@ mkdir artifacts
 PREFLIGHT_EXE="$(pwd)/preflight"
 if [ -x "${PREFLIGHT_EXE}" ]; then
     status "Using existing preflight binary"
-elif ${BUILD_PREFLIGHT}; then
-    status "Building preflight..."
-    PREFLIGHTVER=1.14.1
-    GOVER=1.22.5
-
-    # The pre-compiled preflight binaries sometimes requires a newer
-    # glibc than is available where this script runs. So we build it
-    # ourselves. This also allows us to do our patch.
-    mkdir -p ${WORKSPACE}/build
-    pushd ${WORKSPACE}/build &> /dev/null
-    cbdep install -d deps golang ${GOVER}
-    export PATH=$(pwd)/deps/go${GOVER}/bin:${PATH}
-    status Cloning openshift-preflight repository
-    git clone https://github.com/redhat-openshift-ecosystem/openshift-preflight -b ${PREFLIGHTVER}
-    cd openshift-preflight
-    perl -pi -e 's/if user == ""/if user == "nobody"/' internal/policy/container/runs_as_nonroot.go
-    status Building preflight binary
-    make RELEASE_TAG=${PREFLIGHTVER} build
-    cp -a preflight "${PREFLIGHT_EXE}"
-    popd &> /dev/null
 else
     status "Downloading preflight..."
     LATEST_URL=$(curl --silent --write-out '%{redirect_url}' \
@@ -135,11 +94,12 @@ product_path=".products.\"${PRODUCT}\""
 image_basename=$(jq -r "${product_path}.image_basename" "${CONFFILE}")
 project_id=$(jq -r "${product_path}.project_id" "${CONFFILE}")
 
-# Derived value required for upload_image()
+# The image name on our internal registry
 internal_image=build-docker.couchbase.com/cb-rhcc/${image_basename}:${INTERNAL_TAG}
 
 # Additional private details from config json
 stop_xtrace
+
 registry_key=$(jq -r "${product_path}.registry_key" "${CONFFILE}")
 api_key=$(jq -r ".rhcc.api_key" "${CONFFILE}")
 
@@ -149,73 +109,120 @@ export PFLT_PYXIS_API_TOKEN=${api_key}
 
 # Log in to quay.io, storing the result to a custom config so only RHCC
 # credentials are in there (since preflight sends the entire Docker
-# configuration to Red Hat including all credentials). Use
-# REGISTRY_AUTH_FILE env var so that future skopeo commands will also
-# make use of it.
+# configuration to Red Hat including all credentials).
 status "Logging in to quay.io"
-export REGISTRY_AUTH_FILE=$(pwd)/docker-auth.json
+export PFLT_DOCKERCONFIG=$(pwd)/docker-auth.json
 skopeo login \
+    --authfile ${PFLT_DOCKERCONFIG} \
     -u redhat-isv-containers+${project_id}-robot -p ${registry_key} \
     quay.io
 
-# Also remember this docker auth file for preflight
-export PFLT_DOCKERCONFIG=${REGISTRY_AUTH_FILE}
+# Also have to separately log in using `docker login`. Docker doesn't
+# allow using a credentials file, other than by specifying DOCKER_CONFIG
+# which overrides the entire config directory, which includes all buildx
+# setup :(
+docker login -u redhat-isv-containers+${project_id}-robot -p ${registry_key} quay.io
+
 restore_xtrace
 
-# See README.md for exhaustive details about why things are checked /
-# uploaded / preflighted in this order.
+# Image names
+quay_image=quay.io/redhat-isv-containers/${project_id}
+final_image=registry.connect.redhat.com/couchbase/${image_basename}
 
-# Determine the tag and SHA for this image.
-image_base=quay.io/redhat-isv-containers/${project_id}
-new_image_tag=${RELEASE_TAG_BASE}-${REBUILD_NUM}
-new_image_sha=$(skopeo inspect docker://${internal_image} | jq -r '.Digest')
+# Create a one-off Dockerfile for the image with an extraneous top
+# layer, to ensure that every single thing we push to RHCC is different
+# from every single thing we've ever pushed to RHCC before.
+cat > Dockerfile <<EOF
+FROM ${internal_image}
+ARG CACHEBUST
+EOF
 
-# Some safety checks. These can be skipped with -f.
-if "${SAFETY_CHECKS}"; then
-    # First ensure that the "new" tag doesn't already exist on RHCC.
-    if [ -n "$(skopeo list-tags docker://${image_base} | jq --arg TAG ${new_image_tag} '.Tags[] | select(. == $TAG)' )" ]; then
-        error "ERROR: ${image_base}:${new_image_tag} already exists!!"
-    fi
+# Pick a random number for CACHEBUST so that we can build something
+# different than anything before, but the same different thing each
+# time.
+CACHEBUST=${RANDOM}
 
-    # Now ensure that the "new" image we're uploading doesn't already exist
-    # on RHCC.
-    if image_exists ${image_base}@${new_image_sha}; then
-        error "ERROR: ${image_base}@${new_image_sha} already exists!!"
-    fi
-fi
+# END PREP STEPS
 
-# Now it should be safe to upload the new image to the new tag, followed
-# by the "floating" tags
-for tag in ${new_image_tag} ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
-    upload_image ${internal_image} ${image_base}:${tag}
-done
 
-# Preflight the new image so it is published
-echo
-status "Running preflight on container ${image_base}:${new_image_tag}..."
-"${PREFLIGHT_EXE}" check container --submit ${image_base}:${new_image_tag}
+# Upload a new image (build it first, if necessary) to quay.io with the
+# specified tag(s).
+function upload_to_quay() {
+    local -n tags="$1"
+    declare -g CACHEBUST quay_image
 
-# Unset REGISTRY_AUTH_FILE since it doesn't have the creds for
-# registry.connect.redhat.com
-unset REGISTRY_AUTH_FILE
+    local TAG_ARGS=""
+    for tag in "${tags[@]}"; do
+        TAG_ARGS+=" -t ${quay_image}:${tag}"
+    done
+    status "Creating and uploading new image ${quay_image} with tags (${tags[@]})..."
+    docker buildx build --pull --push \
+        --build-arg CACHEBUST=${CACHEBUST} \
+        --provenance=false \
+        --platform linux/amd64,linux/arm64\
+        ${TAG_ARGS} .
+}
 
-# Wait for auto-publish to succeed
-header Waiting for auto-publish...
-for tag in ${new_image_tag} ${RELEASE_TAG_BASE} ${RELEASE_TAG_BASE}-rhcc; do
-    final_image=registry.connect.redhat.com/couchbase/${image_basename}
-    for arch in amd64 arm64; do
-        status "Waiting for auto-publish of ${final_image}:${tag} (${arch})..."
-        for i in {200..0}; do
-            if image_has_arch ${final_image}:${tag} ${arch}; then
-                status "Auto-publish of ${final_image}:${tag} (${arch}) succeeded!"
-                break
-            fi
-            if [ "${i}" == "0" ]; then
-                error "Auto-publish timed out!"
-            fi
-            status "Still waiting ($i)..."
-            sleep 3
+# Wait for the final image to become pullable on RHCC with the specified
+# tag(s).
+function wait_for_pullable() {
+    local -n tags="$1"
+    declare -g final_image image_digest
+
+    for tag in "${tags[@]}"; do
+        for arch in amd64 arm64; do
+            status "Waiting for auto-publish of ${final_image}:${tag} (${arch})..."
+            for i in {200..0}; do
+                digest=$(skopeo inspect --override-arch ${arch} --override-os linux \
+                    docker://${final_image}:${tag} \
+                    --format '{{.Digest}}' 2>/dev/null || echo "not yet")
+                if [ "${digest}" == "not yet" ]; then
+                    if [ "${i}" == "0" ]; then
+                        error "Auto-publish timed out!"
+                    fi
+                    status "Still waiting ($i)..."
+                    sleep 3
+                    continue
+                elif [ "${digest}" == "${image_digest}" ]; then
+                    status "Auto-publish of ${final_image}:${tag} (${arch}) succeeded!"
+                    break
+                else
+                    error "Auto-publish of ${final_image}:${tag} (${arch}) has wrong digest '${digest}'!"
+                fi
+            done
         done
     done
-done
-header Auto-publish complete!
+}
+
+# See README.md for exhaustive details about why things everything from
+# here on out is utterly stupid.
+
+# First, create real new image with all-new tag, based on REBUILD_NUM
+TAGS=("${RELEASE_TAG_BASE}-${REBUILD_NUM}")
+upload_to_quay TAGS
+image_digest=$(docker buildx imagetools inspect ${quay_image}:${TAGS[0]} | grep Digest | awk '{print $2}')
+status "Uploaded image digest: ${image_digest}"
+
+# Next, run preflight on that image. If this succeeds, auto-publish will
+# kick in and the new tag will become pullable.
+status "Running preflight on container ${quay_image}:${TAGS[0]}..."
+"${PREFLIGHT_EXE}" check container --submit ${quay_image}:${TAGS[0]}
+
+# Ensure this new unique tag is now pullable on RHCC
+wait_for_pullable TAGS
+
+# Now, create the other tags we want, based on the same image. These
+# tags will be associated with the already-pullable image, which makes
+# them also pullable (although it rarely is correctly reflected in the
+# Partner Connect UI or the public catalog).
+TAGS=("${RELEASE_TAG_BASE}-${REBUILD_NUM}" "${RELEASE_TAG_BASE}" "${RELEASE_TAG_BASE}-rhcc")
+if $LATEST; then
+    TAGS+=("latest")
+fi
+upload_to_quay TAGS
+wait_for_pullable TAGS
+
+
+docker logout quay.io
+
+header All done!
