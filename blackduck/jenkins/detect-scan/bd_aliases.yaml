@@ -103,3 +103,8 @@
 "09937fd5-ac0e-4c0b-8500-9479ced81391":
   bd-id-aliases:
     - "1e303b15-b82b-4a4d-8cd6-a2048fb2c73d"
+
+# ncurses 
+"6fbf5164-2c5c-4746-9f7a-68d5bea69fc0":
+  bd-id-aliases:
+    - "7273e9b6-fd06-4da3-882b-391c9d4ea758"
