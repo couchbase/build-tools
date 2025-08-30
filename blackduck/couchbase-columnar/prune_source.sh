@@ -18,6 +18,11 @@ for pkg in angular-bootstrap angular-route angular; do
   rm -rf cbgt/rest/static/lib/${pkg}/!(package*.json)
 done
 
+# Remove unused components from flatbuffers
+for entry in Package.swift android dart java rust goldens grpc; do
+    rm -rf godeps/src/github.com/google/flatbuffers/${entry}
+done
+
 # Server doesn't use asterix's dashboard, so prune that
 rm analytics/asterixdb/asterixdb/asterix-dashboard/src/node/package.json
 
