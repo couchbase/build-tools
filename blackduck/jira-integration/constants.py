@@ -18,6 +18,10 @@ EXCLUDED_PROJECTS = [
     'vault-plugin-database-couchbasecapella',
     'capella-analytics']
 
+# Set of version names to be included in vulnerability report
+# Versions only contains numbers and dots are included automatically
+INCLUDED_VERSION_NAMES = {'snapshot', 'dev', 'main', 'master', 'production'}
+
 # Jira constants
 JIRA_PROJECT_KEY = 'VULN'
 JIRA_ISSUE_TYPE = 'Bug'
