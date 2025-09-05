@@ -73,7 +73,7 @@ class JiraIssueManager:
             f'BD_COMPONENT~"\\"{bd_comp}\\"" and '
             f'BD_COMP_VERSION~"\\"{bd_comp_ver}\\"" and '
             f'BD_PROJECT~"\\"{bd_proj}\\""')
-        issues = self.client.search_issues(search_str)
+        issues = self.client.search_issues(search_str, maxResults=500)
         for issue in issues:
             if getattr(issue.fields, constants.BD_COMPONENT_FIELD) == bd_comp:
                 related_issues.append(issue)
@@ -110,7 +110,7 @@ class JiraIssueManager:
             project_name,
             project_version):
         '''Find all issues for a specific project and version.'''
-        offset = 0
+        nextPageToken = None
         issues = []
         # Double quotes in JQL are used to deal with spaces and special characters
         search_str = (
@@ -119,13 +119,11 @@ class JiraIssueManager:
             f'BD_PROJ_VERSION~"\\"{project_version}\\""'
         )
         while True:
-            response = self.client.search_issues(
-                search_str, json_result=True, startAt=offset)
-            if offset == 0:
-                total = response.get('total', [])
+            response = self.client.enhanced_search_issues(
+                search_str, json_result=True, nextPageToken=nextPageToken)
             issues.extend(response.get('issues', []))
-            offset += 50
-            if offset >= total:
+            nextPageToken = response.get('nextPageToken')
+            if response.get('isLast'):
                 break
         return issues
 

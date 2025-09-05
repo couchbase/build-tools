@@ -53,22 +53,19 @@ class JiraIssueManager:
     def search_jira_issues(self, search_str, batch_size=100):
         """Helper function to handle paginated Jira searches"""
         issues = []
-        start_at = 0
+        nextPageToken = None
         while True:
-            batch = self.client.search_issues(
+            batch = self.client.enhanced_search_issues(
                 search_str,
-                startAt=start_at,
                 maxResults=batch_size,
                 fields='key,versions,issuelinks',
-                json_result=True
+                json_result=True,
+                nextPageToken=nextPageToken
             )
-            if not batch:
+            issues.extend(batch.get('issues', []))
+            nextPageToken = batch.get('nextPageToken')
+            if batch.get('isLast'):
                 break
-
-            issues.extend(batch['issues'])
-            if start_at + batch_size >= batch['total']:
-                break
-            start_at += batch_size
         return issues
 
     def update_issue(self, issue_key, issue_fields, notify=True):
