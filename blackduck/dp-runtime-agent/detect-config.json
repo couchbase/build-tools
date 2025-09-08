@@ -1,0 +1,11 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 2,
+        "logging.level.detect": "DEBUG",
+        "detect.go.mod.dependency.types.excluded": "VENDORED",
+        "detect.tools.excluded": "SIGNATURE_SCAN"
+    },
+    "source_paths": [
+        "couchbase-cloud/cmd/dp-runtime-agent"
+    ]
+}

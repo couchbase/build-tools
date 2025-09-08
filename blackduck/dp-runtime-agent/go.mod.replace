@@ -1,0 +1,7 @@
+replace github.com/couchbasecloud/couchbase-cloud => ../../
+// This is copied from top level go.mod in couchbase-cloud repo
+replace (
+        k8s.io/api => k8s.io/api v0.33.3
+        k8s.io/client-go => k8s.io/client-go v0.33.3
+        k8s.io/controller-manager => k8s.io/controller-manager v0.33.3
+)
