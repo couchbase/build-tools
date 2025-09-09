@@ -1,0 +1,19 @@
+{
+    "versions": {
+        "dev": {
+            "__comment": "This version points to the future release",
+            "release": "dev",
+            "interval": 1440
+        },
+        "master": {
+            "__comment": "This version points to the upcoming release",
+            "release": "master",
+            "interval": 1440
+        },
+        "release": {
+            "__comment": "Scan latest release tag",
+            "release": "release",
+            "interval": 1440
+        }
+    }
+}
