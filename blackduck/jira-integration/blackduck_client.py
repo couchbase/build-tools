@@ -195,6 +195,10 @@ class BlackduckClient:
         cve_list = []
         for entry in entries:
             cve_name = entry['vulnerability']['vulnerabilityId']
+            # Skip if CVE is in the exclusion list
+            if cve_name in constants.EXCLUDED_CVE_LIST:
+                logging.info(f"CVE {cve_name} is on the excluded list")
+                continue
             url = f"{self.base_url}/api/vulnerabilities/{cve_name}"
             cve_detail = self.hub_client.get_json(url)
             cve_link = next(
@@ -265,6 +269,7 @@ class BlackduckClient:
                 cve_name=entry['currentData']['vulnerabilityId']
                 # Skip if CVE is in the exclusion list
                 if cve_name in constants.EXCLUDED_CVE_LIST:
+                    logging.info(f"CVE {cve_name} is on the excluded list")
                     continue
                 cve_link=f"https://nvd.nist.gov/vuln/detail/{entry['currentData']['vulnerabilityId']}"
                 cve_entries.append({
