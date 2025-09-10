@@ -101,12 +101,11 @@ def main():
         logger.setLevel(logging.DEBUG)
     dryrun = args.dryrun
     metadata_dir = Path.cwd() / 'repos' / 'product-metadata'
-    if not metadata_dir.exists():
-        run([
-            util_dir / "clean_git_clone",
-            "https://github.com/couchbase/product-metadata",
-            metadata_dir
-        ])
+    run([
+        util_dir / "clean_git_clone",
+        "https://github.com/couchbase/product-metadata",
+        metadata_dir
+    ])
 
     # Check configuration file information
     check_build_config = configparser.ConfigParser()

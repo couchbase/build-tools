@@ -4,9 +4,6 @@ __pycache__/
 build/
 dist/
 repos/
-wheels/
-*.egg-info
-.python-version
 
 # venv
 .venv

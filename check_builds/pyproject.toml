@@ -11,17 +11,7 @@ requires-python = ">= 3.10, <3.11"
 
 [project.scripts]
 check-builds = "check_builds.check_builds_prog:main"
+test-yaml = "check_builds.util:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.rye]
-managed = true
-dev-dependencies = []
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/check_builds"]
+[tool.uv]
+package = true
