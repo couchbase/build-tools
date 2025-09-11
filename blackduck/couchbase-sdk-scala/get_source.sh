@@ -38,7 +38,7 @@ done
 # And now we actually need to build stuff for it to be found by the
 # detector :( Use a custom local Maven repository per-product to ensure
 # SNAPSHOT stuff doesn't cross-polinate.
-export MAVEN_CONFIG="--batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository -Dmaven.test.skip=true"
+export MAVEN_CONFIG="--batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository -Dmaven.test.skip=true -Dmaven.javadoc.skip=true"
 make install
 
 popd
