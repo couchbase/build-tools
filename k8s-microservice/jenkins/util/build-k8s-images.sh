@@ -124,6 +124,7 @@ build-image() {
     local tag=$3
     local external_registry=$4
     local arches=$5
+    local os_build=$6
 
     internal_registry=build-docker.couchbase.com
 
@@ -185,6 +186,7 @@ build-image() {
         ${TAG_ARG} \
         --build-arg PROD_VERSION=${VERSION} \
         --build-arg PROD_BUILD=${BLD_NUM} \
+        --build-arg OS_BUILD=${os_build} \
         --build-arg GO_VERSION=${GOVERSION} \
         ${PROVENANCE_ARG} \
         .
@@ -274,8 +276,9 @@ for local_product in *; do
 
     # Some projects don't do RHCC
     if building_redhat && product_in_rhcc "${PRODUCT}"; then
+        NEXT_BLD=$(${script_dir}/../../../rhcc/scripts/compute-next-rhcc-build.sh -p ${local_product} -v ${VERSION})
         build-image cb-rhcc ${short_product} ${tag} \
-            ${external_registry} ${RHCC_ARCHES}
+            ${external_registry} ${RHCC_ARCHES} ${NEXT_BLD}
     fi
 
     popd &> /dev/null
@@ -286,7 +289,6 @@ for local_product in *; do
         if [ -n "${OPENSHIFT_BUILD}" ]; then
             PUBLISH_CMD+=" -o ${OPENSHIFT_BUILD}"
         elif building_redhat; then
-            NEXT_BLD=$(${script_dir}/../../../rhcc/scripts/compute-next-rhcc-build.sh -p ${local_product} -v ${VERSION})
             PUBLISH_CMD+=" -o ${NEXT_BLD}"
         fi
         if [ "${REGISTRY}" != "all" ]; then
