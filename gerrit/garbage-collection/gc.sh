@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./gc.sh [repo-name]    # GC a single repository
-#   ./gc.sh                # GC all repos
+#   ./gc.sh                # GC all non-excluded repos
 
 repo=$1
 
@@ -20,6 +20,7 @@ if [ $# -gt 1 ]; then
 fi
 
 gerrit_host="gerrit-garbage-collection"
+excluded_repos="-NorthScale-|-membase-|-readonly-|-sdks-|All-Projects|All-Users"
 
 current_repo=""
 trap 'cleanup_readonly' EXIT
@@ -66,7 +67,8 @@ function gerrit_gc() {
 }
 
 function repos() {
-    ssh ${gerrit_host} gerrit ls-projects
+    all_repos=$(ssh ${gerrit_host} gerrit ls-projects)
+    echo "$all_repos" | grep -Ev -- "$excluded_repos"
 }
 
 function check_readonly_plugin() {
