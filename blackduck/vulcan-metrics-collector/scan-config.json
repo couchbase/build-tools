@@ -14,12 +14,6 @@
             "__comment": "This version points to the future release",
             "release": "dev",
             "interval": 1440
-        },
-        "0.1.1": {
-            "interval": 1440
-        },
-        "0.0.22": {
-            "interval": 1440
         }
     }
 }

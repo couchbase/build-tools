@@ -25,6 +25,9 @@ BUILD_TOOLS_REPO = git.Repo(BUILD_TOOLS_DIR)
 ignorelist = [
     # We only scan main for couchbase-cloud
     "couchbase-cloud",
+    # We only scan release, dev and master for vulcan and vulcan-metrics-collector
+    "vulcan",
+    "vulcan-metrics-collector",
 ]
 
 # Typically we're just looking for branches which look like versions,
