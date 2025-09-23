@@ -12,6 +12,7 @@ cd ${ROOT_DIR}
 DEPS=${WORKSPACE}/deps
 rm -rf ${DEPS}
 NODEJS_VER=$(annot_from_manifest NODEJS_VERSION)
+YARN_VERSION=$(annot_from_manifest YARN_VERSION)
 
 # Extract GOVERSION from manifest, and install using cbdep
 GO_VER=$(gover_from_manifest)
@@ -23,7 +24,7 @@ cbdep install -d ${DEPS} nodejs ${NODEJS_VER}
 export PATH=${DEPS}/nodejs-${NODEJS_VER}/bin:${PATH}
 
 # Use nodejs to install yarn
-npm install -g yarn
+npm install -g yarn@${YARN_VERSION}
 
 # And, finally, build prometheus
 export GOPATH=$(pwd)/goproj
