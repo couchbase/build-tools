@@ -5,6 +5,9 @@
             "release": "main",
             "interval": 1440
         },
+        "1.2.0": {
+            "interval": 1440
+        },
         "1.1.1": {
             "interval": 1440
         },
