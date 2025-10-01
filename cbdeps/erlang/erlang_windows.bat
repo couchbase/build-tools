@@ -1,12 +1,9 @@
 @echo on
 
-set OPENSSL_VER=3.1.8-1
-
 set INSTALL_DIR=%1
 set ROOT_DIR=%2
 
 cd %ROOT_DIR%
-call cbdep -p windows install -d cbdeps openssl %OPENSSL_VER% || goto error
 
 rem WSL handles all the heavy lifting now. Easiest to call this script in
 rem the working directory to avoid backslashitis.

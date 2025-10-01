@@ -1,0 +1,10 @@
+components:
+    erlang:
+        bd-id: 2c804760-a3e3-4ba1-abfb-77525633b966
+        versions: [ "@@BD_VERSION@@" ]
+    openssl:
+        bd-id: cd7c0bf1-7757-4ce9-bcc0-46332273dc27
+        versions: [ "@@OPENSSL_VERSION@@" ]
+    ncurses:
+        bd-id: 6fbf5164-2c5c-4746-9f7a-68d5bea69fc0
+        versions: [ "@@NCURSES_VERSION@@" ]

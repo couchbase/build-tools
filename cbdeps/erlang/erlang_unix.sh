@@ -3,13 +3,18 @@
 INSTALL_DIR=$1
 ROOT_DIR=$2
 PLATFORM=$3
+BD_MANIFEST=$9
 
-JIT_OPTIONS="--enable-jit"
+PACKAGE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+. "${PACKAGE_DIR}/../../utilities/shell-utils.sh"
 
-NCURSES_VER=6.4-1
-OPENSSL_VER=3.1.8-1
+# Get dependency versions from manifest annotations
+NCURSES_VER=$(annot_from_manifest NCURSES_VERSION)
+OPENSSL_VER=$(annot_from_manifest OPENSSL_VERSION)
 
 pushd erlang
+
+JIT_OPTIONS="--enable-jit"
 if [[ "$(cat OTP_VERSION)"  == 24.* && "${PLATFORM}" = "linux" && "$(uname -m)" = "aarch64" ]]; then
     # v24 configure: error: JIT only works on x86 64-bit
     JIT_OPTIONS="--disable-jit"
@@ -96,3 +101,23 @@ fi
 # Jenkins throw a fit (UI warnings about "There are resources Jenkins
 # was not able to dispose automatically"), so let's just delete it.
 rm -rf lib/ssh/test/ssh_sftp_SUITE_data/sftp_tar_test_data_*
+
+# Create BD_MANIFEST if requested
+if [ -n "${BD_MANIFEST}" ]; then
+    # BD may use slightly different version conventions, so we get that
+    # from our manifest
+    pushd "${ROOT_DIR}"
+    BD_VERSION=$(annot_from_manifest BD_VERSION "${VERSION}")
+
+    # OPENSSL_VERSION is a cbdeps version including build number, so
+    # strip that off
+    OPENSSL_VERSION=$(echo ${OPENSSL_VERSION} | sed -e "s/-.*//")
+
+    cat "${PACKAGE_DIR}/blackduck/black-duck-manifest.yaml.in" \
+        | sed -e "s/@@BD_VERSION@@/${BD_VERSION}/g" \
+        | sed -e "s/@@OPENSSL_VERSION@@/${OPENSSL_VERSION}/g" \
+        | sed -e "s/@@NCURSES_VERSION@@/${NCURSES_VERSION}/g" \
+        > "${BD_MANIFEST}"
+
+    popd
+fi

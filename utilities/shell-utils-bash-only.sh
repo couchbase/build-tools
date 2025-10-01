@@ -51,8 +51,13 @@ function annot_from_manifest {
         DEP_VERSION=$(xmllint \
             --xpath 'string(//project[@name="build"]/annotation[@name="'${annot}'"]/@value)' \
             manifest.xml)
+    elif test -e manifest.xml && command -v grep > /dev/null; then
+        # As a last resort, try to grep the value out of the XML. This is
+        # fragile and may break if the XML formatting changes, but it's
+        # better than nothing.
+        DEP_VERSION=$(grep -oP '(?<=<annotation name="'"${annot}"'" value=")[^"]*' manifest.xml || echo "")
     else
-        echo "Couldn't use repo or xmllint - can't continue!"
+        echo "Couldn't use repo, xmllint, or grep - can't continue!"
         exit 3
     fi
     if [ -z "${DEP_VERSION}" ]; then

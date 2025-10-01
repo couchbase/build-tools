@@ -3,7 +3,13 @@ INSTALL_DIR=$(wslpath "$1")
 # Expects to be called in the directory containing this script,
 # which is three levels deep in build-tools
 cd ../../..
+source build-tools/utilities/shell-utils.sh
+
+OPENSSL_VER=$(annot_from_manifest OPENSSL_VERSION)
+cbdep.exe -p windows install -d cbdeps openssl ${OPENSSL_VER}
 OPENSSL_DIR=$(echo "$(pwd)/cbdeps/openssl-"*)
+
+# Windows build doesn't use ncurses
 
 # Now into the OTP source code
 cd erlang

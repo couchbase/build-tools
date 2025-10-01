@@ -1,4 +1,0 @@
-components:
-    erlang:
-        bd-id: 2c804760-a3e3-4ba1-abfb-77525633b966
-        versions: [ "@@BD_VERSION@@" ]
