@@ -102,8 +102,19 @@ couchbase-edge-server)
 couchbase-server)
     expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
     expected+=(${PRODUCT}-enterprise_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
-    expected+=(${PRODUCT}-community_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
-    expected+=(${PRODUCT}-community_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
+
+    # Only expect community editions we actually build
+    # Build community for versions ending in .0, .1, or .2
+    if [[ "${VERSION}" =~ \.(0|1|2)$ ]]; then
+        build_community=true
+    else
+        build_community=false
+    fi
+
+    if ${build_community}; then
+        expected+=(${PRODUCT}-community_${VERSION}-${BLD_NUM}-macos_x86_64.dmg)
+        expected+=(${PRODUCT}-community_${VERSION}-${BLD_NUM}-macos_arm64.dmg)
+    fi
     ;;
 couchbase-operator)
     expected+=(couchbase-autonomous-operator_${VERSION}-${BLD_NUM}-kubernetes-macos-amd64.zip)
