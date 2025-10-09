@@ -1,0 +1,12 @@
+{
+    "versions": {
+        "snapshot": {
+            "__comment": "NOTE: this version points to the future release",
+            "release": "master",
+            "interval": 1440
+        },
+        "1.0.1": {
+            "interval": 1440
+        }
+    }
+}
