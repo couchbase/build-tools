@@ -111,3 +111,8 @@
 "6fbf5164-2c5c-4746-9f7a-68d5bea69fc0":
   bd-id-aliases:
     - "7273e9b6-fd06-4da3-882b-391c9d4ea758"
+
+# google-re2
+"2cc499cd-32b6-4b1b-8730-a482a94619bd":
+  fallback-versions:
+    "20220401": "2022.04.01"
