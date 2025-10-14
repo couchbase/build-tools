@@ -5,7 +5,7 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
-git clone ssh://git@github.com:couchbaselabs/analytics-dotnet-client.git
+git clone ssh://git@github.com/couchbaselabs/analytics-dotnet-client.git
 pushd analytics-dotnet-client
 if git rev-parse --verify --quiet $VERSION >& /dev/null
 then
