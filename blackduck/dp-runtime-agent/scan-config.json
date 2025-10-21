@@ -1,8 +1,7 @@
 {
     "versions": {
         "dev": {
-            "__comment": "NOTE: this is still under development",
-            "release": "feature/AV-92790_ai_services_ga",
+            "release": "main",
             "interval": 1440
         }
     }
