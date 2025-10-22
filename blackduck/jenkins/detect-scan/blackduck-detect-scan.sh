@@ -45,6 +45,13 @@ trap clean_up EXIT
 # https://documentation.blackduck.com/bundle/detect/page/troubleshooting/usage-metrics.html
 export BLACKDUCK_SKIP_PHONE_HOME=true
 
+# Set any default environment variables for overall scan job here.
+# -----------------------
+# M2_MIRROROF: this is referenced in the ~/.m2/settings.xml file
+# on the scan agent. Setting this in a product's detect-config.json will
+# override which repositories are loaded from our internal Maven cache.
+export M2_MIRROROF="external:*"
+
 # Reset src directory and cd into it
 SRC_DIR="${WORKSPACE}/src"
 mkdir -p "${SRC_DIR}"

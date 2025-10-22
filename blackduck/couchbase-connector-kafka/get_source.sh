@@ -23,7 +23,10 @@ fi
 # don't need to scan examples
 rm -rf examples
 
-mvn --batch-mode dependency:resolve
-mvn --batch-mode -Dmaven.test.skip=true -Dmaven.javadoc.skip=true install
+# Tell BD's custom settings.xml to skip the Couchbase maven cache for snapshots
+export M2_MIRROROF="external:*,!central-portal-snapshots"
+
+mvn --batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository dependency:resolve
+mvn --batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository -Dmaven.test.skip=true -Dmaven.javadoc.skip=true install
 
 popd
