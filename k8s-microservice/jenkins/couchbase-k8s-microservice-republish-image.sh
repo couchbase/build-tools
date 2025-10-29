@@ -15,16 +15,10 @@ function republish() {
 
     short_product=${product/couchbase-/}
 
-    if [ "${REGISTRY}" = "dockerhub" ]; then
-        vanilla_args="-d linux/amd64,linux/arm64"
-    elif [ "${REGISTRY}" = "rhcc" ]; then
-        rhcc_args="-r linux/amd64,linux/arm64"
-    fi
-
     # Rebuild the images on internal registry - this will update the base image.
     # Pass the -P argument to have the new images Published.
     status Rebuilding ${product} ${version}
-    ${script_dir}/util/build-k8s-images.sh -R ${REGISTRY} -P -p ${product} -v ${version} ${vanilla_args} ${rhcc_args}
+    ${script_dir}/util/build-k8s-images.sh -R ${REGISTRY} -P -p ${product} -v ${version}
 }
 
 

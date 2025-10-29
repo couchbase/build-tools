@@ -1,17 +1,37 @@
 #!/bin/bash -ex
 
-# Builds and pushes pre-GA Docker images for a variety of products.
+# Builds and pushes pre-GA and post-GA Docker images for a variety of
+# products.
+# ----------------------------
 #
-# This script is passed the three standard build coordinates (omitting
-# RELEASE - it is assumed that this will only be run for products where
-# RELEASE==VERSION), plus a fourth argument, OPENSHIFT_BUILD. The third
-# coordinate, BLD_NUM, is optional; if it is an empty string, this is
-# presumed to be a re-build of an existing GA version. The script will
-# download the -image.tgz artifact for the build (either from
-# latestbuilds if BLD_NUM is specified, or else the internal release
-# mirror if not); unpack it; and build all Docker images contained
-# within it, according to the algorithm here:
+# This script always builds multi-architecture images (linux/amd64 and
+# linux/arm64).
+#
+# This script is passed the standard build coordinates PRODUCT and
+# VERSION - it is assumed that this will only be run for products where
+# RELEASE==VERSION.
+#
+# It is used in two different scenarios:
+#
+#  1. To create normal, pre-GA images as part of the standard build
+#     process (called from couchbase-k8s-microservice-docker.sh). In
+#     this case, the build coordinate BLD_NUM must be passed.
+#  2. To re-publish post-GA images, for example to update the base
+#     image. In this case, BLD_NUM is not passed, and the -P (publish)
+#     argument is passed instead. The images will be built and then
+#     immediately published to the public registries.
+#
+# The actions taken are mostly the same in each case; differences will
+# be noted below.
+#
+# The script will download the -image.tgz artifact for the build; unpack
+# it; and build all Docker images contained within it, according to the
+# algorithm here:
 # https://hub.internal.couchbase.com/confluence/display/CR/Grand+Unified+Build+and+Release+Process+for+Operator
+#
+# The -image.tgz artifact is downloaded from latestbuilds for a normal
+# pre-GA build, or from the internal release mirror for a post-GA
+# republish.
 #
 # Images will be built and pushed to our internal registry with fake
 # orgs cb-vanilla and cb-rhcc, i.e:
@@ -20,9 +40,9 @@
 #     build-docker.couchbase.com/cb-rhcc/${short_product}:${tag}
 #
 # where short_product is PRODUCT with the leading "couchbase-" removed,
-# and tag is either VERSION-BLD_NUM or just VERSION if BLD_NUM is empty.
-# Some products aren't intended to be available via RHCC and so they
-# will not be pushed to cb-rhcc.
+# and tag is either VERSION-BLD_NUM (pre-GA build) or just VERSION
+# (post-GA republish). Some products aren't intended to be available via
+# RHCC and so they will not be pushed to cb-rhcc.
 #
 # Images will also be pushed to external private registries, depending
 # on the product. For most products, the images will have identical
@@ -40,32 +60,26 @@
 # None of those products have RHCC equivalents, so only the above image
 # will be pushed.
 #
-# A REGISTRY parameter can be specified to limit which registry types to push
-# to. If set to "dockerhub", only vanilla images will be built and pushed.
-# If set to "rhcc", only RHCC images will be built and pushed.
-# If omitted or set to "all", both types of images will be built and pushed.
-#
-# NOTE: If BLD_NUM is empty, then VANILLA_ARCHES and/or RHCC_ARCHES must be
-# specified so this script can rebuild the right images in preparation
-# for republishing them. Either or both of these may be the string
-# "none", in which case the corresponding architecture will be silently
-# skipped.
+# A REGISTRY parameter can be specified to limit which registry types to
+# push to. If set to "dockerhub", only vanilla images will be built and
+# pushed. If set to "rhcc", only RHCC images will be built and pushed.
+# If omitted or set to "all", both types of images will be built and
+# pushed.
 
 shopt -s extglob
 
 usage() {
-    echo "Usage: $(basename $0) -p PRODUCT -v VERSION [ -b BLD_NUM | (-d VANILLA_ARCHES | -r RHCC_ARCHES | both) ] [ -o OPENSHIFT_BUILD ] [ -R REGISTRY ] [ -P ]"
+    echo "Usage: $(basename $0) -p PRODUCT -v VERSION [ -b BLD_NUM  | -P ] [ -R REGISTRY ]"
     echo "Options:"
     echo "  -P - Immediately Publish each product's images after building (will publish with just :VERSION tags)"
     echo "  -l - Also create :latest tags in each repository"
     echo "  -R - Specify the registry to use (dockerhub, rhcc, or all [default])"
-    echo "  -o - OPENSHIFT_BUILD (optional, will be generated if not provided when building RHCC images)"
     exit 1
 }
 
 PUBLISH=false
 REGISTRY="all"
-while getopts ":p:v:b:o:d:r:R:lP" opt; do
+while getopts ":p:v:b:R:lP" opt; do
     case ${opt} in
         p)
             PRODUCT=${OPTARG}
@@ -75,15 +89,6 @@ while getopts ":p:v:b:o:d:r:R:lP" opt; do
             ;;
         b)
             BLD_NUM=${OPTARG}
-            ;;
-        o)
-            OPENSHIFT_BUILD=${OPTARG}
-            ;;
-        d)
-            VANILLA_ARCHES=${OPTARG}
-            ;;
-        r)
-            RHCC_ARCHES=${OPTARG}
             ;;
         l)
             LATEST=true
@@ -104,6 +109,15 @@ while getopts ":p:v:b:o:d:r:R:lP" opt; do
     esac
 done
 
+if [ "${PUBLISH}" = "false" -a -z "${BLD_NUM}" ]; then
+    echo "When not publishing (-P), BLD_NUM must be specified"
+    usage
+fi
+if [ "${PUBLISH}" = "true" -a -n "${BLD_NUM}" ]; then
+    echo "When publishing (-P), BLD_NUM must NOT be specified"
+    usage
+fi
+
 building_redhat() {
     if [ "${REGISTRY}" = "rhcc" -o "${REGISTRY}" = "all" ]; then
         return 0
@@ -123,8 +137,7 @@ build-image() {
     local short_product=$2
     local tag=$3
     local external_registry=$4
-    local arches=$5
-    local os_build=$6
+    local os_build=$5
 
     internal_registry=build-docker.couchbase.com
 
@@ -132,11 +145,6 @@ build-image() {
         dockerfile=Dockerfile
     else
         dockerfile=Dockerfile.rhel
-    fi
-
-    # If no arches are specified, just return
-    if [ "${arches}" = "none" ]; then
-        return
     fi
 
     # Is the external_registry ECR?
@@ -177,10 +185,10 @@ build-image() {
         TAG_ARG+=" --tag ${external_org}/${short_product}:${t}"
     done
 
-    header "Building ${arches} ${org} image for ${short_product}:${tag}..."
+    header "Building ${org} image for ${short_product}:${tag}..."
 
     docker buildx build \
-        --platform "${arches}" \
+        --platform "linux/amd64,linux/arm64" \
         --ssh default --push --pull -f ${dockerfile} \
         --no-cache \
         ${TAG_ARG} \
@@ -208,29 +216,11 @@ chk_set PRODUCT
 chk_set VERSION
 
 if [ -z "${BLD_NUM}" ]; then
-    # When no BLD_NUM, we need at least one of VANILLA_ARCHES or RHCC_ARCHES
-    # depending on which registry we're building for
-    if building_vanilla; then
-        chk_set VANILLA_ARCHES
-    fi
-
-    if building_redhat; then
-        chk_set RHCC_ARCHES
-    fi
-
     tag=${VERSION}
     base_url=http://releases.service.couchbase.com/builds/releases/${PRODUCT}/${VERSION}
 else
     tag=${VERSION}-${BLD_NUM}
     base_url=http://latestbuilds.service.couchbase.com/builds/latestbuilds/${PRODUCT}/${VERSION}/${BLD_NUM}
-
-    if building_vanilla && [ -z "${VANILLA_ARCHES}" ]; then
-        VANILLA_ARCHES=$(product_platforms ${PRODUCT})
-    fi
-
-    if building_redhat && [ -z "${RHCC_ARCHES}" ]; then
-        RHCC_ARCHES=$(product_platforms ${PRODUCT})
-    fi
 fi
 
 # Download build manifest and image.tgz artifact
@@ -271,28 +261,31 @@ for local_product in *; do
 
     if building_vanilla; then
         build-image cb-vanilla ${short_product} ${tag} \
-            ${external_registry} ${VANILLA_ARCHES}
+            ${external_registry}
     fi
 
     # Some projects don't do RHCC
     if building_redhat && product_in_rhcc "${PRODUCT}"; then
-        NEXT_BLD=$(${script_dir}/../../../rhcc/scripts/compute-next-rhcc-build.sh -p ${local_product} -v ${VERSION})
+
+        # Need to determine OPENSHIFT_BUILD. This is always "1" for a
+        # pre-GA build. For a post-GA rebuild, compute it from the RHCC
+        # registry.
+        if $PUBLISH; then
+            OPENSHIFT_BUILD=$(${script_dir}/../../../rhcc/scripts/compute-next-rhcc-build.sh -p ${local_product} -v ${VERSION})
+        else
+            OPENSHIFT_BUILD=1
+        fi
         build-image cb-rhcc ${short_product} ${tag} \
-            ${external_registry} ${RHCC_ARCHES} ${NEXT_BLD}
+            ${external_registry} ${OPENSHIFT_BUILD}
     fi
 
     popd &> /dev/null
 
     # If requested, go on and publish this product's images.
     if ${PUBLISH}; then
-        PUBLISH_CMD="${script_dir}/publish-k8s-images.sh -p ${local_product} -i ${tag} -t ${VERSION}"
+        PUBLISH_CMD="${script_dir}/publish-k8s-images.sh -p ${local_product} -i ${tag} -t ${VERSION} -r ${REGISTRY}"
         if [ -n "${OPENSHIFT_BUILD}" ]; then
             PUBLISH_CMD+=" -o ${OPENSHIFT_BUILD}"
-        elif building_redhat; then
-            PUBLISH_CMD+=" -o ${NEXT_BLD}"
-        fi
-        if [ "${REGISTRY}" != "all" ]; then
-            PUBLISH_CMD+=" -r ${REGISTRY}"
         fi
         ${PUBLISH_CMD}
     fi

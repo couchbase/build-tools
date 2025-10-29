@@ -13,17 +13,6 @@ function product_in_rhcc {
     return 0
 }
 
-function product_platforms {
-    local PRODUCT=$1
-
-    if [ "${PRODUCT}" = "couchbase-service-broker" \
-      -o "${PRODUCT}" = "couchbase-observability-stack" ]; then
-        echo "linux/amd64"
-    else
-        echo "linux/amd64,linux/arm64"
-    fi
-}
-
 # Returns the external private pre-GA registry for a specific product.
 function product_external_registry {
     local PRODUCT=$1

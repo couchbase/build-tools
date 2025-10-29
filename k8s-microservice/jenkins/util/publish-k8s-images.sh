@@ -11,7 +11,8 @@
 # Those images will be copied from the source registry to their destinations
 # on Docker Hub and RHCC - for RHCC it will also append the OPENSHIFT_BUILD
 # number to the public tag. If OPENSHIFT_BUILD is omitted or '0', this script
-# will skip the upload to RHCC.
+# will skip the upload to RHCC. It will also automatically skip uploading to
+# RHCC if PRODUCT is not known to be a RHCC image.
 #
 # The REGISTRY argument can be used to limit which registry to publish to:
 # 'dockerhub', 'rhcc', or 'all' (default) if omitted.
@@ -134,13 +135,13 @@ fi
 
 ################## RHCC
 
-if publishing_redhat; then
+if publishing_redhat && product_in_rhcc "${PRODUCT}"; then
     internal_image=${internal_repo}/cb-rhcc/${short_product}:${INTERNAL_TAG}
     external_base=${rhcc_registry}/couchbase/${short_product}:${PUBLIC_TAG}
 
     header Publishing ${internal_image} to ${external_base}...
 
-    status Checking current RHCC ${arch} image key...
+    status Checking current RHCC image key...
     internal_key=$(image_key ${internal_image})
     external_key=$(image_key ${external_base})
     if [ "${internal_key}" = "${external_key}" ]; then

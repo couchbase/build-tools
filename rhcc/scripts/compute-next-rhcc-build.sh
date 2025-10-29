@@ -27,12 +27,12 @@ while getopts :p:v:b:h opt; do
 done
 
 if [[ -z "$PRODUCT" ]]; then
-    echo "Product (-p) is required"
+    echo "Product (-p) is required" >&2
     exit 1
 fi
 
 if [[ -z "$VERSION" ]]; then
-    echo "Full version (-v) is required"
+    echo "Full version (-v) is required" >&2
     exit 1
 fi
 
@@ -66,7 +66,15 @@ CONFFILE=~/.docker/rhcc-metadata.json
 
 product_path=".products.\"${PRODUCT}\""
 project_id=$(jq -r "${product_path}.project_id" "${CONFFILE}")
+if [ -z "${project_id}" -o "${project_id}" = "null" ]; then
+    echo "No project_id entry for ${PRODUCT} in ${CONFFILE}" >&2
+    exit 1
+fi
 registry_key=$(jq -r "${product_path}.registry_key" "${CONFFILE}")
+if [ -z "${registry_key}" -o "${registry_key}" = "null" ]; then
+    echo "No registry_key entry for ${PRODUCT} in ${CONFFILE}" >&2
+    exit 1
+fi
 image_base=quay.io/redhat-isv-containers/${project_id}
 
 # Login to RHCC

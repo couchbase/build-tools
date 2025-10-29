@@ -20,6 +20,5 @@ if [[ ${highest_version} = ${VERSION} && "${VERSION}" != *"-"* ]]; then
 fi
 
 # Build the images into the internal and external pre-GA registries.
-OS_BUILD=${OS_BUILD-1}
 ${script_dir}/util/build-k8s-images.sh \
-    -p ${PRODUCT} -v ${VERSION} -b ${BLD_NUM} -o ${OS_BUILD} ${LATEST_ARG}
+    -p ${PRODUCT} -v ${VERSION} -b ${BLD_NUM} ${LATEST_ARG}
