@@ -22,8 +22,6 @@ S3_ROOT=s3://packages.couchbase.com/${PROD_NAME}
 
 cd /latestbuilds/python_tools/${PROD_NAME}/${VERSION}/${BLD_NUM}
 
-UPLOADED_URLS=
-
 copy_to_releases() {
     installer=$1
     # This should be file path relative to /releases
@@ -31,7 +29,6 @@ copy_to_releases() {
     release_file=$2
 
     cp -a ${installer} ${RELEASE_DIR_BASE}/${release_file}
-    UPLOADED_URLS="${HTTPS_BASE}/${release_file}\n${UPLOADED_URLS}"
     sha256sum ${RELEASE_DIR_BASE}/${release_file} \
         > ${RELEASE_DIR_BASE}/${release_file}.sha256
 }
@@ -51,8 +48,8 @@ release_installer() {
     copy_to_releases ${installer} ${out_dir}/${PROD_NAME}-${ARCH}
 }
 
-# Build-specific files
-cp -a *manifest* *properties* ${RELEASE_DIR}
+# Copy build manifest
+cp -a *manifest* ${RELEASE_DIR}
 
 # Installer binaries
 for ARCH in x86_64 aarch64; do
@@ -68,13 +65,11 @@ done
 
 # Update S3
 aws s3 sync ${RELEASE_DIR_BASE}/${PROD_NAME}/ ${S3_ROOT}/ --acl public-read
+aws cloudfront create-invalidation --distribution-id E1U7LG5JV48KNP --paths '/cb-non-package-installer/*'
 
-set +x
-echo ::::::::::::::::::
-echo Uploaded files for ${PROD_NAME} ${VERSION_STRING}
-echo ::::::::::::::::::
-echo Downloads:
-printf "${UPLOADED_URLS}" | sort
-echo SHAs:
-printf "${UPLOADED_URLS}" | sort | sed -e 's/$/.sha256/'
-echo ::::::::::::::::::
+# Produce report
+if [ -n "${APPROVAL_ISSUE}" ]; then
+    REPORT_ARGS="--issue $APPROVAL_ISSUE"
+fi
+${SCRIPT_DIR}/../s3/produce_s3_urls_report ${REPORT_ARGS} \
+    cb-non-package-installer ${VERSION} ${BLD_NUM}

@@ -56,11 +56,13 @@ def get_url_list(product, version, editions, hide_community, staging):
 
   # Handle path differences on S3 / internal release mirror
   if product == 'couchbase-server':
-    s3_dir = ''
+    s3_dir = 'releases'
   elif product == 'sync_gateway':
-    s3_dir = '/couchbase-sync-gateway'
+    s3_dir = 'releases/couchbase-sync-gateway'
+  elif product == 'cb-non-package-installer':
+    s3_dir = 'cb-non-package-installer'
   else:
-    s3_dir = f'/{product}'
+    s3_dir = f'releases/{product}'
 
   # Force EE/CE split for couchbase-server
   if product == 'couchbase-server':
@@ -82,7 +84,8 @@ def get_url_list(product, version, editions, hide_community, staging):
   else:
     s3_bucket = 'packages.couchbase.com'
     transport = 'https'
-  s3_rel_prefix = f'releases{s3_dir}/{version}/'
+  s3_rel_prefix = f'{s3_dir}/{version}/'
+  print(f"Getting S3 URLs from bucket {s3_bucket}, prefix {s3_rel_prefix}...")
 
   # Generate list of files from s3 for given release. This expects AWS
   # credentials in the standard location (~/.aws/credentials).
