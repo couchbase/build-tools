@@ -1,0 +1,2 @@
+# Ignore build directory with generated wrappers
+build/
