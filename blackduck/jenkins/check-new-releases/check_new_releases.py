@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import time
 from packaging.version import Version, InvalidVersion
 
@@ -90,9 +91,11 @@ def clone_repo(repo):
     """
     delete_dir_if_exists(os.path.join(WORK_DIR, repo.split("/")[-1]))
     logging.debug(f"Cloning {repo}")
-    repo = git.Repo.clone_from(
+    cloned_repo = git.Repo.clone_from(
         f"git@github.com:{repo}", os.path.join(WORK_DIR, repo.split("/")[-1]))
-    return repo
+    # Fetch all tags to ensure we have the commit objects they point to
+    cloned_repo.git.fetch('--tags', '--force')
+    return cloned_repo
 
 
 def get_main_branch(repo):
@@ -118,11 +121,27 @@ def get_tags(repo):
     dict: dict of tags, with commit + timestamp for each
     """
     tags = {}
-    for tag in repo.tags:
-        tags[tag.name] = {
-            'commit': tag.commit.hexsha,
-            'timestamp': tag.commit.committed_date,
-        }
+
+    result = subprocess.run(
+        ['git', '-C', repo.working_tree_dir, 'for-each-ref', '--format=%(refname:short)', 'refs/tags'],
+        capture_output=True,
+        text=True,
+        errors='replace'
+    )
+
+    for tag_name in result.stdout.strip().split('\n'):
+        if not tag_name:
+            continue
+        try:
+            commit = repo.commit(tag_name)
+            tags[tag_name] = {
+                'commit': commit.hexsha,
+                'timestamp': commit.committed_date,
+            }
+        except Exception:
+            # Skip tags that don't resolve (deleted tags, etc.)
+            logging.debug(f"Skipping tag {tag_name!r}: commit not found")
+
     return tags
 
 
