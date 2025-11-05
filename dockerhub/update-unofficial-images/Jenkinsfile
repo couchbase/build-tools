@@ -104,5 +104,11 @@ ${paramsFormatted}
                 mimeType: 'text/html'
             )
         }
+        always {
+            sh '''
+                echo "Pruning images"
+                docker system prune -af
+            '''
+        }
     }
 }
