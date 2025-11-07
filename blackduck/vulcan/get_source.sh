@@ -25,7 +25,7 @@ if [[ "$RELEASE" == "release" ]]; then
 else
   git checkout $RELEASE
 fi
-rm -rf deprecated docs sandbox tests
+rm -rf deprecated docs sandbox tests evaluation
 
 # Extract POETRY_VERSION and PYTHON_VERSION with defaults
 PYTHON_VERSION=$(grep "^PYTHON_VERSION :=" Makefile | cut -d' ' -f3)
