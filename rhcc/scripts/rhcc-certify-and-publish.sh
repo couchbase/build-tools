@@ -104,7 +104,7 @@ registry_key=$(jq -r "${product_path}.registry_key" "${CONFFILE}")
 api_key=$(jq -r ".rhcc.api_key" "${CONFFILE}")
 
 # Set additional env vars so preflight can run
-export PFLT_CERTIFICATION_PROJECT_ID=${project_id}
+export PFLT_CERTIFICATION_COMPONENT_ID=${project_id}
 export PFLT_PYXIS_API_TOKEN=${api_key}
 
 # Log in to quay.io, storing the result to a custom config so only RHCC
