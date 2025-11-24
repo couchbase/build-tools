@@ -40,6 +40,7 @@ try {
     $ErrorActionPreference = "Stop"
 
     $Version31 = $InVersion.StartsWith("3.1")
+    $Version3 = $InVersion.StartsWith("3")
     $buildlessVersion = $InVersion.Split("-")[0]
     $numericBuildNumber = $InVersion.Split("-")[1].TrimStart('b', '0')
 
@@ -47,12 +48,16 @@ try {
         "couchbase-lite-net" {
             <#
                 Couchbase.Lite.Enterprise.Support.UWP and Couchbase.Lite.Support.UWP are removed in 3.2.0 and beyond.
+                Couchbase.Lite.Enterprise.Support.WinUI and Couchbase.Lite.Support.WinUI are removed in 4.0.0 and later.
             #>
             if ($Version31) {
                 $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.UWP","Couchbase.Lite.Support.WinUI","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.UWP","Couchbase.Lite.Enterprise.Support.WinUI"
                 $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
-            } else {
+            } elseif ($Version3) {
                 $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.WinUI","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.WinUI"
+                $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
+            } else {
+                $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop"
                 $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
             }
         }
