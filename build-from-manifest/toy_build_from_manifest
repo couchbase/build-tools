@@ -52,18 +52,35 @@ if [[ -n $MANIFEST_REPO ]]; then
 
     chk_set MANIFEST_FILE
 
-    # Sync to empty.xml first - guaranteed to exist
-    MANIFEST_PARAMS="-u ${MANIFEST_REPO}"
-    MANIFEST_PARAMS+=" -m python_tools/patch_via_gerrit/empty.xml"
+    # Clone manifest repo and create an empty manifest for bootstrapping.
+    # This allows us to do a quick repo init/sync (with nothing to sync),
+    # apply any Gerrit patches to the manifest repo, then re-init with
+    # the real manifest.
+    echo "Cloning manifest repo"
+    echo ================================
+    rm -rf .manifest-tmp
+    git clone "${MANIFEST_REPO}" .manifest-tmp
     if [[ -n $MANIFEST_BRANCH ]]; then
-        MANIFEST_PARAMS+=" -b ${MANIFEST_BRANCH}"
+        git -C .manifest-tmp checkout "${MANIFEST_BRANCH}"
     fi
+
+    # Create empty manifest inline for bootstrapping
+    cat > .manifest-tmp/empty-bootstrap.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+</manifest>
+EOF
+    git -C .manifest-tmp add empty-bootstrap.xml
+    git -C .manifest-tmp commit -q -m "Add empty bootstrap manifest"
 
     rm -rf src
     mkdir src
     pushd src
 
-    # Initial repo sync
+    MANIFEST_PARAMS="-u file://$(dirname $(pwd))/.manifest-tmp"
+    MANIFEST_PARAMS+=" -m empty-bootstrap.xml"
+
+    # Initial repo sync with empty manifest
     echo "Syncing manifest repo - empty manifest only"
     echo ================================
     repo init --no-repo-verify ${MANIFEST_PARAMS} -g all --reference=~/reporef

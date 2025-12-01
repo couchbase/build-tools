@@ -38,6 +38,9 @@ chk_set ARCH
 chk_set PLATFORM
 chk_set PROFILE
 
+# Set the umask to 022 to ensure that the build dirs get correct ACL
+umask 022
+
 # Ensure linker generates build-ids on linux
 if [ "${PLATFORM}" == "linux" ]; then
     export LDFLAGS="-Wl,--build-id"
