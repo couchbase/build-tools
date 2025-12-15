@@ -8,21 +8,16 @@ BLD_NUM=$4
 # current repo, do not remove:
 # github.com/couchbase/couchbase-jvm-clients
 
-if [[ "$VERSION" == 3.8.* ]]
-then
-    TAG=java-client-$VERSION
-else
-    TAG=$VERSION
-fi
+TAG=$VERSION
 
 git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
 if git rev-parse --verify --quiet $TAG >& /dev/null
 then
-    echo "Tag $TAG exists, checking it out"
+    echo "$TAG exists, checking it out"
     git checkout $TAG
 else
-    echo "No tag $TAG, assuming master"
+    echo "No $TAG tag or branch, assuming master"
 fi
 
 # The fit-performer packages are test-only and require a non-public

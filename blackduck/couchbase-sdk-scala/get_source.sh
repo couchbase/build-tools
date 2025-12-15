@@ -8,12 +8,7 @@ BLD_NUM=$4
 git clone ssh://git@github.com/couchbase/couchbase-jvm-clients
 pushd couchbase-jvm-clients
 
-if [[ "$VERSION" == 1.* ]]
-then
-    TAG=scala-client-$VERSION
-else
-    TAG=$VERSION
-fi
+TAG=$VERSION
 
 if git rev-parse --verify --quiet $TAG >& /dev/null
 then
