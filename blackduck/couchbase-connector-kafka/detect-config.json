@@ -4,8 +4,7 @@
         "logging.level.detect": "DEBUG",
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.detector.search.continue": true,
-        "detect.maven.included.scopes": "runtime",
-        "detect.maven.ignore.scopes": "provided,test",
+        "detect.maven.included.scopes": "compile,runtime",
         "detect.maven.build.command": "--batch-mode"
     }
 }
