@@ -6,7 +6,7 @@ VERSION=$3
 BLD_NUM=$4
 
 MAVEN_VERSION=3.9.6
-
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cbdep install -d "${WORKSPACE}/extra" mvn ${MAVEN_VERSION}
 export PATH="${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:${PATH}"
 
@@ -25,8 +25,10 @@ rm -rf examples
 
 # Tell BD's custom settings.xml to skip the Couchbase maven cache for snapshots
 export M2_MIRROROF="external:*,!central-portal-snapshots"
+cp pom.xml pom.xml.org
 
-mvn --batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository dependency:resolve
-mvn --batch-mode -Dmaven.repo.local=/home/couchbase/.m2/${PRODUCT}-repository -Dmaven.test.skip=true -Dmaven.javadoc.skip=true install
+uv run --project "${SCRIPT_DIR}/../scripts" --quiet \
+  "${SCRIPT_DIR}/../scripts/exclude-pom-dependencies.py" \
+    --scope provided
 
 popd
