@@ -11,6 +11,7 @@ PACKAGE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${PACKAGE_DIR}/../../utilities/shell-utils.sh"
 
 # Get dependency versions from manifest annotations
+CUDA_COMPLETE_VERSION=$(annot_from_manifest CUDA_COMPLETE_VERSION)
 OPENBLAS_VERSION=$(annot_from_manifest OPENBLAS_VERSION)
 LLVM_OPENMP_VERSION=$(annot_from_manifest LLVM_OPENMP_VERSION)
 
@@ -56,28 +57,71 @@ function download_openblas() {
     export cmake_prefix_path="${ROOT_DIR}/deps/openblas-${OPENBLAS_VERSION}"
 }
 
+function install_cuda() {
+    IFS="_" read -r CUDA_VERSION CUDA_DRIVER_VERSION <<< "${CUDA_COMPLETE_VERSION}"
+    export CUDA_HOME=/home/couchbase/cuda_${CUDA_VERSION}
+    export PATH=${CUDA_HOME}/bin:$PATH
+    export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:$LD_LIBRARY_PATH
+    # if nvcc exist, assume cuda is already installed
+    if [[ ! -f "${CUDA_HOME}/bin/nvcc" ]]; then
+        if [[ "${ARCH}" == "aarch64" ]]; then
+            RUN_FILE=cuda_${CUDA_COMPLETE_VERSION}_linux_sbsa.run
+        else
+            RUN_FILE=cuda_${CUDA_COMPLETE_VERSION}_linux.run
+        fi
+        curl -fsSL \
+          -o cuda_linux.run \
+          https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/local_installers/${RUN_FILE}
+        rm -rf ${CUDA_HOME}
+        mkdir ${CUDA_HOME}
+        sh cuda_linux.run --toolkit --installpath=${CUDA_HOME} --silent
+        rm -f cuda_linux.run
+    fi
+}
 
-# Compiler stuff - platform dependent
-if [ "$(uname -s)" == "Darwin" ]; then
-    # Need OpenMP from LLVM as Apple, for some reason, omits it in XCode
-    build_openmp
-else
-    # Need OpenBLAS on Linux
-    download_openblas
+OS_TYPE=$(uname -s | tr '[:upper:]' '[:lower:]')
 
-    # Build with GCC 13 for latest hardware compatibility
-    export CXX=/opt/gcc-13.2.0/bin/g++
-    export CC=/opt/gcc-13.2.0/bin/gcc
-fi
+# Build. The PROFILE is used to determine whether to build with GPU support
+# and passed as FAISS_OPT_LEVEL. Currently supported values are
+# "generic", "avx2", and "avx2-gpu".
 
-# Build. The PROFILE is passed as FAISS_OPT_LEVEL, so legal values are
-# "generic" and "avx2".
+OPT_LEVEL=$(echo ${PROFILE} | sed -e "s/-gpu//")
+case "${OS_TYPE}" in
+    "darwin")
+        if [[ "${PROFILE}" == *"gpu"* ]]; then
+            echo "Skipping GPU build on Darwin"
+            exit 0 # Skip GPU build on Darwin
+        fi
+        ENABLE_GPU=OFF
+        # Need OpenMP from LLVM as Apple, for some reason, omits it in XCode
+        build_openmp
+        ;;
+    "linux")
+        if [[ "${PROFILE}" == *"gpu"* ]]; then
+            install_cuda
+            ENABLE_GPU=ON
+        else
+            ENABLE_GPU=OFF
+        fi
+        # Need OpenBLAS on Linux
+        download_openblas
+
+        # Build with GCC 13 for latest hardware compatibility
+        export CXX=/opt/gcc-13.2.0/bin/g++
+        export CC=/opt/gcc-13.2.0/bin/gcc
+        ;;
+    *)
+        echo "Unsupported OS: ${OS_TYPE}"
+        exit 1
+        ;;
+esac
+
 cd "${ROOT_DIR}"
 cmake -B build -S "${ROOT_DIR}/faiss" \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_PREFIX_PATH="${cmake_prefix_path}" \
-    -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DFAISS_ENABLE_C_API=ON \
-    -DFAISS_OPT_LEVEL=${PROFILE} \
+    -DFAISS_ENABLE_GPU=${ENABLE_GPU} -DFAISS_ENABLE_PYTHON=OFF -DFAISS_ENABLE_C_API=ON \
+    -DFAISS_OPT_LEVEL=${OPT_LEVEL} \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" -DCMAKE_INSTALL_LIBDIR=lib \
     -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_INSTALL_RPATH='$ORIGIN'
@@ -89,13 +133,19 @@ cd "${INSTALL_DIR}/lib"
 rm -rf pkgconfig
 
 # Do need to include openmp on Mac
-if [ "$(uname -s)" == "Darwin" ]; then
-    cp -avi "${ROOT_DIR}/openmp/lib/"* .
+if [[ "${OS_TYPE}" == "darwin" ]]; then
+    cp -av "${ROOT_DIR}/openmp/lib/"* .
     pushd "${INSTALL_DIR}/include"
-    cp -avi "${ROOT_DIR}/openmp/include/"* .
+    cp -av "${ROOT_DIR}/openmp/include/"* .
     popd
 fi
 
+# package cuda libraries when building with ENABLE_GPU
+if [[ "${ENABLE_GPU}" == "ON" ]]; then
+    cp -av ${CUDA_HOME}/lib64/libcudart.so* ${INSTALL_DIR}/lib/.
+    cp -av ${CUDA_HOME}/lib64/libcublas.so* ${INSTALL_DIR}/lib/.
+    cp -av ${CUDA_HOME}/lib64/libcublasLt.so* ${INSTALL_DIR}/lib/.
+fi
 # Create BD_MANIFEST if requested
 if [ -n "${BD_MANIFEST}" ]; then
     # BD may use slightly different version conventions, so we get that

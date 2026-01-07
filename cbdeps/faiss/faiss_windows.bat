@@ -3,6 +3,14 @@ set INSTALL_DIR=%1
 set ROOT_DIR=%2
 set PROFILE=%4
 
+echo %PROFILE% | findstr /i "gpu" >nul
+if %errorlevel%==0 (
+    echo skipping gpu build on windows
+    goto :eof
+) else (
+    set OPT_LEVEL=%PROFILE%
+)
+
 cd %ROOT_DIR%
 
 rem Just way easier to extract the OpenBLAS and LLVM versions from the manifest
@@ -43,7 +51,7 @@ cmake -B build -S %ROOT_DIR%\faiss -G Ninja ^
     -DCMAKE_PREFIX_PATH=%ROOT_DIR%\deps\openblas-%OPENBLAS_VER% ^
     -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON ^
     -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DFAISS_ENABLE_C_API=ON ^
-    -DFAISS_OPT_LEVEL=%PROFILE% ^
+    -DFAISS_OPT_LEVEL=%OPT_LEVEL% ^
     -DCMAKE_INSTALL_PREFIX=%INSTALL_DIR% -DCMAKE_INSTALL_LIBDIR=lib ^
     -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=ON || goto :error
 cd build
