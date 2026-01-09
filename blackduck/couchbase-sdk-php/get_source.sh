@@ -45,6 +45,13 @@ TARBALL=
 IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
 if [[ "$VERSION" == "snapshot" ]] || (( MAJOR > 4 || (MAJOR == 4 && MINOR >= 2) ))
 then
+    # Disable OpenTelemetry - it's OFF by default when the cxx-client is used as a
+    # dependency (which is how real users build the PHP SDK). It's only ON here because
+    # package.rb runs cmake with cxx-client as the root project. The deps get deleted
+    # before scanning anyway (see rm -rf below), and disabling it avoids a curl/BoringSSL
+    # build conflict.
+    sed -i 's/"-DCOUCHBASE_CXX_CLIENT_STATIC_BORINGSSL=ON",/"-DCOUCHBASE_CXX_CLIENT_STATIC_BORINGSSL=ON", "-DCOUCHBASE_CXX_CLIENT_BUILD_OPENTELEMETRY=OFF",/' bin/package.rb
+
     gem install --user-install --no-document nokogiri
     BUILD_NUMBER=0 ruby bin/package.rb
     TARBALL=$(ls -1 couchbase-*.tgz | head -1)
