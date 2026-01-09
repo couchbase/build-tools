@@ -59,13 +59,12 @@
     "jdk-21.0.8-ga": "jdk-21.0.8+9"
 
 # GRPC
-"a66041df-2ef9-4ba9-b9e3-c8c4dc9ddf22":
+"f706d0f9-963f-4464-a69e-9e4647131897":
   bd-id-aliases:
     - "d720ec74-66da-4af3-a909-a1e799f0727f"
     - "a38e1dc0-f53d-4dc1-adb4-6328fc424fb5"
     - "4c1ff009-d3b6-4f0c-8c3c-fd810d1b8d5c"
-  fallback-versions:
-    "1.72.0": "1.71.0"
+    - "a66041df-2ef9-4ba9-b9e3-c8c4dc9ddf22"
 
 # Openssl
 "cd7c0bf1-7757-4ce9-bcc0-46332273dc27":
