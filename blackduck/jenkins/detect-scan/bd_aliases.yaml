@@ -101,6 +101,11 @@
   fallback-versions:
     "14.1.0": "13.2.0"
 
+# libsodium
+"ef66948e-fcea-4a1a-8936-bb64c3866ec3":
+  fallback-versions:
+    "1.0.21": "1.0.21-RELEASE"
+
 # BoringSSL
 "09937fd5-ac0e-4c0b-8500-9479ced81391":
   bd-id-aliases:
