@@ -8,4 +8,10 @@ REPO_ROOT="$( cd "$SCRIPT_DIR/../../../" && pwd )"
 # Clone the tlm repository
 $REPO_ROOT/utilities/clean_git_clone https://github.com/couchbase/tlm
 
+# Checkout specified release branch if RELEASE is set
+if [ -n "${RELEASE}" ]; then
+    echo "Checking out branch: ${RELEASE}"
+    git -C tlm checkout "origin/${RELEASE}"
+fi
+
 ./main.py
