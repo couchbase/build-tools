@@ -105,7 +105,9 @@ couchbase-server)
 
     # Only expect community editions we actually build
     # Build community for versions ending in .0, .1, or .2
-    if [[ "${VERSION}" =~ \.(0|1|2)$ ]]; then
+    patch_version=${VERSION##*.}
+    patch_version=${patch_version%%[^0-9]*}
+    if (( ${patch_version} < 3 )); then
         build_community=true
     else
         build_community=false
