@@ -6,7 +6,7 @@ PROFILE=$4
 VERSION=$6
 
 cd ${ROOT_DIR}/icu/icu4c/source
-./runConfigureICU --enable-debug Linux/gcc
+./runConfigureICU --enable-debug Linux
 make -j8
 make install prefix="${INSTALL_DIR}"
 
@@ -20,5 +20,5 @@ cd lib
 rm -f libicuio* libicutest* libicutu*
 
 for file in libicu*.so.${VERSION}; do
-    chrpath -r '$ORIGIN' ${file}
+    patchelf --set-rpath '$ORIGIN' ${file}
 done
