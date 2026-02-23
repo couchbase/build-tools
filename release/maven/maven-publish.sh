@@ -71,9 +71,11 @@ function sonatype_api_publish() {
     # ${pom_file}, ${main_file}, ${sources_file}, ${javadoc_file}
     # are set in download_artifacts
     echo "Signing and creating checksums for ${publish_name}..."
-    gpg --armor --detach-sign "${main_file}"
+    gpg --no-tty --armor --detach-sign "${main_file}"
+    gpg --verify "${main_file}".asc "${main_file}"
     for file in "${pom_file}" "${main_file}" "${sources_file}" "${javadoc_file}"; do
-        gpg --armor --detach-sign "${file}"
+        gpg --no-tty --armor --detach-sign "${file}"
+        gpg --verify "${file}".asc "${file}"
         md5sum "${file}" | cut -d' ' -f1 > "${file}.md5"
         sha1sum "${file}" | cut -d' ' -f1 > "${file}.sha1"
     done
