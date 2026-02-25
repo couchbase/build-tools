@@ -21,6 +21,6 @@ case ${UPSTREAM_BRANCH} in
   stabilization-0795ad31de) echo "ea-2.0.0";;
   log4jfix-22d4e6a278) echo "6.6.4";;
   log4jfix-5e11053887) echo "7.0.3";;
-  morpheus|trinity|neo|cheshire-cat|mad-hatter|master|6.5.x-docs|goldfish|ionic|phoenix) echo "${UPSTREAM_BRANCH}";;
+  lumina|morpheus|trinity|neo|cheshire-cat|mad-hatter|master|6.5.x-docs|goldfish|ionic|phoenix) echo "${UPSTREAM_BRANCH}";;
   *) echo "Don't know how to handle upstream branch: ${UPSTREAM_BRANCH}"; exit 1;;
 esac
