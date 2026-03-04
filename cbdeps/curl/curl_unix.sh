@@ -54,8 +54,7 @@ if [[ $(uname -s) == "Darwin" ]]; then
     # Experimentally, we need to add this rpath explicitly
     # or else curl's configure process complains about libs
     # available at link time but not runtime. Not sure why
-    # we don't also need to specify zlib's lib dir...
-    export LDFLAGS="-Wl,-rpath,${openssl_DIR}/lib"
+    export LDFLAGS="-Wl,-rpath,${openssl_DIR}/lib -Wl,-rpath,${zlib_DIR}/lib"
 else
     export LDFLAGS="-Wl,-rpath,'\$\$ORIGIN/../lib'"
     export LD_LIBRARY_PATH="${openssl_DIR}/lib ${zlib_DIR}/lib"
