@@ -4,7 +4,7 @@ set PROFILE=%4
 
 rem Download the right OpenSSL package depending on profile
 if %PROFILE% == server (
-  set OPENSSL_VER=3.5.1-1
+  set OPENSSL_VER=3.5.5-1
   set CBDEP_PLATFORM=windows
 ) else (
   set OPENSSL_VER=1.1.1g-sdk1
@@ -23,7 +23,7 @@ rem (https://github.com/grpc/grpc/issues/39026). Pull the newer version
 rem here.
 pushd third_party\cares\cares
 git fetch origin
-git checkout v1.34.5
+git checkout v1.34.6
 popd
 
 rem Build grpc binaries and libraries
