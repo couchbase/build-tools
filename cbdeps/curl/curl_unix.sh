@@ -94,10 +94,12 @@ if [[ $(uname -s) == "Darwin" ]]; then
     install_name_tool -id @rpath/libcurl.4.dylib ${INSTALL_DIR}/lib/libcurl.4.dylib
     # Fix the hardcoded path to libcurl in curl.
     install_name_tool -change ${INSTALL_DIR}/lib/libcurl.4.dylib @executable_path/../lib/libcurl.4.dylib ${INSTALL_DIR}/bin/curl
-    # Remove the hardcoded rpath to openssl in libcurl that we added earlier
-    # from both libcurl and curl.
+    # Remove the hardcoded rpaths to openssl and zlib in libcurl that we
+    # added earlier from both libcurl and curl.
     install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/lib/libcurl.4.dylib
     install_name_tool -delete_rpath ${openssl_DIR}/lib ${INSTALL_DIR}/bin/curl
+    install_name_tool -delete_rpath ${zlib_DIR}/lib ${INSTALL_DIR}/lib/libcurl.4.dylib
+    install_name_tool -delete_rpath ${zlib_DIR}/lib ${INSTALL_DIR}/bin/curl
     # Finally add a basic rpath to curl.
     install_name_tool -add_rpath @executable_path/../lib ${INSTALL_DIR}/bin/curl
 else
