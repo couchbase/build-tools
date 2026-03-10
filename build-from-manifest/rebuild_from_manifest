@@ -5,6 +5,13 @@
 # build-properties.json, and build-manifest.xml. The build properties files
 # will contain only basic build information; see
 # build-tools/utilities/sync_historic_manifest for details.
+#
+# Optional environment variable:
+#   UNLOCK_PROJECTS - comma-separated list of projects to unlock from their
+#     pinned SHA, syncing to a branch tip instead. Two formats are accepted:
+#       project1,project2          (defaults to 'master' branch)
+#       project1=branch,project2=main  (explicit branch per project)
+#     Example: UNLOCK_PROJECTS=golang=main ./rebuild_from_manifest ...
 
 PRODUCT=$1
 RELEASE=$2

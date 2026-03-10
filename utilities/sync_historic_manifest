@@ -79,6 +79,46 @@ echo ================================
 # support --git-lfs.
 repo init -u "${WORKDIR}/${BUILD_MANI_DIR}" -b $SHA -g all -m $MANIFEST
 git -C .repo/manifests.git config repo.git-lfs true
+
+# If UNLOCK_PROJECTS is set, modify the manifest to unlock specific projects
+# before syncing. Accepts two formats (comma-separated):
+#   project1,project2          -> sets revision to 'master' for each
+#   project1=branch,project2=main -> sets revision to the named branch
+if [ ! -z "${UNLOCK_PROJECTS}" ]; then
+    echo "Unlocking projects: ${UNLOCK_PROJECTS}"
+    echo ==========================
+    python3 - ".repo/manifests/${MANIFEST}" "${UNLOCK_PROJECTS}" <<'PYEOF'
+import sys
+import xml.etree.ElementTree as ET
+
+manifest_path = sys.argv[1]
+unlock_spec = sys.argv[2]
+
+unlocks = {}
+for item in unlock_spec.split(','):
+    item = item.strip()
+    if '=' in item:
+        name, branch = item.split('=', 1)
+        unlocks[name.strip()] = branch.strip()
+    else:
+        unlocks[item] = 'master'
+
+tree = ET.parse(manifest_path)
+root = tree.getroot()
+for project in root.findall('project'):
+    name = project.get('name')
+    if name in unlocks:
+        branch = unlocks[name]
+        old_rev = project.get('revision', '(none)')
+        print(f"  {name}: {old_rev} -> {branch}")
+        project.set('revision', branch)
+        project.set('upstream', branch)
+
+tree.write(manifest_path, xml_declaration=False, encoding='unicode')
+PYEOF
+    echo
+fi
+
 repo sync --jobs=8
 repo manifest -r > manifest.xml
 echo
