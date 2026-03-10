@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/../../utilities/shell-utils.sh"
 cd ${ROOT_DIR}
 GO_VER=$(gover_from_manifest)
 
-cd ${ROOT_DIR}/protoc-gen-go
+cd ${ROOT_DIR}/protoc-gen-go/cmd
 
 DEPS=${WORKSPACE}/deps
 CBDEP_TOOL_VER=1.1.6
