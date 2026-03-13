@@ -367,7 +367,7 @@ do
     ver=$(echo ${add_pack//:/ } | awk '{print $2}' | sed 's/-/ /' | awk '{print $1}')
     bldnum=$(echo ${add_pack//:/ } | awk '{if ($2) { print $2 } else { print $1 }}' | sed 's/-/ /' | awk '{print $2}' | sed 's/_.*//')
     pushd "${ESCROW}/build-manifests/cbdeps" > /dev/null
-    sha=$(git log --pretty=oneline "${dep}/${ver}/${ver}.xml" | grep "${ver}-${bldnum}" | awk '{print $1}')
+    sha=$(git log --pretty=oneline "${dep}/${ver}/${ver}.xml" | grep "${ver}-${bldnum}" | head -1 | awk '{print $1}')
     get_cbdeps2_src ${dep} ${ver} ${dep}/${ver}/${ver}.xml ${sha} ${bldnum}
     popd
   done

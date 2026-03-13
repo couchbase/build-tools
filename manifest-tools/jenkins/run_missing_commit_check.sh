@@ -202,8 +202,8 @@ fi
 # with the --compare_builds flag
 if [ "${FIRST_BUILD}" != "" ]; then
     pushd ${build_manifest_dir}
-    FIRST_SHA=$(git log --grep="${PRODUCT} ${FIRST_CODENAME} build ${FIRST_VERSION}-${FIRST_BUILD}" --format="%H")
-    LAST_SHA=$(git log --grep="${PRODUCT} ${LAST_CODENAME} build ${LAST_VERSION}-${LAST_BUILD}" --format="%H")
+    FIRST_SHA=$(git log -1 --grep="${PRODUCT} ${FIRST_CODENAME} build ${FIRST_VERSION}-${FIRST_BUILD}" --format="%H")
+    LAST_SHA=$(git log -1 --grep="${PRODUCT} ${LAST_CODENAME} build ${LAST_VERSION}-${LAST_BUILD}" --format="%H")
 
     set -x
     git checkout ${FIRST_SHA} > /dev/null

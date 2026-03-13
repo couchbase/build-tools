@@ -25,7 +25,7 @@ else
 
     # Find the requests build manifest
     cd build-manifests
-    SHA=$(git log --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
+    SHA=$(git log -1 --format='%H' --grep "^$PRODUCT $RELEASE build $VERSION-$BLD_NUM$")
     if [ -z "${SHA}" ]; then
         echo "Build ${PRODUCT} ${RELEASE} ${VERSION}-${BLD_NUM} not found!"
         exit 1
