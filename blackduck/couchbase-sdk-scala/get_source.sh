@@ -18,9 +18,8 @@ else
     echo "No $TAG tag or branch, assuming master"
 fi
 
-# The fit-performer packages are test-only and require a non-public
-# jar, so they'll never be shipped; but their poms mess up the scans.
-rm -rf *-fit-performer
+# The fit-performer modules are test-only but their poms mess up the scans.
+rm -rf *fit-performer*
 
 # Black Duck needs either `mvn` on the PATH, or a `.mvnw` executable
 # next to each `pom.xml`. We'd prefer not to do the former since it
