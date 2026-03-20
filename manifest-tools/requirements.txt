@@ -6,7 +6,7 @@ defusedxml==0.7.1
 dulwich==0.19.15
 idna==3.10
 jira==2.0.0
-lxml==4.5.0
+lxml==6.0.2
 oauthlib==3.2.2
 packaging==24.2
 pbr==6.1.0

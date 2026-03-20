@@ -107,7 +107,6 @@ class MissingCommits:
         self.sha_lock = threading.Lock()
         self.date_lock = threading.Lock()
 
-        self.total_missing_commits = 0
         self.matched_commits = 0
 
         self.product = product
@@ -148,6 +147,17 @@ class MissingCommits:
             self.log.critical("Jira connection failed")
             raise RuntimeError("Jira connection failed") from exc
 
+    @property
+    def total_missing(self):
+        """
+        Return the total number of missing commits
+        """
+        total = 0
+        for project, info in self.commits[self.product].items():
+            commits = info.get("TrackedCommits", {})
+            total += sum(1 for sha, match_details in commits.items() if match_details['missing_from'])
+        return total
+
     def __str__(self):
         """
         Return a formatted string with the missing commits (and matches if
@@ -162,16 +172,15 @@ class MissingCommits:
         output = ""
         projects_not_missing_commits = []
 
-        if self.total_missing_commits > 0:
-            output += header("MISSING COMMITS", self.total_missing_commits)
+        if self.total_missing > 0:
+            output += header("MISSING COMMITS", self.total_missing)
             for project, info in self.commits[self.product].items():
-                commits = info.get("Missing", {})
+                commits = {sha: details for sha, details in info.get("TrackedCommits", {}).items() if details['missing_from']}
                 if commits:
                     output += f"{os.linesep}Project {project} - missing: {len(commits)}{os.linesep}"
-                    if commits:
-                        for sha, match_details in commits.items():
-                            # Show the missing commit info, along with the branches/releases it is missing from
-                            output += f"    [{sha[:7]}] {match_details['message']}{os.linesep}             Date: {match_details['date']}{os.linesep}       Present in: {', '.join(match_details['present_in'])}{os.linesep}     Missing from: {', '.join(match_details['missing_from'])}{os.linesep}"
+                    for sha, match_details in commits.items():
+                        # Show the missing commit info, along with the branches/releases it is missing from
+                        output += f"    [{sha[:7]}] {match_details['message']}{os.linesep}             Date: {match_details['date']}{os.linesep}       Present in: {', '.join(match_details['present_in'])}{os.linesep}     Missing from: {', '.join(match_details['missing_from'])}{os.linesep}"
                 else:
                     projects_not_missing_commits.append(project)
 
@@ -726,6 +735,24 @@ class MissingCommits:
         ).decode().strip()
         return project_name
 
+    def _mark_commit_status(self, project, sha, present_in=None, missing_from=None):
+        """
+        Update the presence/absence status of a commit across manifests.
+        """
+        status = self.commits[self.product][project]["TrackedCommits"][sha]
+
+        if present_in:
+            for manifest in present_in:
+                if manifest not in status["present_in"]:
+                    status["present_in"].append(manifest)
+                if manifest in status["missing_from"]:
+                    status["missing_from"].remove(manifest)
+
+        if missing_from:
+            for manifest in missing_from:
+                if manifest not in status["present_in"] and manifest not in status["missing_from"]:
+                    status["missing_from"].append(manifest)
+
     def add_match(self, match_type, project, author, old_sha, old_commit_message, new_sha, new_commit_message, extra_info=None):
         if new_sha not in self.commits[self.product][project][match_type]:
             self.commits[self.product][project][match_type][new_sha] = {
@@ -742,6 +769,13 @@ class MissingCommits:
                 if manifest not in self.commits[self.product][project][match_type][new_sha]["present_in"]:
                     self.commits[
                         self.product][project][match_type][new_sha]["present_in"].append(manifest)
+
+        # If this commit was previously suspected to be missing, we now have evidence
+        # that it is present in both manifests (e.g., via a backport or fuzzy match).
+        tracked = self.commits[self.product][project].get("TrackedCommits", {})
+        if new_sha in tracked:
+            self._mark_commit_status(project, new_sha, present_in=[self.old_manifest, self.new_manifest])
+
         self.matched_commits += 1
 
     def match_date(self, project, new_commit, old_commits):
@@ -827,14 +861,14 @@ class MissingCommits:
 
     def show_needed_commits(self, repo_path, change_info):
         """
-        Determine 'missing' commits for a given project based on two commit
+        Determine missing commits for a given project based on two commit
         SHAs for the project. This is done by doing a 'git log' on the
         symmetric difference of the two commits in forward and reversed order,
         then comparing the summary content, dates and diffs from the latter to
         find a matching entry in the former, which are all strong indications
         that the commit was properly merged into the project at the time of the
         target manifest.
-        Retrieve any possible matches along with any 'missing' commits to
+        Retrieve any possible matches along with any missing commits to
         allow us to determine what might still need to be merged forward.
         """
 
@@ -851,20 +885,21 @@ class MissingCommits:
             )):
             return
 
-        old_commit, new_commit = change_info
-        missing = [
+        source_sha, target_sha = change_info
+        missing_cmd_base = [
             self.git_bin, 'log', '--oneline', '--cherry-pick',
             '--right-only', '--no-merges'
         ]
 
-        old_commit = self.get_long_sha(repo_path, old_commit)
-        new_commit = self.get_long_sha(repo_path, new_commit)
+        source_sha = self.get_long_sha(repo_path, source_sha)
+        target_sha = self.get_long_sha(repo_path, target_sha)
 
         project_dir = self.product_dir / repo_path
 
+        # Commits that are in the target manifest but NOT in the source manifest
         try:
-            old_results = self.check_output(
-                missing + [f'{old_commit}...{new_commit}'],
+            target_only_results = self.check_output(
+                missing_cmd_base + [f'{source_sha}...{target_sha}'],
                 cwd=project_dir, stderr=subprocess.STDOUT
             ).decode().strip()
         except subprocess.CalledProcessError as exc:
@@ -875,15 +910,17 @@ class MissingCommits:
         get_commit_details = functools.partial(
             self.get_commit_details, repo_path=repo_path)
 
-        old_commits = []
-        if old_results:
+        target_only_commits = []
+        if target_only_results:
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                old_commits = list(executor.map(
-                    get_commit_details, old_results.split("\n")))
+                target_only_commits = list(executor.map(
+                    get_commit_details, target_only_results.split("\n")))
 
+        # Commits that are in the source manifest but NOT in the target manifest
+        # (These are the potentially missing commits we're checking for)
         try:
-            new_results = self.check_output(
-                missing + [f'{new_commit}...{old_commit}'],
+            source_only_results = self.check_output(
+                missing_cmd_base + [f'{target_sha}...{source_sha}'],
                 cwd=project_dir, stderr=subprocess.STDOUT
             ).decode().strip()
         except subprocess.CalledProcessError as exc:
@@ -891,11 +928,11 @@ class MissingCommits:
             raise RuntimeError(f'The "git log" command for project "{repo_path}" '
                                f'failed: {exc.stdout}') from exc
 
-        new_commits = []
-        if new_results:
+        source_only_commits = []
+        if source_only_results:
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                new_commits = list(executor.map(
-                    get_commit_details, new_results.split("\n")))
+                source_only_commits = list(executor.map(
+                    get_commit_details, source_only_results.split("\n")))
 
         project_name = self.get_project_name(repo_path)
         if project_name not in self.commits[self.product]:
@@ -904,21 +941,27 @@ class MissingCommits:
             self.commits[self.product][project_name]["url"] = self.project_url(
                 project_name)
 
-        if new_commits:
-            missing_commits = 0
-            for commit in new_commits:
-                new_sha, new_commit_message, new_author, _, commit_date, _ = commit
+        if source_only_commits:
+            missing_commits_count = 0
+            for commit in source_only_commits:
+                sha, message, author, _, commit_date, _ = commit
 
                 if any(
-                    c.startswith(new_sha[:7]) for c in self.ignored_commits
+                    c.startswith(sha[:7]) for c in self.ignored_commits
                 ):
+                    # Still update present_in to maintain cross-pair state.
+                    # This pair proves the commit is present in old_manifest,
+                    # which may resolve a missing_from entry left by an
+                    # earlier pair that couldn't detect the cherry-pick
+                    if sha in self.commits[self.product][project_name]["TrackedCommits"]:
+                        self._mark_commit_status(project_name, sha, present_in=[self.old_manifest])
                     continue
 
-                backports = self.backports_of(get_tickets(new_commit_message))
+                backports = self.backports_of(get_tickets(message))
                 is_a_backport = False
                 if backports:
                     gitlog = self.Popen(
-                        ['git', 'log', '--oneline', new_commit],
+                        ['git', 'log', '--oneline', target_sha],
                         cwd=project_dir,
                         stdout=subprocess.PIPE)
                     try:
@@ -936,35 +979,31 @@ class MissingCommits:
 
                 if is_a_backport:
                     self.matched_commits += 1
-                    self.add_match("Backport", project_name, new_author, new_sha, new_commit_message, new_sha, new_commit_message, {"backports": {
+                    self.add_match("Backport", project_name, author, sha, message, sha, message, {"backports": {
                         match.split(" ")[0]: match.split(" ", 1)[1] for match in matches
                     }})
                     continue
 
-                if (self.match_summary(project_name, commit, old_commits) or
-                        self.match_date(project_name, commit, old_commits) or
-                        self.match_diff(project_name, commit, old_commits)):
+                if (self.match_summary(project_name, commit, target_only_commits) or
+                        self.match_date(project_name, commit, target_only_commits) or
+                        self.match_diff(project_name, commit, target_only_commits)):
                     continue
 
-                if new_sha not in self.commits[self.product][project_name]["Missing"]:
-                    self.commits[self.product][project_name]["Missing"][new_sha] = {
-                        "present_in": [self.old_manifest],
-                        "missing_from": [self.new_manifest],
-                        "author": new_author,
-                        "message": new_commit_message,
+                if sha not in self.commits[self.product][project_name]["TrackedCommits"]:
+                    self.commits[self.product][project_name]["TrackedCommits"][sha] = {
+                        "present_in": [],
+                        "missing_from": [],
+                        "author": author,
+                        "message": message,
                         "date": commit_date,
                     }
-                    self.total_missing_commits += 1
-                else:
-                    if self.old_manifest not in self.commits[self.product][project_name]["Missing"][new_sha]["present_in"]:
-                        self.commits[self.product][project_name]["Missing"][new_sha]["present_in"].append(
-                            self.old_manifest)
-                    if self.new_manifest not in self.commits[self.product][project_name]["Missing"][new_sha]["missing_from"]:
-                        self.commits[self.product][project_name]["Missing"][new_sha]["missing_from"].append(
-                            self.new_manifest)
-                missing_commits += 1
+
+                self._mark_commit_status(project_name, sha,
+                                        present_in=[self.old_manifest],
+                                        missing_from=[self.new_manifest])
+                missing_commits_count += 1
             self.log.info(
-                f"Missing commits for {project_name}: {missing_commits}")
+                f"Missing commits for {project_name}: {missing_commits_count}")
 
     def notify_users(self, recipient=None):
         """
@@ -975,11 +1014,14 @@ class MissingCommits:
 
         for product, product_info in self.commits.items():
             for project, commits in product_info.items():
-                for missing_commit, missing_commit_info in commits.get('Missing', {}).items():
+                for missing_commit, missing_commit_info in commits.get('TrackedCommits', {}).items():
                     author = missing_commit_info['author']
                     message = missing_commit_info['message']
                     present_in = missing_commit_info['present_in']
                     missing_from = missing_commit_info['missing_from']
+
+                    if not missing_from:
+                        continue
 
                     if author not in report:
                         report[author] = {}
@@ -1002,7 +1044,7 @@ class MissingCommits:
                     present_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[author][project][commit]["present_in"]])
                     missing_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[author][project][commit]["missing_from"]])
                     message += f"    *{report[author][project][commit].get('message')}* (<{self.commits[product][project]['url']}/commit/{commit}|{commit}>)\n"
-                    message += f"         date: {self.commits[product][project]['Missing'][commit]['date']}\n"
+                    message += f"         date: {self.commits[product][project]['TrackedCommits'][commit]['date']}\n"
                     message += f"         present: {present_links}\n"
                     message += f"         missing: {missing_links}\n"
 
@@ -1026,7 +1068,8 @@ class MissingCommits:
                     f"Successfully notified the following users: {', '.join(self.notified_users)}")
             else:
                 self.log.info(
-                    f"Would have notified the following users: {', '.join(self.notified_users)} about {self.total_missing_commits} missing commits")
+                    f"Would have notified the following users: {', '.join(self.notified_users)} about {self.total_missing} missing commits")
+
 
 def main():
     """
@@ -1103,23 +1146,29 @@ def main():
 
     manifests = []
 
-    capturing_manifests = True
-    if args.first_manifest:
-        capturing_manifests = False
-
     if args.only_boundaries:
         manifests = [args.first_manifest, args.last_manifest]
     else:
-        for manifest in commit_checker.manifests:
-            if args.first_manifest and not capturing_manifests:
-                if manifest == args.first_manifest:
-                    capturing_manifests = True
-            if not capturing_manifests:
-                continue
-            else:
-                manifests.append(manifest)
-            if args.last_manifest and manifest == args.last_manifest:
-                break
+        if args.first_manifest:
+            if args.first_manifest not in commit_checker.manifests:
+                print(f"First manifest {args.first_manifest} not found in active manifests")
+                sys.exit(1)
+            if args.last_manifest and args.last_manifest not in commit_checker.manifests:
+                print(f"Last manifest {args.last_manifest} not found in active manifests")
+                sys.exit(1)
+
+            first_idx = commit_checker.manifests.index(args.first_manifest)
+            last_idx = commit_checker.manifests.index(args.last_manifest) if args.last_manifest else len(commit_checker.manifests) - 1
+
+            if first_idx > last_idx:
+                first_idx, last_idx = last_idx, first_idx
+
+            manifests = commit_checker.manifests[first_idx:last_idx + 1]
+        elif args.last_manifest:
+            last_idx = commit_checker.manifests.index(args.last_manifest)
+            manifests = commit_checker.manifests[:last_idx + 1]
+        else:
+            manifests = commit_checker.manifests
 
     commit_checker.manifests = manifests
 
@@ -1135,7 +1184,7 @@ def main():
 
     print(commit_checker)
 
-    if commit_checker.total_missing_commits > 0:
+    if commit_checker.total_missing > 0:
         commit_checker.notify_users(args.test_email)
         sys.exit(1)
     else:

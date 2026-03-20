@@ -1,4 +1,4 @@
-FROM python:3.9-buster
+FROM python:3.9-trixie
 
 ENV repo_release=v2.50
 
