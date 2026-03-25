@@ -1,8 +1,0 @@
-{
-    "detect_opts": {
-        "detect.detector.search.depth": 9,
-        "detect.excluded.detector.types": "MAVEN,NUGET",
-        "logging.level.detect": "DEBUG",
-        "detect.detector.search.continue": true
-    }
-}
