@@ -9,20 +9,17 @@ PACKAGE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 . "${PACKAGE_DIR}/../../utilities/shell-utils.sh"
 
 # Get dependency versions from manifest annotations
-NCURSES_VER=$(annot_from_manifest NCURSES_VERSION)
-OPENSSL_VER=$(annot_from_manifest OPENSSL_VERSION)
+NCURSES_VERSION=$(annot_from_manifest NCURSES_VERSION)
+OPENSSL_VERSION=$(annot_from_manifest OPENSSL_VERSION)
 
 pushd erlang
 
 JIT_OPTIONS="--enable-jit"
-if [[ "$(cat OTP_VERSION)"  == 24.* && "${PLATFORM}" = "linux" && "$(uname -m)" = "aarch64" ]]; then
-    # v24 configure: error: JIT only works on x86 64-bit
-    JIT_OPTIONS="--disable-jit"
-fi
+
 popd
 
 cd "${ROOT_DIR}"
-cbdep --platform ${PLATFORM} install -d cbdeps openssl ${OPENSSL_VER}
+cbdep --platform ${PLATFORM} install -d cbdeps openssl ${OPENSSL_VERSION}
 
 cd erlang
 
@@ -30,15 +27,10 @@ case "$PLATFORM" in
     macosx)
         export MACOSX_DEPLOYMENT_TARGET=10.10
         ulimit -u 1024
-
-        # JIT is broken arm64 and causes segfaults under rosetta in
-        # v24 and v25, so we explicitly disable it everywhere problems occur
-        # (see CBD-4513, CBD-5389)
-        JIT_OPTIONS="--disable-jit"
         ;;
     linux)
         # erlang requires libtinfo/terminfo from ncurses
-        cbdep --platform ${PLATFORM} install -C -d ${ROOT_DIR}/cbdeps ncurses ${NCURSES_VER}
+        cbdep --platform ${PLATFORM} install -C -d ${ROOT_DIR}/cbdeps ncurses ${NCURSES_VERSION}
 
         # Ensure erl knows where to find the terminfo content
         sed -i "/BINDIR=.*/a export TERMINFO_DIRS=\${ROOTDIR}/../terminfo" erts/etc/unix/erl.src.src
@@ -48,7 +40,7 @@ case "$PLATFORM" in
         # install, and this script copies several binaries into a new
         # location. By providing both rpaths here we avoid the need to modify
         # the rpaths of the binaries post copy.
-        LDFLAGS="-L${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../..:\$$\ORIGIN/../../..:\$$\ORIGIN/../../../..:\$$\ORIGIN/../../../../..'
+        LDFLAGS="-L${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VERSION}/lib -ltinfo "'-Wl,-rpath=\$$\ORIGIN/../..:\$$\ORIGIN/../../..:\$$\ORIGIN/../../../..:\$$\ORIGIN/../../../../..'
 
         # We need to provide an rpath for the crypto lib
         SSL_RPATH=--with-ssl-rpath="\$$\ORIGIN/../../../../.."
@@ -56,7 +48,7 @@ case "$PLATFORM" in
         # During build, erlang's going to create a bootstrap compiler and
         # build some stuff with that, so we need to tell it where to
         # find libtinfo
-        export LD_LIBRARY_PATH="${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib:$LD_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VERSION}/lib:$LD_LIBRARY_PATH"
         ;;
 esac
 
@@ -68,7 +60,7 @@ LDFLAGS=$LDFLAGS ./configure --prefix="$INSTALL_DIR" \
       --without-et \
       --without-debugger \
       --without-megaco \
-      --with-ssl="${ROOT_DIR}/cbdeps/openssl-${OPENSSL_VER}" \
+      --with-ssl="${ROOT_DIR}/cbdeps/openssl-${OPENSSL_VERSION}" \
       $SSL_RPATH \
       $JIT_OPTIONS \
       CFLAGS="-fno-strict-aliasing -O3 -ggdb3"
@@ -92,8 +84,8 @@ if [ "${PLATFORM}" = "macosx" ]; then
 elif [ "${PLATFORM}" = "linux" ]; then
     # Bundle libtinfo/terminfo
     pushd ${INSTALL_DIR}/lib
-    cp -a ${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib/libtinfo* .
-    cp -aL ${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VER}/lib/terminfo .
+    cp -a ${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VERSION}/lib/libtinfo* .
+    cp -aL ${ROOT_DIR}/cbdeps/ncurses-${NCURSES_VERSION}/lib/terminfo .
     popd
 fi
 
@@ -109,11 +101,12 @@ if [ -n "${BD_MANIFEST}" ]; then
     pushd "${ROOT_DIR}"
     BD_VERSION=$(annot_from_manifest BD_VERSION "${VERSION}")
 
-    # OPENSSL_VERSION is a cbdeps version including build number, so
-    # strip that off
+    # OPENSSL/NCURSES _VERSION are cbdeps versions including build number
+    # so strip those off
     OPENSSL_VERSION=$(echo ${OPENSSL_VERSION} | sed -e "s/-.*//")
+    NCURSES_VERSION=$(echo ${NCURSES_VERSION} | sed -e "s/-.*//")
 
-    cat "${PACKAGE_DIR}/blackduck/black-duck-manifest.yaml.in" \
+    cat "${PACKAGE_DIR}/black-duck-manifest.yaml.in" \
         | sed -e "s/@@BD_VERSION@@/${BD_VERSION}/g" \
         | sed -e "s/@@OPENSSL_VERSION@@/${OPENSSL_VERSION}/g" \
         | sed -e "s/@@NCURSES_VERSION@@/${NCURSES_VERSION}/g" \

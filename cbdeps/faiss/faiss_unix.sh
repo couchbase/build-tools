@@ -107,7 +107,7 @@ if [ -n "${BD_MANIFEST}" ]; then
     # strip that off
     OPENBLAS_VERSION=$(echo ${OPENBLAS_VERSION} | sed -e "s/-.*//")
 
-    cat "${PACKAGE_DIR}/blackduck/black-duck-manifest.yaml.in" \
+    cat "${PACKAGE_DIR}/black-duck-manifest.yaml.in" \
         | sed -e "s/@@BD_VERSION@@/${BD_VERSION}/g" \
         | sed -e "s/@@OPENMP_VERSION@@/${LLVM_OPENMP_VERSION}/g" \
         | sed -e "s/@@OPENBLAS_VERSION@@/${OPENBLAS_VERSION}/g" \
