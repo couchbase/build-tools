@@ -145,6 +145,12 @@ if [[ "${ENABLE_GPU}" == "ON" ]]; then
     cp -av ${CUDA_HOME}/lib64/libcudart.so* ${INSTALL_DIR}/lib/.
     cp -av ${CUDA_HOME}/lib64/libcublas.so* ${INSTALL_DIR}/lib/.
     cp -av ${CUDA_HOME}/lib64/libcublasLt.so* ${INSTALL_DIR}/lib/.
+
+    cp -av ${CUDA_HOME}/include/cuda_runtime.h ${INSTALL_DIR}/include/.
+    cp -av ${CUDA_HOME}/include/cuda_runtime_api.h ${INSTALL_DIR}/include/.
+    cp -av ${CUDA_HOME}/include/cublas_v2.h ${INSTALL_DIR}/include/.
+    cp -av ${CUDA_HOME}/include/cublas.h ${INSTALL_DIR}/include/.
+    cp -av ${CUDA_HOME}/include/cublasLt.h ${INSTALL_DIR}/include/.
 fi
 # Create BD_MANIFEST if requested
 if [ -n "${BD_MANIFEST}" ]; then
