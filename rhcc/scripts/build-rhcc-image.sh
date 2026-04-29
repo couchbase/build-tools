@@ -98,10 +98,14 @@ cd redhat-openshift/${PRODUCT}
 
 # Use new UBI-based Dockerfile for Server 7.x or later, or SGW 3.x or later
 if [[ ${PRODUCT} == "couchbase-server" ]]; then
-    if [[ ${VERSION} =~ ^6.* ]]; then
-        echo "Using legacy Dockerfile.6.x"
+    if [[ ${VERSION} =~ ^6\..* ]]; then
+        echo "Using legacy Dockerfile.old for Server 6.x"
         DOCKERFILE=Dockerfile.old
+    elif ! version_lt "${VERSION}" "7.0.0" && version_lt "${VERSION}" "7.6.0"; then
+        echo "Using Dockerfile.ubi8 for Server 7.0 through 7.5"
+        DOCKERFILE=Dockerfile.ubi8
     else
+        echo "Using Dockerfile for Server 7.6+"
         DOCKERFILE=Dockerfile
     fi
 elif [[ ${PRODUCT} == "sync-gateway" ]]; then
