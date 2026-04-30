@@ -1,0 +1,6 @@
+{
+    "detect_opts": {
+        "logging.level.detect": "DEBUG",
+        "detect.detector.search.depth": 9
+    }
+}
