@@ -127,7 +127,7 @@ if publishing_vanilla; then
         else
             status "Keys don't match, performing copy"
             skopeo copy --authfile ${HOME}/.docker/config.json \
-                --all --preserve-digests \
+                --all \
                 docker://${internal_image} docker://${image}
         fi
     done

@@ -167,8 +167,15 @@ build-image() {
         external_org=${external_registry}/${org}
     fi
 
+    # RHCC's backend cannot handle attestation manifests, so disable
+    # provenance for those builds. Vanilla builds keep attestations and
+    # use OCI media types throughout for a consistent OCI index.
     if [ "${org}" = "cb-rhcc" ]; then
         PROVENANCE_ARG="--provenance=false"
+        OUTPUT_ARG="--output type=image,oci-mediatypes=true,push=true"
+    else
+        PROVENANCE_ARG=""
+        OUTPUT_ARG="--output type=image,oci-mediatypes=true,push=true"
     fi
 
     # Are we doing :latest?
@@ -189,7 +196,7 @@ build-image() {
 
     docker buildx build \
         --platform "linux/amd64,linux/arm64" \
-        --ssh default --push --pull -f ${dockerfile} \
+        --ssh default --pull -f ${dockerfile} \
         --no-cache \
         ${TAG_ARG} \
         --build-arg PROD_VERSION=${VERSION} \
@@ -197,6 +204,7 @@ build-image() {
         --build-arg OS_BUILD=${os_build} \
         --build-arg GO_VERSION=${GOVERSION} \
         ${PROVENANCE_ARG} \
+        ${OUTPUT_ARG} \
         .
 }
 
