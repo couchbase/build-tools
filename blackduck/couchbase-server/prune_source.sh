@@ -19,8 +19,16 @@ if [ "$RELEASE" = "alice" -o "$RELEASE" = "mad-hatter" ]; then
 else
     # Most of this stuff is npm-generated "compiled" code; we ONLY want
     # to scan the npm package.json/package-lock.json files
-    mv ns_server/priv/public/ui/package*.json ns_server/priv
-    rm -rf ns_server/priv/public
+    if [ -d server-ui ]; then
+        # New layout: UI is in its own top-level directory
+        find server-ui -mindepth 1 -maxdepth 1 \
+            ! \( -name 'package.json' -o -name 'package-lock.json' \) \
+            -exec rm -rf -- {} +
+    elif [ -d ns_server/priv/public/ui ]; then
+        # Old layout: UI was compiled into ns_server
+        mv ns_server/priv/public/ui/package*.json ns_server/priv
+        rm -rf ns_server/priv/public
+    fi
 
     for pkg in angular-bootstrap angular-route angular; do
         rm -rf cbgt/rest/static/lib/${pkg}/!(package*.json)
