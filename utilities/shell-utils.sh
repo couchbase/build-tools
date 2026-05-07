@@ -182,15 +182,26 @@ function image_key() {
     # Basically we just append the key of the amd64 image and the key of
     # the arm64 image. If this is not a multi-arch image, that's fine -
     # one sha256 will be an empty string, but that's still unique.
-    echo "$(image_arm64_key $1)-$(image_amd64_key $1)"
+    local arm_key amd_key
+    local arm_failed=false amd_failed=false
+
+    arm_key=$(image_arm64_key $1) || arm_failed=true
+    amd_key=$(image_amd64_key $1) || amd_failed=true
+
+    # If both architectures failed, the image is completely unreadable
+    if ${arm_failed} && ${amd_failed}; then
+        echo ""
+        return 1
+    fi
+
+    echo "${arm_key}-${amd_key}"
 }
 
 function _image_arch_key() {
     # Helper function for the below - shouldn't be used directly
-    arch=$1
-    image=$2
+    local arch=$1
+    local image=$2
 
-    output=()
     # Several interesting things going on here.
     #
     # 1. `skopeo inspect` won't fail if you specify, say,
@@ -216,11 +227,16 @@ function _image_arch_key() {
     # remote registry are "the same", we have to compare their entire
     # set of layer SHAs. To do this we gather them all, sort them, and
     # form our own sha256 checksum of that list.
-    output+=(
-        $(skopeo --override-arch ${arch} \
+    local skopeo_output
+    if ! skopeo_output=$(skopeo --override-arch ${arch} \
         inspect docker://${image} \
-        --format '{{.Architecture}}{{range .Layers}} {{.}}{{end}}')
-    )
+        --format '{{.Architecture}}{{range .Layers}} {{.}}{{end}}'); then
+        # skopeo failed entirely - image doesn't exist or is unreadable
+        echo ""
+        return 1
+    fi
+
+    local output=(${skopeo_output})
     if [ "${output[0]}" != "${arch}" ]; then
         echo ""
     else

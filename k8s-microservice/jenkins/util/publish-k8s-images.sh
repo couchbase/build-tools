@@ -112,7 +112,9 @@ rhcc_registry=registry.connect.redhat.com
 if publishing_vanilla; then
     status Publishing to Docker Hub...
     internal_image=${internal_repo}/cb-vanilla/${short_product}:${INTERNAL_TAG}
-    internal_key=$(image_key ${internal_image})
+    if ! internal_key=$(image_key ${internal_image}); then
+        error "Failed to read internal image ${internal_image} - cannot publish!"
+    fi
     external_base=${vanilla_registry}/couchbase/${short_product}
     images=(${external_base}:${PUBLIC_TAG} ${external_base}:${PUBLIC_TAG}-dockerhub)
     if ${LATEST}; then
@@ -121,8 +123,7 @@ if publishing_vanilla; then
     for image in ${images[@]}; do
         header Publishing ${internal_image} to ${image}
         status Checking current Docker Hub image key...
-        image_key=$(image_key ${image})
-        if [ "$(image_key ${internal_image})" = "$(image_key ${image})" ]; then
+        if external_key=$(image_key ${image}) && [ "${internal_key}" = "${external_key}" ]; then
             status "Keys match, skipping copy!"
         else
             status "Keys don't match, performing copy"
@@ -142,9 +143,10 @@ if publishing_redhat && product_in_rhcc "${PRODUCT}"; then
     header Publishing ${internal_image} to ${external_base}...
 
     status Checking current RHCC image key...
-    internal_key=$(image_key ${internal_image})
-    external_key=$(image_key ${external_base})
-    if [ "${internal_key}" = "${external_key}" ]; then
+    if ! internal_key=$(image_key ${internal_image}); then
+        error "Failed to read internal image ${internal_image} - cannot publish!"
+    fi
+    if external_key=$(image_key ${external_base}) && [ "${internal_key}" = "${external_key}" ]; then
         status "Keys match, skipping publish!"
     else
         status "Keys don't match, performing publish"
