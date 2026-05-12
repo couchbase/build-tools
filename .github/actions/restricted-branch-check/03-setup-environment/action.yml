@@ -93,7 +93,7 @@ runs:
         fi
 
         # Validate manifest checkout
-        if [ ! -d "manifest" ] || [ ! -f "manifest/manifest-cv" ]; then
+        if [ ! -d "manifest" ] || [ ! -f "manifest/branch-master.xml" ]; then
           validation_failed=true
           error_message="Failed to checkout manifest repository or manifest files are missing"
           echo "::error::$error_message"
