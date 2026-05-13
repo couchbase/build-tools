@@ -1,7 +1,6 @@
 # Blackduck constants
 SEVERITY_LIST = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 EXCLUDED_PROJECTS = [
-    'couchbase-cloud-native-gateway',
     'couchbase-data-api',
     'couchbase-exporter',
     'couchbase-fluent-bit',
