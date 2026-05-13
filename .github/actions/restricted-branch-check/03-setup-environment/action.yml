@@ -57,7 +57,7 @@ runs:
   using: "composite"
   steps:
     - name: Checkout build-tools repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: ${{ inputs.build_tools_repo }}
         ref: ${{ inputs.build_tools_ref }}
@@ -65,7 +65,7 @@ runs:
         fetch-depth: 1
 
     - name: Checkout manifest repo
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: ${{ inputs.manifest_repo }}
         ref: ${{ inputs.manifest_ref }}
@@ -73,7 +73,7 @@ runs:
         fetch-depth: 1
 
     - name: Install uv
-      uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
       with:
         version: latest
 
