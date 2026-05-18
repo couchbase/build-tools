@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label 'buildx'
+        label 'zzz-buildx'
     }
 
     parameters {
