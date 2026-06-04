@@ -40,8 +40,10 @@ tag_prefixes = {
     "couchbase-sdk-kotlin": "kotlin-client-",
     "couchbase-sdk-nodejs": "v",
     "couchbase-sdk-ottoman": "v",
+    "couchbase-sdk-rust": "v",
     "couchbase-sdk-scala": "scala-client-",
     "couchbase-shell": "v",
+    "mcp-server-couchbase": "v",
 }
 
 
@@ -240,20 +242,23 @@ def are_same_major_minor(version1, version2):
     return (v1.major, v1.minor) == (v2.major, v2.minor)
 
 
-def get_latest_timestamp(versions, tags):
+def get_latest_timestamp(versions, tags, tag_prefix=""):
     """
     Get the most current version's timestamp
 
     Parameters:
     versions (dict): versions dict from scan_config
     tags (dict): tags dict from get_tags
+    tag_prefix (str): prefix the repo applies to its version tags, if any
 
     Returns:
     str: timestamp
     """
-    # Filter out versions that have a "release" field (these point to branches, not tags)
+    # Filter out versions that point at branches rather than tags - either
+    # via an explicit "release" field, or a literal branch-name key
     tag_versions = {k: v for k, v in versions.items()
-                   if not (isinstance(v, dict) and 'release' in v)}
+                   if not (isinstance(v, dict) and 'release' in v)
+                   and k not in ('master', 'main')}
 
     try:
         sorted_versions = sort_dict(tag_versions)
@@ -264,16 +269,19 @@ def get_latest_timestamp(versions, tags):
         # as we'll need to check all tags
         logging.debug("No tag versions in scan-config, returning timestamp 0")
         return 0
-    if latest_version in tags:
-        timestamp = tags[latest_version]['timestamp']
-        logging.debug(f"Found {latest_version} in repo tags, timestamp: {timestamp}")
+    # scan-config.json stores versions with the tag prefix stripped, so
+    # reapply it before looking the tag up in the repo
+    prefixed_version = f"{tag_prefix}{latest_version}"
+    if prefixed_version in tags:
+        timestamp = tags[prefixed_version]['timestamp']
+        logging.debug(f"Found {prefixed_version} in repo tags, timestamp: {timestamp}")
         return timestamp
     else:
-        # If the most recent tag in scan-config.json isn't in the repo
-        # tags, it'll be master/main so we don't need to consider
-        # anything newer
+        # If the most recent version in scan-config.json isn't in the repo
+        # tags, it's an upcoming release that hasn't been tagged yet, so we
+        # don't need to consider anything newer
         current_time = time.time()
-        logging.debug(f"{latest_version} not found in repo tags, returning current time: {current_time}")
+        logging.debug(f"{prefixed_version} not found in repo tags, returning current time: {current_time}")
         return current_time
 
 
@@ -298,8 +306,9 @@ def update_scan_config(product_dir):
         repo = clone_repo(repo_name)
         repo_tags = get_tags(repo)
         main_branch = get_main_branch(repo)
+        tag_prefix = tag_prefixes.get(product_dir, "")
         latest_timestamp = get_latest_timestamp(
-            scan_config['versions'], repo_tags)
+            scan_config['versions'], repo_tags, tag_prefix)
 
         logging.debug(f"Latest timestamp for {product_dir}: {latest_timestamp}")
 
@@ -308,8 +317,6 @@ def update_scan_config(product_dir):
             'timestamp': repo.head.commit.committed_date,
             'main': True,
         }
-
-        tag_prefix = tag_prefixes.get(product_dir, "")
 
         logging.debug(f"Available tags for {product_dir}: {list(repo_tags.keys())}")
 
