@@ -144,7 +144,7 @@ class ReportsDownloader:
         logger.info(f"Requesting creation of Notices file")
         # CBD-5305: For now, only incorporate Copyright notices for capella.
         # Probably do this for all products in future.
-        copyright = True if self.product == "couchbase-cloud" else False
+        copyright = True if self.product_name == "couchbase-cloud" else False
 
         payload = {
             'versionId': self.version['_meta']['href'].split("/")[-1],
