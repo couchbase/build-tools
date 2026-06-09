@@ -48,7 +48,18 @@ except StopIteration:
     sys.exit(f"Version {args.version} for project {args.parent_project} not found!")
 
 #create parent/sub project relationships
-for sub_project_name in sub_project_list:
+for sub_project_entry in sub_project_list:
+    # Entries may be a bare string (sub-project shares the parent's version
+    # family - the historical behaviour) or an object
+    # {"name": ..., "version": "X.Y"} for a sub-project versioned
+    # independently of the parent, eg. a 1.1.x wrapper bundling a 3.3.x SDK.
+    if isinstance(sub_project_entry, dict):
+        sub_project_name = sub_project_entry['name']
+        version_override = sub_project_entry.get('version')
+    else:
+        sub_project_name = sub_project_entry
+        version_override = None
+
     try:
         sub_project = next(client.get_resource('projects', params={"q": f"name:{sub_project_name}"}))
     except StopIteration:
@@ -63,7 +74,11 @@ for sub_project_name in sub_project_list:
     #    3.0.x is lithium
     #  when adding it as sub-project for CBL android 2.8.5, the version to match is 2.8.
     #  and 2.8.4 should be picked.
-    version_to_match=args.version.rsplit('.', 1)[0]
+    #
+    #  A sub-project versioned independently of the parent (eg. a 1.1.x
+    #  wrapper bundling a 3.3.x SDK) can override this via a "version" key
+    #  in sub-project.json; otherwise the parent's version family is used.
+    version_to_match = version_override or args.version.rsplit('.', 1)[0]
     sub_project_versions = [
         v for v in client.get_resource('versions', sub_project)
         if v['versionName'].startswith(version_to_match)

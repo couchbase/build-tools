@@ -1,0 +1,6 @@
+{
+    "sub-projects": [
+        { "name": "couchbase-lite-android", "version": "3.3" },
+        { "name": "couchbase-lite-ios", "version": "3.3" }
+    ]
+}
