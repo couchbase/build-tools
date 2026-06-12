@@ -7,6 +7,14 @@ BLD_NUM=$4
 
 SOURCE_DIR=mcp-server-couchbase
 
+# The default Detect jar predates the UV detector (added in 10.5.0), so it
+# cannot scan this uv-managed project's pyproject.toml/uv.lock directly --
+# its PIP detectors would need a requirements.txt, and a flattened
+# "uv export" closure makes every transitive dependency appear as a direct
+# dependency in the BOM. Pin 10.7.0, the latest 10.x release (also used by
+# couchbase-lite-react-native).
+export DETECT_JAR_VERSION=10.7.0
+
 # Prefer the published PyPI sdist so we scan exactly what ships. Build an sdist
 # from the git repository if the version required has not been published
 python -m pip download --no-deps --no-binary couchbase-mcp-server --no-cache-dir couchbase-mcp-server==$VERSION || true
@@ -44,12 +52,50 @@ rm -rf $TARBALL_CONTENTS_DIR
 rm $TARBALL
 
 pushd $SOURCE_DIR
-# Export the locked runtime dependencies as a pinned requirements.txt for the
-# PIP detector. The dev tools (ruff, pytest, ...) are an extra in
-# pyproject.toml, so "uv export" already excludes them by default; --no-dev is
-# belt and braces.
-uv export --frozen --no-dev --no-emit-project --no-hashes --output-file requirements.txt
-# Install those dependencies into the scan job's venv so the PIP native
-# inspector can build the full dependency graph from it.
-pip install -r requirements.txt
+# Detect's UV detectors scan pyproject.toml + uv.lock directly, but the dev
+# tools (ruff, pytest, ...) live in the "dev" extra under
+# [project.optional-dependencies], and the preferred UV CLI detectable runs
+# "uv tree --no-group dev", which only filters [dependency-groups] -- extras
+# pass straight through into the BOM as direct dependencies. (Only the
+# fallback UV Lock detectable's parser treats extras as excludable groups,
+# and we can't force that path while uv is on the scanner's PATH.) So strip
+# the dev extra from the project before the scan; "uv remove" updates
+# pyproject.toml and uv.lock coherently while leaving all other locked
+# versions untouched, and --no-sync avoids materialising a .venv in the
+# scan tree.
+# This also ensures pyproject.toml carries an explicit "[tool.uv] managed =
+# true": Detect 10.7.0's UV detectables skip the project entirely (empty BOM)
+# unless that key is literally present, even though uv itself defaults
+# "managed" to true when the key is absent. (Fixed upstream after 10.7.0,
+# but even there the [tool.uv] section itself must exist.)
+#
+# uv supplies the interpreter (3.12 => stdlib tomllib) and the "packaging"
+# helper in an ephemeral cached env, so this works regardless of the agent's
+# system Python and leaves no trace in the scan tree.
+DEV_DEPS=$(uv run --no-project --python 3.12 --with packaging python - <<'PY'
+import re
+import tomllib
+from packaging.requirements import Requirement
+
+with open("pyproject.toml", encoding="utf-8") as fh:
+    src = fh.read()
+data = tomllib.loads(src)
+
+deps = data.get("project", {}).get("optional-dependencies", {}).get("dev", [])
+print(" ".join(Requirement(d).name for d in deps))
+
+if "managed" not in data.get("tool", {}).get("uv", {}):
+    match = re.search(r"(?m)^\[tool\.uv\][ \t]*$", src)
+    if match:
+        src = src[:match.end()] + "\nmanaged = true" + src[match.end():]
+    else:
+        src += "\n[tool.uv]\nmanaged = true\n"
+    tomllib.loads(src)  # fail loudly if the edit broke the TOML
+    with open("pyproject.toml", "w", encoding="utf-8") as fh:
+        fh.write(src)
+PY
+)
+if [ -n "${DEV_DEPS}" ]; then
+    uv remove --no-sync --optional dev ${DEV_DEPS}
+fi
 popd
