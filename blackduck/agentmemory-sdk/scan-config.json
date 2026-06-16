@@ -1,0 +1,8 @@
+{
+    "versions": {
+        "snapshot": {
+            "release": "main",
+            "interval": 1440
+        }
+    }
+}
