@@ -5,16 +5,13 @@
             "release": "master",
             "interval": 1440
         },
+        "4.6.2": {
+            "interval": 1440
+        },
         "4.6.1": {
             "interval": 1440
         },
         "4.5.0": {
-            "interval": 1440
-        },
-        "4.4.1": {
-            "interval": 1440
-        },
-        "4.3.6": {
             "interval": 1440
         }
     }
