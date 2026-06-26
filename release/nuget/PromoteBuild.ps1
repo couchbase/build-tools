@@ -40,6 +40,7 @@ try {
     $ErrorActionPreference = "Stop"
 
     $Version31 = $InVersion.StartsWith("3.1")
+    $Version32or33 = $InVersion.StartsWith("3.2") -or $InVersion.StartsWith("3.3")
     $Version3 = $InVersion.StartsWith("3")
     $buildlessVersion = $InVersion.Split("-")[0]
     $numericBuildNumber = $InVersion.Split("-")[1].TrimStart('b', '0')
@@ -53,8 +54,11 @@ try {
             if ($Version31) {
                 $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.UWP","Couchbase.Lite.Support.WinUI","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.UWP","Couchbase.Lite.Enterprise.Support.WinUI"
                 $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
-            } elseif ($Version3) {
+            } elseif ($Version32or33) {
                 $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Support.WinUI","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.WinUI"
+                $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
+            } elseif ($Version3) {
+                $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop"
                 $snupkg_names = "Couchbase.Lite","Couchbase.Lite.Enterprise"
             } else {
                 $package_names = "Couchbase.Lite","Couchbase.Lite.Enterprise","Couchbase.Lite.Support.Android","Couchbase.Lite.Support.iOS","Couchbase.Lite.Support.NetDesktop","Couchbase.Lite.Enterprise.Support.Android","Couchbase.Lite.Enterprise.Support.iOS","Couchbase.Lite.Enterprise.Support.NetDesktop"
