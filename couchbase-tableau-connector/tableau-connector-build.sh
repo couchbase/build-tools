@@ -6,7 +6,7 @@ echo "Download dependent tools: maven, jdk and python"
 #Download via cbdep so we have control over which version to use.
 #Download maven (3.3.9+ should work)
 
-JDK_VERSION=11.0.20+8
+JDK_VERSION=21.0.11+10
 MAVEN_VERSION=3.9.11
 PYTHON_VERSION=3.11.13
 
