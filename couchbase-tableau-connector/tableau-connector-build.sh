@@ -47,7 +47,9 @@ if [ $NOW_TS -gt $VALID_TS ]; then
 fi
 
 # Drive the production build through CMake. -DPRODUCTION_BUILD=ON makes CMake:
-#   1. versions:set the release version into the poms,
+#   1. Stamp versions: connector -> ${VERSION}; JDBC driver and the connector's
+#      couchbase-jdbc.version property -> ${VERSION}.tableau (the driver is built
+#      from source as part of this build).
 #   2. mvn install the artifacts, and
 #   3. DigiCert code-sign the .taco(s).
 # Which SDK flavor(s) get built is decided by the repo manifest's <annotation

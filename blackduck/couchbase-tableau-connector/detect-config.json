@@ -1,10 +1,10 @@
 {
+    "source_paths": ["connector-boms"],
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "logging.level.detect": "DEBUG",
-        "detect.tools.excluded": "SIGNATURE_SCAN",
-        "detect.detector.search.continue": true,
-        "detect.maven.included.scopes": "compile,runtime",
+        "detect.excluded.detector.types": "GRADLE,HEX,PEAR,NUGET,CONAN,NPM,PIP",
+        "detect.accuracy.required": "MAVEN",
         "detect.maven.build.command": "--batch-mode"
     }
 }
