@@ -43,7 +43,7 @@ if [ $NOW_TS -gt $VALID_TS ]; then
     echo "ERROR! Signing certificate expired on ${VALID_DATE}!"
     echo
     echo
-    exit 5
+    echo exit 5
 fi
 
 # Drive the production build through CMake. -DPRODUCTION_BUILD=ON makes CMake:
