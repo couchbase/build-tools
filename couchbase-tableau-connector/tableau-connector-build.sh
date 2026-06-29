@@ -69,15 +69,16 @@ cmake -S . -B build \
 cmake --build build
 
 #Copy the built connector zip to dist for publishing. Exactly one flavor is
-#built per job (selected by the repo manifest's SDK annotation), so there is a
-#single ${PRODUCT}-${VERSION}-${BLD_NUM}.zip; guard against an unexpected
+#built per job (selected by the repo manifest's SDK annotation), and each
+#flavor names its dist zip <flavor>-tableau-connector-${VERSION}-${BLD_NUM}.zip
+#(see build.taco.assembly.name), so match that and guard against an unexpected
 #second flavor rather than silently shipping the wrong one.
 
 shopt -s nullglob
-zips=(cbas/cbas-jdbc-taco/*/target/${PRODUCT}-${VERSION}-${BLD_NUM}.zip)
+zips=(cbas/cbas-jdbc-taco/*/target/*-tableau-connector-${VERSION}-${BLD_NUM}.zip)
 shopt -u nullglob
 if [ "${#zips[@]}" -ne 1 ]; then
-    echo "ERROR: expected exactly one ${PRODUCT}-${VERSION}-${BLD_NUM}.zip, found ${#zips[@]}: ${zips[*]}"
+    echo "ERROR: expected exactly one *-tableau-connector-${VERSION}-${BLD_NUM}.zip, found ${#zips[@]}: ${zips[*]}"
     echo "(this job must build a single SDK flavor; check the manifest SDK annotation)"
     exit 6
 fi
