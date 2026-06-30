@@ -58,7 +58,8 @@ publish() {
     pushd package
     jq --arg ver "${VERSION}" '.version = $ver' package.json > package.json.tmp
     mv package.json.tmp package.json
-    npm pack
+    # repackage package.json, don't try to rebuild.
+    npm pack --ignore-scripts
     npm publish ${PKG_NAME}-${VERSION}.tgz --ignore-scripts --registry=${npmjs_registry} --access public
 }
 
