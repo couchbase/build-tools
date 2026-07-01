@@ -138,6 +138,11 @@ case "${PRODUCT}" in
         # which are called "cloud-native-gateway*"
         EXTRA_POSITIVE_WILDCARDS+=('cloud-native-gateway*')
         ;;
+    couchbase-tableau-connector)
+        # couchbase-tableau-connector'zip files have different names
+        EXTRA_POSITIVE_WILDCARDS+=('couchbase-analytics-tableau-connector*')
+        EXTRA_POSITIVE_WILDCARDS+=('enterprise-analytics-tableau-connector*')
+        ;;
 esac
 
 # Compute target filename components
