@@ -1,0 +1,10 @@
+{
+    "versions": {
+
+        "main": {
+            "__comment": "This version points to the upcoming release",
+            "release": "main",
+            "interval": 1440
+        }
+    }
+}

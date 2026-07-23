@@ -1,0 +1,10 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.detect": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.go.mod.dependency.types.excluded": "VENDORED",
+        "detect.npm.dependency.types.excluded": "DEV",
+        "detect.detector.search.exclusion.paths": "**/*_test.go,**/testing.go,**/*mocks/**,**/cypress/**,**/local-dev/**"
+    }
+}
