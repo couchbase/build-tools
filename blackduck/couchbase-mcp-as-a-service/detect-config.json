@@ -1,0 +1,8 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.detect": "DEBUG",
+        "detect.uv.dependency.groups.excluded": "dev",
+        "detect.tools.excluded": "SIGNATURE_SCAN"
+    }
+}
