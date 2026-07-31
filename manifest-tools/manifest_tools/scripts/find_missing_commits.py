@@ -88,6 +88,14 @@ class MissingCommits:
     # will be shown in when running with DEBUG=true
     match_types = ["Backport", "Date match", "Diff match", "Summary match"]
 
+    # Fragments of repo's manifest_xml.py used by fix_diffmanifests_cmd()
+    diffmanifests_except_from = \
+        "                except ManifestInvalidRevisionError:"
+    diffmanifests_except_to = \
+        "                except (ManifestInvalidRevisionError, GitError):"
+    diffmanifests_import_anchor = "from error import ManifestInvalidPathError"
+    diffmanifests_import_added = "from error import GitError"
+
     def __init__(self, logger, product, manifest_dir, manifest_repo,
                  first_manifest, last_manifest, reporef_dir,
                  targeted_projects, debug, show_matches,
@@ -136,6 +144,7 @@ class MissingCommits:
 
         self.notified_users = []
         self.skipped_users = []
+        self.skipped_projects = []
 
         # We check jira and ignore tickets which are flagged "is a backport of"
         # a ticket in the newer release
@@ -234,6 +243,46 @@ class MissingCommits:
 
         with open(file_path, "w") as f:
             f.writelines(new_lines)
+
+    def fix_diffmanifests_cmd(self):
+        """
+        'repo diffmanifests' collects projects whose revision it can't
+        resolve into an 'unreachable' bucket and carries on, but it only
+        catches ManifestInvalidRevisionError.  A project which moved to a
+        different remote between the two manifests raises GitError from
+        Remote.ToLocal instead - the project's git config has no section for
+        the remote the older manifest names it on - and that escapes the
+        handler, aborting the entire command and losing every other project
+        in the comparison with it.  Widen the except clause so such projects
+        are reported as unreachable like any other.
+        """
+        file_path = self.product_dir / ".repo/repo/manifest_xml.py"
+        warning = (f"Unable to patch {file_path}, 'repo diffmanifests' will "
+                   f"abort rather than skip projects which changed remote")
+
+        try:
+            content = file_path.read_text()
+        except OSError as exc:
+            self.log.warning(f"{warning}: {exc}")
+            return
+
+        if self.diffmanifests_except_to in content:
+            return   # Already patched
+
+        if (self.diffmanifests_except_from not in content
+                or self.diffmanifests_import_anchor not in content):
+            self.log.warning(warning)
+            return
+
+        content = content.replace(self.diffmanifests_except_from,
+                                  self.diffmanifests_except_to)
+        content = content.replace(
+            self.diffmanifests_import_anchor,
+            f"{self.diffmanifests_import_added}\n"
+            f"{self.diffmanifests_import_anchor}")
+
+        file_path.write_text(content)
+        self.log.debug(f"Patched {file_path}")
 
     def send_alert(self, email, header, body):
         try:
@@ -373,12 +422,17 @@ class MissingCommits:
         Retrieve the URL for a given project in the manifest
         """
 
-        if self.new_manifest.endswith("checker-to.xml"):
-            manifest_path = self.new_manifest
-        else:
-            manifest_path = f"{self.product}/.repo/manifests/{self.new_manifest}"
+        # Use the manifest 'repo manifest -r' produced during the sync rather
+        # than the manifest we were given.  repo has already expanded any
+        # <include> elements and folded <extend-project> overrides into the
+        # projects they extend, so we don't have to reimplement any of that
+        # here.  Manifests which pull their projects in via <include> and then
+        # override them via <extend-project> - e.g. enterprise-analytics,
+        # which includes couchbase-server - have no <project> element of their
+        # own to find otherwise.
+        manifest_path = pathlib.Path('new.xml').resolve()
 
-        tree = ET.parse(f"{manifest_path}")
+        tree = ET.parse(manifest_path)
         root = tree.getroot()
 
         remotes = {}
@@ -459,18 +513,29 @@ class MissingCommits:
         for repo_path, change_info in changes.items():
             if self.targeted_projects and repo_path.split("/")[-1] not in self.targeted_projects:
                 continue
-            if change_info[0] == 'changed':
-                change_info = change_info[1:]
-                self.show_needed_commits(repo_path, change_info)
-            elif change_info[0] == 'added':
-                _, new_commit, new_diff = change_info
-                for pre in self.merge_map[repo_path]:
-                    _, old_commit, old_diff = changes.get(
-                        pre, (None, None, None))
-                    if old_commit is not None:
-                        change_info = (old_commit, new_commit,
-                                       old_diff, new_diff)
-                        self.show_needed_commits(repo_path, change_info)
+            # A project we can't diff - e.g. one holding a revision which
+            # isn't in the checkout, because it came from a remote the newer
+            # manifest doesn't use - shouldn't cost us every other project in
+            # the comparison, so note it and carry on
+            try:
+                if change_info[0] == 'changed':
+                    change_info = change_info[1:]
+                    self.show_needed_commits(repo_path, change_info)
+                elif change_info[0] == 'added':
+                    _, new_commit, new_diff = change_info
+                    for pre in self.merge_map[repo_path]:
+                        _, old_commit, old_diff = changes.get(
+                            pre, (None, None, None))
+                        if old_commit is not None:
+                            change_info = (old_commit, new_commit,
+                                           old_diff, new_diff)
+                            self.show_needed_commits(repo_path, change_info)
+            except Exception as exc:
+                self.log.warning(
+                    f'Project {repo_path} was not compared between '
+                    f'{self.old_manifest} and {self.new_manifest}: {exc}')
+                self.skipped_projects.append(
+                    (self.old_manifest, self.new_manifest, repo_path, exc))
 
     def backports_of(self, tickets, retries=3):
         """
@@ -583,6 +648,10 @@ class MissingCommits:
             raise RuntimeError(
                 f'The "repo manifest -r" command failed: {exc.output}') from exc
 
+        # Patch last - 'repo sync' can update .repo/repo, which would undo
+        # anything we'd applied before it
+        self.fix_diffmanifests_cmd()
+
     def diff_manifests(self):
         """
         Generate the diffs between the two manifests via the command
@@ -603,10 +672,23 @@ class MissingCommits:
             raise RuntimeError(
                 f'The "repo diffmanifests" command failed: {exc.output}') from exc
 
-        return [
+        project_lines = [
             line for line in diffs.strip().split('\n')
             if not line.startswith(' ')
         ]
+
+        # Projects repo couldn't resolve a revision for are reported as
+        # unreachable and are not compared - say so, rather than leaving a
+        # silent hole in the results
+        for line in project_lines:
+            if line.startswith('U '):
+                _, repo_path, old_rev, new_rev = line.split()
+                self.log.warning(
+                    f'Project {repo_path} was not compared, repo could not '
+                    f'resolve {old_rev} in {self.old_manifest} and/or '
+                    f'{new_rev} in {self.new_manifest}')
+
+        return project_lines
 
     def get_author_and_dates(self, repo_path, commit_sha):
         """
@@ -827,20 +909,28 @@ class MissingCommits:
 
     def get_ignored_commits(self):
         commits = []
-        if self.product == "couchbase-server":
-            # Find the release we're working with
-            if self.new_manifest.endswith("branch-master.xml"):
-                release = "master"
-            else:
-                release = self.get_manifest_annotation(self.new_manifest, "RELEASE")
-                manifest_parts = self.new_manifest.split('/')
-                if not release:
-                    if len(manifest_parts) == 3: # e.g. couchbase-server/trinity/7.6.5.xml
-                        release = manifest_parts[-2]
-                    elif len(manifest_parts) == 2:  # e.g. couchbase-server/trinity.xml
-                        release = manifest_parts[-1].split('.')[0]
-        elif self.product == "sync_gateway":
+        release = None
+
+        # Find the release we're working with
+        if self.product == "sync_gateway":
             release = ".".join(os.path.basename(self.new_manifest).split('.')[:-1])
+        elif self.new_manifest.endswith("branch-master.xml"):
+            release = "master"
+        else:
+            release = self.get_manifest_annotation(self.new_manifest, "RELEASE")
+            manifest_parts = self.new_manifest.split('/')
+            if not release:
+                if len(manifest_parts) == 3: # e.g. couchbase-server/trinity/7.6.5.xml
+                    release = manifest_parts[-2]
+                elif len(manifest_parts) == 2:  # e.g. couchbase-server/trinity.xml
+                    release = manifest_parts[-1].split('.')[0]
+
+        if not release:
+            self.log.warning(f'Unable to determine release for manifest '
+                             f'{self.new_manifest}, no ignored commits will be '
+                             f'applied.  Continuing...')
+            return commits
+
         try:
             self.log.info(f"Missing commit file is /data/metadata/product-metadata/{self.product}/missing_commits/{release}/ok-missing-commits.txt")
             with open(f"/data/metadata/product-metadata/{self.product}/missing_commits/{release}/ok-missing-commits.txt") as fh:
@@ -1172,20 +1262,47 @@ def main():
 
     commit_checker.manifests = manifests
 
+    # A comparison can fail for reasons outside our control - e.g. a project
+    # which moved to a different remote between the two manifests, leaving
+    # 'repo diffmanifests' unable to resolve the older manifest's revision
+    # against the checkout we synced from the newer one.  Carry on with the
+    # remaining manifests rather than losing the whole run to one bad pair,
+    # and report the failures at the end.
+    failed_comparisons = []
+
     for a, b in combinations(commit_checker.manifests, 2):
         try:
             commit_checker.identify_missing_commits(a, b)
-        except Exception:
+        except Exception as exc:
             traceback.print_exc()
-            sys.exit(1)
+            logger.error(
+                f"Comparison of {a} and {b} failed, continuing with the "
+                f"remaining manifests")
+            failed_comparisons.append((a, b, exc))
 
     if commit_checker.matched_commits > 0:
         print(f"Matched {commit_checker.matched_commits} commits")
 
     print(commit_checker)
 
+    if commit_checker.skipped_projects:
+        print(f"{os.linesep}PROJECTS NOT COMPARED: "
+              f"{len(commit_checker.skipped_projects)}")
+        for a, b, repo_path, exc in commit_checker.skipped_projects:
+            print(f"    {repo_path} ({a} -> {b}){os.linesep}        {exc}")
+
+    if failed_comparisons:
+        print(f"{os.linesep}FAILED COMPARISONS: {len(failed_comparisons)}")
+        for a, b, exc in failed_comparisons:
+            print(f"    {a} -> {b}{os.linesep}        {exc}")
+
     if commit_checker.total_missing > 0:
         commit_checker.notify_users(args.test_email)
+
+    # A project or comparison we couldn't check is a hole in the results, not
+    # a clean run, so don't report success for it
+    if (commit_checker.total_missing > 0 or failed_comparisons
+            or commit_checker.skipped_projects):
         sys.exit(1)
     else:
         sys.exit(0)
