@@ -226,6 +226,12 @@ cd ${release_dir}
 
 failed=0
 
+# Used to attribute commits whose author isn't a Couchbase address to the
+# owner of the Gerrit change they were merged as, when the committer isn't a
+# Couchbase address either.  Queried anonymously over the REST API, so this
+# needs no credentials, but only changes in public projects resolve.
+export GERRIT_HOST=${GERRIT_HOST:-review.couchbase.org}
+
 PYTHONUNBUFFERED=1 find_missing_commits \
     $DEBUG_ARG \
     $SHOW_MATCHES_ARG \

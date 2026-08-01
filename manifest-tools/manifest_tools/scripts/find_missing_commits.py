@@ -25,6 +25,8 @@ import subprocess
 import sys
 import threading
 import traceback
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 
 from collections import defaultdict
@@ -43,7 +45,7 @@ slack_oauth_token = os.getenv("SLACK_OAUTH_TOKEN")
 message_header_template = """
 Hi {author},
 
-The commit checker has identified commits authored by you that appear to be missing in subsequent version(s) of {product}.
+The commit checker has identified commits attributed to you - as their author, their committer, or the owner of the Gerrit change they were merged as - that appear to be missing in subsequent version(s) of {product}.
 
 Please review the list below and merge forward as necessary. If any of these are false positives, contact the build team to request an exclusion.
 """
@@ -75,6 +77,16 @@ class MissingCommits:
 
     # Pre-compiled regex for semver(ish) strings
     semver_regex = re.compile(r'^(\d+\.)*\d+$')
+
+    # Pre-compiled regex for the Change-Id of a Gerrit-merged commit
+    change_id_regex = re.compile(r'^Change-Id:\s*(I[0-9a-f]+)\s*$',
+                                 re.MULTILINE)
+
+    # Projects whose changes live somewhere other than Couchbase's Gerrit;
+    # anything not listed here is looked up in GERRIT_HOST
+    project_gerrit_hosts = {
+        "asterixdb": "asterix-gerrit.ics.uci.edu",
+    }
 
     # Pre-compiled regexes for backport substrings - we strip anything inside
     # [] as the format varies
@@ -114,6 +126,18 @@ class MissingCommits:
 
         self.sha_lock = threading.Lock()
         self.date_lock = threading.Lock()
+        self.gerrit_lock = threading.Lock()
+
+        # Used to attribute commits whose author isn't a Couchbase address.
+        # We query Gerrit's REST API anonymously, so this needs no
+        # credentials but only sees changes in public projects
+        self.gerrit_host = os.getenv("GERRIT_HOST")
+        self.gerrit_warned = set()
+
+        # Non-Couchbase author address -> the Couchbase address we managed to
+        # attribute one of their commits to, so their other commits can be
+        # attributed too, whatever order we come across them in
+        self.resolved_authors = {}
 
         self.matched_commits = 0
 
@@ -131,6 +155,8 @@ class MissingCommits:
         self.commits = default_dict_factory()
         self.long_shas = {}
         self.commit_authors_and_dates = {}
+        self.commit_committers = {}
+        self.gerrit_owners = {}
 
         # Projects we don't care about
         self.ignore_projects = [
@@ -701,17 +727,133 @@ class MissingCommits:
 
         project_dir = self.product_dir / repo_path
         try:
-            (author, author_date, commit_date) = self.check_output(
-                ['git', 'show', '-s', '--format=%ae|%ai|%ci', commit_sha],
+            # The committer comes along for free here, and is needed when the
+            # author turns out not to be a Couchbase address
+            (author, committer, author_date, commit_date) = self.check_output(
+                ['git', 'show', '-s', '--format=%ae|%ce|%ai|%ci', commit_sha],
                 cwd=project_dir
             ).decode().strip().split("|")
             self.commit_authors_and_dates[commit_sha] = (author, author_date, commit_date)
+            self.commit_committers[commit_sha] = committer
             return (author, author_date, commit_date)
         except subprocess.CalledProcessError as exc:
             traceback.print_exc()
             raise RuntimeError(
                 f'Failed to retrieve author and commit dates for '
                 f'{commit_sha}: {exc.output}') from exc
+
+    @staticmethod
+    def is_couchbase_email(email):
+        return bool(email) and email.endswith("@couchbase.com")
+
+    def gerrit_change_owner(self, repo_path, commit_sha):
+        """
+        Find the Gerrit owner of the change a commit was merged as, via the
+        Change-Id in its commit message.
+
+        The query is anonymous, so only changes in public projects resolve -
+        one in a restricted project simply doesn't, until we have credentials
+        to query with.  That's still enough for a contributor who has any
+        public change, as the address it turns up is reused for the rest of
+        their commits.
+
+        Returns None if the commit didn't come through Gerrit, if the change
+        isn't visible, or if Gerrit can't be reached - this is a fallback for
+        attributing commits, not something worth failing over.
+        """
+
+        host = self.project_gerrit_hosts.get(
+            repo_path.split('/')[-1], self.gerrit_host)
+        if not host:
+            return None
+
+        with self.gerrit_lock:
+            if commit_sha in self.gerrit_owners:
+                return self.gerrit_owners[commit_sha]
+
+        owner = None
+        try:
+            message = self.check_output(
+                ['git', 'show', '-s', '--format=%B', commit_sha],
+                cwd=self.product_dir / repo_path
+            ).decode(errors='replace')
+            change_id = self.change_id_regex.search(message)
+            if not change_id:
+                self.log.debug(f'{commit_sha[:7]} has no Change-Id, it did '
+                               f'not come through Gerrit')
+            else:
+                query = urllib.parse.urlencode(
+                    {'q': f'change:{change_id.group(1)}',
+                     'o': 'DETAILED_ACCOUNTS'})
+                with urllib.request.urlopen(
+                        f'https://{host}/changes/?{query}',
+                        timeout=30) as response:
+                    body = response.read().decode(errors='replace')
+                # Gerrit prefixes its JSON with )]}' to defeat cross site
+                # script inclusion
+                if body.startswith(")]}'"):
+                    body = body[4:]
+                for change in json.loads(body):
+                    owner = change.get('owner', {}).get('email')
+                    if owner:
+                        break
+                if not owner:
+                    self.log.debug(
+                        f'{host} has no visible change '
+                        f'{change_id.group(1)} for {commit_sha[:7]}')
+        except (subprocess.CalledProcessError, json.JSONDecodeError,
+                OSError, ValueError) as exc:
+            # Warn once per host rather than per commit - a Gerrit we can't
+            # reach fails the same way every time, and silently losing the
+            # fallback is how this went unnoticed before
+            if host not in self.gerrit_warned:
+                self.gerrit_warned.add(host)
+                self.log.warning(
+                    f'Unable to query Gerrit at {host}, commits from '
+                    f'non-Couchbase addresses will not be attributed via '
+                    f'their Gerrit change: {exc}')
+            self.log.debug(
+                f'Unable to determine the Gerrit owner of {commit_sha}: {exc}')
+
+        with self.gerrit_lock:
+            self.gerrit_owners[commit_sha] = owner
+        return owner
+
+    def notify_email(self, repo_path, commit_sha, author):
+        """
+        Work out who to tell about a missing commit.  Commits authored from a
+        non-Couchbase address - external contributors, personal addresses -
+        would otherwise go unreported, so fall back to whoever committed it,
+        and failing that to the owner of the Gerrit change it was merged as.
+        Returns the author unchanged if nothing better can be found, leaving
+        the caller to skip it as before.
+        """
+
+        if self.is_couchbase_email(author):
+            return author
+
+        committer = self.commit_committers.get(commit_sha)
+        if self.is_couchbase_email(committer):
+            self.log.debug(f'Attributing {commit_sha[:7]} to its committer '
+                           f'{committer}, author {author} is not a Couchbase '
+                           f'address')
+            return committer
+
+        known = self.resolved_authors.get(author)
+        if known:
+            self.log.debug(f'Attributing {commit_sha[:7]} to {known}, already '
+                           f'resolved for author {author}')
+            return known
+
+        owner = self.gerrit_change_owner(repo_path, commit_sha)
+        if self.is_couchbase_email(owner):
+            self.log.info(f'Attributing commits authored by {author} to '
+                          f'{owner}, the owner of the Gerrit change '
+                          f'{commit_sha[:7]} was merged as')
+            self.resolved_authors[author] = owner
+            return owner
+
+        return author
 
     def get_commit_details(self, line, repo_path):
         """
@@ -1080,10 +1222,17 @@ class MissingCommits:
                     continue
 
                 if sha not in self.commits[self.product][project_name]["TrackedCommits"]:
+                    # Resolve who to notify now, while the checkout this
+                    # commit came from is still around - repo_sync() replaces
+                    # it for every manifest pair, so by the time we come to
+                    # notify it may well be gone
                     self.commits[self.product][project_name]["TrackedCommits"][sha] = {
                         "present_in": [],
                         "missing_from": [],
                         "author": author,
+                        "notify": self.notify_email(
+                            repo_path, self.get_long_sha(repo_path, sha),
+                            author),
                         "message": message,
                         "date": commit_date,
                     }
@@ -1106,6 +1255,15 @@ class MissingCommits:
             for project, commits in product_info.items():
                 for missing_commit, missing_commit_info in commits.get('TrackedCommits', {}).items():
                     author = missing_commit_info['author']
+                    # Commits authored from a non-Couchbase address are
+                    # attributed to their committer, or to the owner of the
+                    # Gerrit change they were merged as
+                    target = missing_commit_info.get('notify') or author
+                    if not self.is_couchbase_email(target):
+                        # We may have worked out who this author is since,
+                        # from another of their commits - e.g. one that went
+                        # through Gerrit where this one didn't
+                        target = self.resolved_authors.get(author, target)
                     message = missing_commit_info['message']
                     present_in = missing_commit_info['present_in']
                     missing_from = missing_commit_info['missing_from']
@@ -1113,40 +1271,45 @@ class MissingCommits:
                     if not missing_from:
                         continue
 
-                    if author not in report:
-                        report[author] = {}
-                    if project not in report[author]:
-                        report[author][project] = {}
-                    if missing_commit not in report[author][project]:
-                        report[author][project][missing_commit] = {
+                    if target not in report:
+                        report[target] = {}
+                    if project not in report[target]:
+                        report[target][project] = {}
+                    if missing_commit not in report[target][project]:
+                        report[target][project][missing_commit] = {
                             "message": message,
                             "present_in": present_in,
                             "missing_from": missing_from,
+                            "author": author,
                         }
 
-        for author in report:
-            target_user = recipient if recipient else author
-            message_header = message_header_template.format(author=author, product=product)
+        for target in report:
+            target_user = recipient if recipient else target
+            message_header = message_header_template.format(author=target, product=product)
             message = ""
-            for project in report[author]:
+            for project in report[target]:
                 message += f"\n  Project: {project}\n"
-                for commit in report[author][project]:
-                    present_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[author][project][commit]["present_in"]])
-                    missing_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[author][project][commit]["missing_from"]])
-                    message += f"    *{report[author][project][commit].get('message')}* (<{self.commits[product][project]['url']}/commit/{commit}|{commit}>)\n"
+                for commit in report[target][project]:
+                    present_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[target][project][commit]["present_in"]])
+                    missing_links = ", ".join([f"<{self.manifest_repo.replace('ssh://git@', 'https://').rstrip('/')}/blob/{self.manifest_branch}/{manifest}|{manifest}>" for manifest in report[target][project][commit]["missing_from"]])
+                    message += f"    *{report[target][project][commit].get('message')}* (<{self.commits[product][project]['url']}/commit/{commit}|{commit}>)\n"
                     message += f"         date: {self.commits[product][project]['TrackedCommits'][commit]['date']}\n"
+                    # Say whose commit it is when we're not telling the author
+                    author = report[target][project][commit]["author"]
+                    if author != target:
+                        message += f"         author: {author}\n"
                     message += f"         present: {present_links}\n"
                     message += f"         missing: {missing_links}\n"
 
-            if author.endswith("@couchbase.com"):
+            if self.is_couchbase_email(target):
                 if self.notify:
                     self.send_alert(target_user, message_header, message)
                 else:
                     if target_user not in self.notified_users:
                         self.notified_users.append(target_user)
             else:
-                if author not in self.skipped_users:
-                    self.skipped_users.append(author)
+                if target not in self.skipped_users:
+                    self.skipped_users.append(target)
 
         # Show info about which users were emailed, and which were skipped
         if self.skipped_users:
