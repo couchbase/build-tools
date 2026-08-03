@@ -1,0 +1,60 @@
+[Unit]
+Description=Couchbase Fleet Manager
+Documentation=file:/usr/share/doc/couchbase-fleetmanager/README.md
+
+# Ordering only, not Requires: Fleet Manager may point at a remote cluster, and both
+# directives are no-ops when couchbase-server isn't installed.
+Wants=couchbase-server.service
+After=couchbase-server.service
+Wants=network-online.target
+After=network-online.target
+
+# After= gives ordering but not readiness, so the first start after a boot usually fails
+# while Couchbase comes up. This disables the default rate limit (5 starts in 10s) that
+# would otherwise leave the unit permanently failed. It is a [Unit] directive -- systemd
+# ignores it with a warning if placed in [Service].
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=fleetmanager
+Group=fleetmanager
+
+EnvironmentFile=-/etc/couchbase/fleetmanager/fleetmanager.env
+
+# --credentials-path is required: the built-in default is /var/lib/fleetmanager. $FM_ARGS
+# is unbraced so systemd splits it into separate arguments.
+ExecStart=/opt/couchbase/fleetmanager/bin/fleetmanager-server \
+    --ui-dir /opt/couchbase/fleetmanager/ui \
+    --credentials-path /opt/couchbase/var/lib/fleetmanager/credentials.json \
+    $FM_ARGS
+
+Restart=on-failure
+RestartSec=15s
+
+# Lets it bind port 443 without running as root.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+
+# ProtectSystem=strict covers /opt too, and StateDirectory= can't manage a path outside
+# /var/lib, so this exception is what allows credentials.json to be written.
+ProtectSystem=strict
+ReadWritePaths=/opt/couchbase/var/lib/fleetmanager
+
+# The server writes log files here. LogsDirectory creates it, chowns it to User= and adds
+# it to the writable set, which ProtectSystem=strict would otherwise deny.
+LogsDirectory=couchbase-fleetmanager
+LogsDirectoryMode=0750
+
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
