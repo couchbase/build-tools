@@ -4,6 +4,9 @@
         "detect.excluded.detector.types": "MAVEN,NUGET,GRADLE,PIP",
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "logging.level.detect": "DEBUG",
+        "detect.go.mod.dependency.types.excluded": "VENDORED",
+        "detect.detector.search": "goproj",
+        "detect.excluded.directories": "**/*test*,**/docs",
         "detect.detector.search.continue": true
     }
 }

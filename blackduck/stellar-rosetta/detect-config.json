@@ -4,6 +4,6 @@
         "logging.level.detect": "DEBUG",
         "detect.tools.excluded": "SIGNATURE_SCAN",
         "detect.go.mod.dependency.types.excluded": "VENDORED",
-        "detect.detector.search.exclusion.paths": "**/test"
+        "detect.excluded.directories": "**/*test*,**/docs"
     }
 }
