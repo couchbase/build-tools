@@ -1,0 +1,9 @@
+{
+    "detect_opts": {
+        "detect.detector.search.depth": 9,
+        "logging.level.detect": "DEBUG",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.go.mod.dependency.types.excluded": "VENDORED",
+        "detect.detector.search.exclusion.paths": "**/test"
+    }
+}
