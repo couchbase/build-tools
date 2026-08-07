@@ -5,10 +5,10 @@ RELEASE=$2
 VERSION=$3
 BLD_NUM=$4
 
-OPENJDK_VERSION=8u292-b10
+OPENJDK_VERSION=17.0.7+7
 
-cbdep install -d "${WORKSPACE}/extra" openjdk-jre ${OPENJDK_VERSION}
-export JAVA_HOME="${WORKSPACE}/extra/openjdk-jre-${OPENJDK_VERSION}"
+cbdep install -d "${WORKSPACE}/extra" openjdk ${OPENJDK_VERSION}
+export JAVA_HOME="${WORKSPACE}/extra/openjdk-${OPENJDK_VERSION}"
 export PATH="${JAVA_HOME}/bin:$PATH"
 
 git clone ssh://git@github.com/couchbase/couchbase-spark-connector.git
