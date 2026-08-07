@@ -76,7 +76,7 @@ echo ================================
 # "repo init" clones the latest stable version of actual repo tool into .repo/repo
 # This can lead to a compatibility issue with older luancher, which breaks "repo init"
 # and/or "repo sync".  Hence use REPO_REV to pin repo tool to match the launcher version
-export REPO_REV="v$(repo version | sed -n -E 's/^repo launcher version v?([0-9.]+).*/\1/p')"
+export REPO_REV="v$(repo version | sed -n -E 's/^repo launcher version ([0-9.]+).*/\1/p')"
 # "repo init" has a "--no-git-lfs" options, but the implementation is exactly
 # backwards, so we need to specify "--git-lfs" to *disable* Git LFS. Do this
 # the manual way with git config, since some older versions of repo don't yet
