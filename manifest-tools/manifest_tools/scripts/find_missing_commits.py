@@ -96,6 +96,15 @@ class MissingCommits:
     # numeric characters to account for variances in punctuation, spaces etc.
     normalize_regex = re.compile(r'[^a-zA-Z0-9]')
 
+    # Per-manifest options read from product-config.json.  A manifest which
+    # is only in the list to have commits tracked into it - e.g. an
+    # enterprise-analytics manifest listed under couchbase-server - wants all
+    # three of these
+    fmc_force = "find_missing_commits_force"
+    fmc_target_only = "find_missing_commits_target_only"
+    fmc_skip_inherited = "find_missing_commits_skip_inherited"
+    fmc_options = (fmc_force, fmc_target_only, fmc_skip_inherited)
+
     # Matched commits are categorised, the order here dictates the order they
     # will be shown in when running with DEBUG=true
     match_types = ["Backport", "Date match", "Diff match", "Summary match"]
@@ -362,6 +371,65 @@ class MissingCommits:
                 if annotation.get("name") == annotation_name:
                     return annotation.get("value")
 
+    def manifest_option(self, manifest, option):
+        """
+        Read one of the per-manifest 'find_missing_commits_*' options from
+        product-config.json
+        """
+
+        return bool(self.manifest_config.get(manifest, {}).get(option, False))
+
+    def manifest_project_paths(self, manifest):
+        """
+        Return the repo paths of the projects a manifest configures itself,
+        via <project> or <extend-project>, ignoring anything it only picks up
+        through an <include>.
+
+        A product whose manifest includes another product's - e.g.
+        enterprise-analytics, which builds on couchbase-server - owns only
+        the projects it names, and the rest are covered by the check for the
+        product they come from.
+
+        <include> is deliberately not followed.  The paths come from the
+        manifest 'repo manifest -r' produced during the sync, which is where
+        a project's path is resolved (and defaults to its name).
+        """
+
+        if os.path.isabs(manifest):
+            manifest_path = manifest
+        else:
+            manifest_path = self.product_dir / ".repo/manifests" / manifest
+
+        try:
+            root = ET.parse(manifest_path).getroot()
+        except (ET.ParseError, OSError) as exc:
+            self.log.warning(f'Unable to read {manifest_path} to work out '
+                             f'which projects it configures: {exc}')
+            return None
+
+        names = {
+            project.get("name")
+            for element in ("project", "extend-project")
+            for project in root.findall(element)
+            if project.get("name")
+        }
+
+        paths = set()
+        resolved = ET.parse(pathlib.Path('new.xml').resolve()).getroot()
+        for project in resolved.findall("project"):
+            if project.get("name") in names:
+                paths.add(project.get("path") or project.get("name"))
+
+        missing = names - {
+            project.get("name") for project in resolved.findall("project")}
+        if missing:
+            # Projects the manifest removes again, or which aren't in the
+            # groups we synced, simply aren't ours to check
+            self.log.debug(f'{manifest} names projects which aren\'t in the '
+                           f'checkout, ignoring: {", ".join(sorted(missing))}')
+
+        return paths
+
     def get_manifests(self, product, manifest_dir):
         """
         Get a list of active manifests for a specific product
@@ -405,13 +473,32 @@ class MissingCommits:
 
         with open(product_config) as f:
             data = json.load(f)
+            self.manifest_config = data["manifests"]
+
+            # Nothing validates product-config.json, so a mistyped option
+            # would otherwise be silently ignored
+            for manifest, config in self.manifest_config.items():
+                for key in config:
+                    if (key.startswith("find_missing_commits")
+                            and key not in self.fmc_options):
+                        self.log.warning(
+                            f"Unrecognised option '{key}' for {manifest} in "
+                            f"{product_config}, ignoring it - the options are "
+                            f"{', '.join(self.fmc_options)}")
             if product == "sync_gateway":
                 raw_manifest_list = list(data["manifests"].keys())[::-1]
             else:
                 raw_manifest_list = list(data["manifests"].keys())
 
             for manifest in raw_manifest_list:
-                if data["manifests"][manifest].get("do-build", True):
+                manifest_config = data["manifests"][manifest]
+                # 'do-build' says whether a manifest is still built, which
+                # isn't the same question as whether we still want commits
+                # tracked from it - a release train can stop being built long
+                # before the commits on it have all been merged forward - so
+                # let a manifest opt back in to the check on its own
+                if (manifest_config.get("do-build", True)
+                        or self.manifest_option(manifest, self.fmc_force)):
                     manifests.append(manifest)
 
         active_manifests = []
@@ -533,10 +620,23 @@ class MissingCommits:
                 _, repo_path, old_commit, new_commit = entry.split()
                 changes[repo_path] = ('changed', old_commit, new_commit)
 
+        # When the target manifest asks for it, restrict the comparison to
+        # the projects it configures itself - what it inherits through an
+        # <include> is the business of the product it came from
+        scope = None
+        if self.manifest_option(self.new_manifest, self.fmc_skip_inherited):
+            scope = self.manifest_project_paths(self.new_manifest)
+            if scope is not None:
+                self.log.info(
+                    f"{self.new_manifest} configures {len(scope)} projects "
+                    f"directly, limiting the comparison to those")
+
         # Perform commit diffs, handling merged projects by diffing
         # the merged project against each of the projects the were
         # merged into it
         for repo_path, change_info in changes.items():
+            if scope is not None and repo_path not in scope:
+                continue
             if self.targeted_projects and repo_path.split("/")[-1] not in self.targeted_projects:
                 continue
             # A project we can't diff - e.g. one holding a revision which
@@ -1433,7 +1533,20 @@ def main():
     # and report the failures at the end.
     failed_comparisons = []
 
+    # A manifest with find_missing_commits_target_only set is never compared
+    # as the source of a pair; it is in the list to have commits tracked into
+    # it, not out of it, so it can't end up being checked the other way round
+    # purely because of where it sits in product-config.json
+    comparisons = []
     for a, b in combinations(commit_checker.manifests, 2):
+        if commit_checker.manifest_option(
+                a, commit_checker.fmc_target_only):
+            logger.debug(f"Not comparing {a} against {b}, {a} only has "
+                         f"commits tracked into it")
+            continue
+        comparisons.append((a, b))
+
+    for a, b in comparisons:
         try:
             commit_checker.identify_missing_commits(a, b)
         except Exception as exc:
