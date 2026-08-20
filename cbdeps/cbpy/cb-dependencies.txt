@@ -4,7 +4,8 @@
 # Note! Don't list "python" itself here - that has to be specified prior
 # to the creation of the environment, so it is defined in the manifest.
 
-cryptography==48.0.0
+cryptography==48.0.0; sys_platform == "darwin"
+cryptography>=50.0.0; sys_platform != "darwin"
 msgpack>=1.0.2
 natsort>=7.1.1
 pycryptodome>=3.20.0
