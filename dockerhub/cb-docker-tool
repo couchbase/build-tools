@@ -183,6 +183,13 @@ class DockerTool:
                 f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics:{self.version}",
                 f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics:{plain_version}",
             ])
+        elif self.product == "enterprise-analytics-udf":
+            self.imagenames.extend([
+                f"ghcr.io/cb-vanilla/enterprise-analytics-udf:{self.version}",
+                f"ghcr.io/cb-vanilla/enterprise-analytics-udf:{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics-udf:{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics-udf:{plain_version}",
+            ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
 
@@ -217,6 +224,9 @@ class DockerTool:
             self.imagenames.append(f"{imagebase}:{self.version}")
         elif self.product == "enterprise-analytics":
             imagebase = "couchbase/enterprise-analytics"
+            self.imagenames.append(f"{imagebase}:{self.version}")
+        elif self.product == "enterprise-analytics-udf":
+            imagebase = "couchbase/enterprise-analytics-udf"
             self.imagenames.append(f"{imagebase}:{self.version}")
         elif self.product == "couchbase-edge-server":
             imagebase = "couchbase/edge-server"
@@ -264,6 +274,10 @@ class DockerTool:
                 "http://latestbuilds.service.couchbase.com/builds/"
                 f"latestbuilds/{self.product}/{version}/{bldnum}"
             ])
+        elif self.product == "enterprise-analytics-udf":
+            # enterprise-analytics-udf doesn't pull anything from latestbuilds
+            # or packages.couchbase.com
+            return
         else:
             self.add_templateoverrides([
                 "CB_SKIP_CHECKSUM=true",
@@ -350,7 +364,9 @@ class DockerTool:
                 "single platform with --platform, or specify a filename with '%P' "
                 "to --docker-save"
             )
-        if self.product in ("couchbase-columnar", "enterprise-analytics") and self.edition == "community":
+        if self.product in (
+            "couchbase-columnar", "enterprise-analytics", "enterprise-analytics-udf"
+        ) and self.edition == "community":
             return (
                 f"{self.product} does not support CE builds."
             )
@@ -428,7 +444,9 @@ class DockerTool:
                     return "linux/amd64,linux/arm64"
                 else:
                     return "linux/amd64"
-            elif self.product in ("couchbase-columnar", "enterprise-analytics"):
+            elif self.product in (
+                "couchbase-columnar", "enterprise-analytics", "enterprise-analytics-udf"
+            ):
                 return "linux/amd64,linux/arm64"
             elif self.product == "couchbase-edge-server":
                 intver = self._intver()
@@ -872,46 +890,53 @@ if __name__ == "__main__":
             "--force-update-github only applicable with --update-github"
         )
 
-    tool = DockerTool(
-        args.product, args.version, args.edition,
-        args.platform, args.github_repo
-    )
-    tool.set_debug(args.debug)
+    # enterprise-analytics-udf is a companion image sharing the same
+    # version/build as enterprise-analytics; build it too
+    products = [args.product]
+    if args.product == "enterprise-analytics":
+        products.append("enterprise-analytics-udf")
 
-    # Prepare actions
-    if args.docker_push:
-        tool.will_docker_push()
-    if args.docker_load:
-        tool.will_docker_load()
-    if args.docker_save is not None:
-        tool.will_docker_save(args.docker_save)
-    if args.update_github:
-        tool.will_update_github(args.force_update_github)
-    if args.write_context is not None:
-        tool.will_write_context(args.write_context)
+    for product in products:
+        tool = DockerTool(
+            product, args.version, args.edition,
+            args.platform, args.github_repo
+        )
+        tool.set_debug(args.debug)
 
-    # Prepare tags
-    if args.images is not None:
-        tool.add_imagenames(args.images)
-    if args.staging_images:
-        tool.add_staging_imagenames()
-    if args.release_images:
-        tool.add_release_imagenames(args.edition_tag, args.latest_tag)
+        # Prepare actions
+        if args.docker_push:
+            tool.will_docker_push()
+        if args.docker_load:
+            tool.will_docker_load()
+        if args.docker_save is not None:
+            tool.will_docker_save(args.docker_save)
+        if args.update_github:
+            tool.will_update_github(args.force_update_github)
+        if args.write_context is not None:
+            tool.will_write_context(args.write_context)
 
-    # Other tool config
-    tool.set_from_latestbuilds(args.from_latestbuilds)
-    if args.from_local_install is not None:
-        tool.set_local_install_dir(args.from_local_install)
-    if args.buildargs is not None:
-        tool.add_buildargs(args.buildargs)
-    if args.templateargs is not None:
-        tool.add_templateoverrides(args.templateargs)
+        # Prepare tags
+        if args.images is not None:
+            tool.add_imagenames(args.images)
+        if args.staging_images:
+            tool.add_staging_imagenames()
+        if args.release_images:
+            tool.add_release_imagenames(args.edition_tag, args.latest_tag)
 
-    # Ask tool if it's ready
-    errmsg = tool.check_ready()
-    if errmsg is not None:
-        parser.error(errmsg)
+        # Other tool config
+        tool.set_from_latestbuilds(args.from_latestbuilds)
+        if args.from_local_install is not None:
+            tool.set_local_install_dir(args.from_local_install)
+        if args.buildargs is not None:
+            tool.add_buildargs(args.buildargs)
+        if args.templateargs is not None:
+            tool.add_templateoverrides(args.templateargs)
 
-    # Do it!
-    tool.set_dryrun(args.dryrun)
-    tool.execute()
+        # Ask tool if it's ready
+        errmsg = tool.check_ready()
+        if errmsg is not None:
+            parser.error(errmsg)
+
+        # Do it!
+        tool.set_dryrun(args.dryrun)
+        tool.execute()
