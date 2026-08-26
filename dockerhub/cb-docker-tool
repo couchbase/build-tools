@@ -587,18 +587,22 @@ class DockerTool:
         self.run(gencmd, cwd=self.gitdir / "generate" / "generator")
 
 
-    def _buildx_build_base_command(self) -> List[str]:
+    def _buildx_build_base_command(
+        self, imagenames: Optional[List[str]] = None, no_cache: bool = True
+    ) -> List[str]:
         """
         Creates a "docker buildx build" command with all the arguments
         required for the user's select image names and build args. Does
         not include arguments for platforms or actions (save, push, etc.)
         """
 
-        buildcmd = [
-            "docker", "buildx", "build", "--no-cache",
-            self.contextdir
-        ]
-        for imagename in self.imagenames:
+        buildcmd = ["docker", "buildx", "build"]
+        if no_cache:
+            buildcmd.append("--no-cache")
+        buildcmd.append(self.contextdir)
+        if imagenames is None:
+            imagenames = self.imagenames
+        for imagename in imagenames:
             if not ':' in imagename:
                 logging.debug(f"...Providing tag :{self.version} for {imagename}")
                 imagename = f"{imagename}:{self.version}"
@@ -613,24 +617,47 @@ class DockerTool:
 
     def _build_image(self) -> None:
         """
-        Runs 'docker buildx build' with all appropriate arguments.
+        Runs 'docker buildx build' with all appropriate arguments. When
+        pushing, images destined for the internal registry are pushed in
+        a separate, earlier invocation so they land even if a push to an
+        external registry (eg. ghcr.io) subsequently fails.
         """
 
         logging.info("Invoking 'docker buildx build'; may take a while")
-        buildcmd = self._buildx_build_base_command()
-        buildcmd.extend([
-            "--pull",
-            "--platform", self.platform,
-        ])
-        if self.do_docker_push:
-            if self.dryrun:
-                logging.info("...Skipping 'docker push' due to dryrun")
-            else:
-                logging.info("...Will push images to registries")
+        push = self.do_docker_push and not self.dryrun
+        if self.do_docker_push and self.dryrun:
+            logging.info("...Skipping 'docker push' due to dryrun")
+
+        if push:
+            internal = [
+                x for x in self.imagenames
+                if x.startswith("build-docker.couchbase.com/")
+            ]
+            external = [x for x in self.imagenames if x not in internal]
+            imagename_groups = [x for x in [internal, external] if x]
+        else:
+            imagename_groups = [self.imagenames]
+
+        for index, imagenames in enumerate(imagename_groups):
+            first = index == 0
+            # Only the first invocation ignores the build cache; later
+            # ones re-use the layers it just built, so they only re-tag
+            # and push
+            buildcmd = self._buildx_build_base_command(
+                imagenames=imagenames, no_cache=first
+            )
+            if first:
+                buildcmd.append("--pull")
+            buildcmd.extend(["--platform", self.platform])
+            if push:
+                logging.info(
+                    "...Will push images to registries: "
+                    + ", ".join(imagenames)
+                )
                 buildcmd.append("--push")
-        if self.do_docker_load:
-            buildcmd.extend(["--load"])
-        self.run(buildcmd)
+            if self.do_docker_load:
+                buildcmd.extend(["--load"])
+            self.run(buildcmd)
         logging.info(f"'docker buildx build' complete!")
 
 
