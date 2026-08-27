@@ -897,6 +897,12 @@ if __name__ == "__main__":
         products.append("enterprise-analytics-udf")
 
     for product in products:
+        # CBD-6824: a companion is an extra image, not an extra copy of the one
+        # that was asked for. --image, --docker-save and --write-context each
+        # name a single output, so they belong to args.product alone; giving the
+        # companion the same name just overwrites the real image with it.
+        companion = product != args.product
+
         tool = DockerTool(
             product, args.version, args.edition,
             args.platform, args.github_repo
@@ -908,15 +914,17 @@ if __name__ == "__main__":
             tool.will_docker_push()
         if args.docker_load:
             tool.will_docker_load()
-        if args.docker_save is not None:
+        if args.docker_save is not None and not companion:
             tool.will_docker_save(args.docker_save)
         if args.update_github:
+            # safe for a companion: the path is derived per product
             tool.will_update_github(args.force_update_github)
-        if args.write_context is not None:
+        if args.write_context is not None and not companion:
             tool.will_write_context(args.write_context)
 
-        # Prepare tags
-        if args.images is not None:
+        # Prepare tags. A companion takes only the names --staging-images and
+        # --release-images derive, which are per product.
+        if args.images is not None and not companion:
             tool.add_imagenames(args.images)
         if args.staging_images:
             tool.add_staging_imagenames()
@@ -932,9 +940,17 @@ if __name__ == "__main__":
         if args.templateargs is not None:
             tool.add_templateoverrides(args.templateargs)
 
-        # Ask tool if it's ready
+        # Ask tool if it's ready. Once the named outputs are withheld a
+        # companion may have nothing left of its own to produce - a toy build
+        # naming one image is the usual case. Skip it rather than failing the
+        # invocation that asked for the real product.
         errmsg = tool.check_ready()
         if errmsg is not None:
+            if companion:
+                logging.info(
+                    f"Not building companion image {product}: {errmsg}"
+                )
+                continue
             parser.error(errmsg)
 
         # Do it!
