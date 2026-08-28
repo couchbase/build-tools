@@ -13,6 +13,12 @@ import tempfile
 from typing import List, Optional
 
 
+# Products whose images are named after the product itself, and which share
+# the same platform and edition rules.
+UDF_PRODUCTS = ("enterprise-analytics-udf", "operational-insights-udf")
+ANALYTICS_PRODUCTS = ("enterprise-analytics", "operational-insights", *UDF_PRODUCTS)
+
+
 class DockerTool:
     """
     Does lots of Docker things with github.com/couchbase/docker
@@ -176,19 +182,13 @@ class DockerTool:
                 f"build-docker.couchbase.com/cb-vanilla/columnar:{self.version}",
                 f"build-docker.couchbase.com/cb-vanilla/columnar:{plain_version}",
             ])
-        elif self.product == "enterprise-analytics":
+        elif self.product in ANALYTICS_PRODUCTS:
+            # These tag by product name, unlike columnar above
             self.imagenames.extend([
-                f"ghcr.io/cb-vanilla/enterprise-analytics:{self.version}",
-                f"ghcr.io/cb-vanilla/enterprise-analytics:{plain_version}",
-                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics:{self.version}",
-                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics:{plain_version}",
-            ])
-        elif self.product == "enterprise-analytics-udf":
-            self.imagenames.extend([
-                f"ghcr.io/cb-vanilla/enterprise-analytics-udf:{self.version}",
-                f"ghcr.io/cb-vanilla/enterprise-analytics-udf:{plain_version}",
-                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics-udf:{self.version}",
-                f"build-docker.couchbase.com/cb-vanilla/enterprise-analytics-udf:{plain_version}",
+                f"ghcr.io/cb-vanilla/{self.product}:{self.version}",
+                f"ghcr.io/cb-vanilla/{self.product}:{plain_version}",
+                f"build-docker.couchbase.com/cb-vanilla/{self.product}:{self.version}",
+                f"build-docker.couchbase.com/cb-vanilla/{self.product}:{plain_version}",
             ])
         elif self.product == "server-sandbox":
             self.error_msg = "No staging imagenames for server-sandbox (sorry)"
@@ -222,11 +222,8 @@ class DockerTool:
         elif self.product == "couchbase-columnar":
             imagebase = "couchbase/columnar"
             self.imagenames.append(f"{imagebase}:{self.version}")
-        elif self.product == "enterprise-analytics":
-            imagebase = "couchbase/enterprise-analytics"
-            self.imagenames.append(f"{imagebase}:{self.version}")
-        elif self.product == "enterprise-analytics-udf":
-            imagebase = "couchbase/enterprise-analytics-udf"
+        elif self.product in ANALYTICS_PRODUCTS:
+            imagebase = f"couchbase/{self.product}"
             self.imagenames.append(f"{imagebase}:{self.version}")
         elif self.product == "couchbase-edge-server":
             imagebase = "couchbase/edge-server"
@@ -274,8 +271,8 @@ class DockerTool:
                 "http://latestbuilds.service.couchbase.com/builds/"
                 f"latestbuilds/{self.product}/{version}/{bldnum}"
             ])
-        elif self.product == "enterprise-analytics-udf":
-            # enterprise-analytics-udf doesn't pull anything from latestbuilds
+        elif self.product in UDF_PRODUCTS:
+            # the udf images don't pull anything from latestbuilds
             # or packages.couchbase.com
             return
         else:
@@ -365,7 +362,7 @@ class DockerTool:
                 "to --docker-save"
             )
         if self.product in (
-            "couchbase-columnar", "enterprise-analytics", "enterprise-analytics-udf"
+            "couchbase-columnar", *ANALYTICS_PRODUCTS
         ) and self.edition == "community":
             return (
                 f"{self.product} does not support CE builds."
@@ -445,7 +442,7 @@ class DockerTool:
                 else:
                     return "linux/amd64"
             elif self.product in (
-                "couchbase-columnar", "enterprise-analytics", "enterprise-analytics-udf"
+                "couchbase-columnar", *ANALYTICS_PRODUCTS
             ):
                 return "linux/amd64,linux/arm64"
             elif self.product == "couchbase-edge-server":
@@ -733,7 +730,8 @@ if __name__ == "__main__":
     reqopts.add_argument(
         "-p", "--product", type=str, required=True,
         choices=["couchbase-server", "sync-gateway", "server-sandbox",
-                 "couchbase-columnar", "enterprise-analytics", "couchbase-edge-server"],
+                 "couchbase-columnar", "enterprise-analytics",
+                 "operational-insights", "couchbase-edge-server"],
         help="Product name"
     )
     reqopts.add_argument(
@@ -890,11 +888,11 @@ if __name__ == "__main__":
             "--force-update-github only applicable with --update-github"
         )
 
-    # enterprise-analytics-udf is a companion image sharing the same
-    # version/build as enterprise-analytics; build it too
+    # The udf image is a companion sharing the same version/build as its
+    # parent product; build it too
     products = [args.product]
-    if args.product == "enterprise-analytics":
-        products.append("enterprise-analytics-udf")
+    if f"{args.product}-udf" in UDF_PRODUCTS:
+        products.append(f"{args.product}-udf")
 
     for product in products:
         # CBD-6824: a companion is an extra image, not an extra copy of the one
