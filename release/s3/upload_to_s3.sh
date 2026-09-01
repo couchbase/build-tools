@@ -7,7 +7,7 @@ function usage() {
     echo "   [-p <platforms>] [-l]"
     echo "where:"
     echo "  -r: release code name (defaults to <version>)"
-    echo "  -v: version number; eg. 7.0.0"
+    echo "  -v: version number; eg. 7.0.0 or 1.0.0-beta.5"
     echo "  -b: build number to release"
     echo "  -t: product; defaults to couchbase-server"
     echo "  -s: version suffix, eg. 'MP1' or 'beta' [optional]"
@@ -67,8 +67,8 @@ if [ "x${BLD_NUM}" = "x" ]; then
     exit 2
 fi
 
-if ! [[ $VERSION =~ ^[0-9]*\.[0-9]*(\.[0-9]*)?$ ]]; then
-    echo "Version number format incorrect. Correct format is A.B[.C] where A, B and C are integers."
+if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z.]+)?$ ]]; then
+    echo "Version number format incorrect. Correct format is A.B[.C][-PRERELEASE] where A, B and C are integers, eg. 7.0.0 or 1.0.0-beta.5."
     exit 3
 fi
 
@@ -118,7 +118,19 @@ fi
 # Product-specific extra stuff - hopefully minimal things here!
 EXTRA_POSITIVE_WILDCARDS=()
 EXTRA_NEGATIVE_WILDCARDS=()
+# Most products publish a manifest and a Black Duck notices file alongside
+# their artifacts; the few that don't are opted out here.
+COPY_MANIFEST=true
+COPY_NOTICES=true
 case "${PRODUCT}" in
+    couchbase-fleetmanager)
+        # couchbase-fleetmanager's artifacts are named just "fleetmanager-*",
+        # and its builds produce neither a manifest nor a notices file
+        # (CBD-6776).
+        EXTRA_POSITIVE_WILDCARDS+=('fleetmanager-*')
+        COPY_MANIFEST=false
+        COPY_NOTICES=false
+        ;;
     couchbase-operator)
         # couchbase-operator's uploads include files starting with
         # "couchbase-autonomous-operator"
@@ -216,9 +228,17 @@ rm -rf ${UPLOAD_TMP_DIR} && mkdir -p ${UPLOAD_TMP_DIR}
 cd ${LB_MOUNT}/${PRODUCT}/$RELEASE/$BLD_NUM
 
 # Copy manifest and notices.txt to release directory
-cp ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-manifest.xml
-NOTICES_FILE=blackduck/${PRODUCT}-${VERSION}-${BLD_NUM}-notices.txt
-cp ${NOTICES_FILE} ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-notices.txt
+if [[ "${COPY_MANIFEST}" = "true" ]]; then
+    cp ${PRODUCT}-${VERSION}-${BLD_NUM}-manifest.xml ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-manifest.xml
+else
+    echo "Skipping manifest for ${PRODUCT}"
+fi
+if [[ "${COPY_NOTICES}" = "true" ]]; then
+    NOTICES_FILE=blackduck/${PRODUCT}-${VERSION}-${BLD_NUM}-notices.txt
+    cp ${NOTICES_FILE} ${UPLOAD_TMP_DIR}/${PRODUCT}-${VERSION}-notices.txt
+else
+    echo "Skipping notices file for ${PRODUCT}"
+fi
 
 # Prepare any additional positive/negative find arguments
 POSITIVE=""
