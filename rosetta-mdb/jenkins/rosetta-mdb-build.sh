@@ -63,7 +63,7 @@ if [ ! -f "target/release/cbmcd" ]; then
 	error "Could not find built binary (expected cbmcd or stellar-rosetta-rs) in target/release"
 fi
 
-DIST_BIN="${DIST_DIR}/cbmcd-${ARCH}_${VERSION}_${BLD_NUM}"
+DIST_BIN="${DIST_DIR}/cbmcd-${ARCH}_${VERSION}-${BLD_NUM}"
 cp "target/release/cbmcd" "${DIST_BIN}"
 
 # [profile.release] debug = true embeds full debug symbols for profiling
