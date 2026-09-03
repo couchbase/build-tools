@@ -9,6 +9,11 @@ from src.wrappers import manifest, git
 logger = logging.getLogger(__name__)
 
 
+class DockerfileNotFoundError(Exception):
+    """Raised when a product/edition/version/registry has no locatable Dockerfile."""
+    pass
+
+
 def replace_args(bash_string: str, variables: Dict) -> str:
     """
     Expand variables in a string
@@ -57,11 +62,12 @@ def dockerfile_path(registry: str, product: str, edition: str, version: str) -> 
 
     logger.debug(f"Resolved Dockerfile path: {dockerfile}")
 
-    if os.path.exists(dockerfile):
-        return dockerfile
-    else:
-        logger.error(f"Dockerfile does not exist at {dockerfile}")
-        return None
+    if not os.path.exists(dockerfile):
+        raise DockerfileNotFoundError(
+            f"no Dockerfile for {product} {edition} {version} on {registry} "
+            f"(looked for {dockerfile})")
+
+    return dockerfile
 
 
 def base_image_from_dockerfile(dockerfile: str) -> str:
@@ -74,6 +80,7 @@ def base_image_from_dockerfile(dockerfile: str) -> str:
     from_pattern = r"^\s*FROM\s+([^\s]+)"
 
     with open(dockerfile, "r") as file:
+        image = None
         images = {}
         args = {}
         for line in file:
@@ -94,6 +101,9 @@ def base_image_from_dockerfile(dockerfile: str) -> str:
                 image = replace_args(images.get(
                     match_from.group(1), match_from.group(1)), args)
                 logger.debug(f"Found FROM: {image}")
+
+    if image is None:
+        raise ValueError(f"no FROM instruction found in {dockerfile}")
 
     logger.debug(f"Final base image: {image}")
     return image
@@ -123,8 +133,15 @@ def base_image(registry: str, product: str, edition: str,
             # dockerfile in the `docker` repo
             partners_repo = git.repo(
                 "ssh://github.com/couchbase-partners/redhat-openshift")
-            timestamp = str(os.path.getmtime(
-                f"repos/docker/{edition}/{product}/{version}/Dockerfile")).split(".")[0]
+            reference = f"repos/docker/{edition}/{product}/{version}/Dockerfile"
+            try:
+                timestamp = str(os.path.getmtime(reference)).split(".")[0]
+            except FileNotFoundError:
+                # Still listed by the registry, but gone from couchbase/docker
+                raise DockerfileNotFoundError(
+                    f"{product} {edition} {version} is on {registry} but has "
+                    f"no Docker Hub Dockerfile at {reference} to date the "
+                    f"redhat-openshift checkout against")
             logger.debug(f"Checking out partners repo at timestamp {timestamp}")
             partners_repo.checkout_timestamp(timestamp)
     else:
@@ -132,11 +149,7 @@ def base_image(registry: str, product: str, edition: str,
         logger.debug(f"Checking out product repo at SHA {release_sha}")
         product_repo.checkout(release_sha)
 
-    if attempt == 0:
-        dockerfile = dockerfile_path(registry, product, edition, version)
-        if dockerfile is None:
-            logger.error("No Dockerfile path found")
-            return
+    dockerfile = dockerfile_path(registry, product, edition, version)
 
     image_name = None
     try:
@@ -147,11 +160,13 @@ def base_image(registry: str, product: str, edition: str,
             image_name = base_image(
                 registry, product, edition, version, attempt=1)
         else:
-            logger.error(f"FATAL: Couldn't find {dockerfile}")
-            exit(1)
+            raise DockerfileNotFoundError(
+                f"could not read the Dockerfile for {product} {edition} "
+                f"{version} on {registry} at {dockerfile}")
     except Exception as e:
-        logger.error(f"An error occurred while getting base image: {e}")
-        exit(1)
+        logger.error(
+            f"Failed to read the base image from {dockerfile}: {e}")
+        raise
 
     logger.debug(f"Returning base image: {image_name}")
     return image_name

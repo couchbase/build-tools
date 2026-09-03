@@ -10,6 +10,8 @@ pipeline {
         string(name: 'VERSION', defaultValue: '', description: 'Version(s) - a version or comma separated list of versions')
         string(name: 'EDITION', defaultValue: '', description: 'Edition(s) - an edition or comma separated list of editions')
         string(name: 'REGISTRY', defaultValue: '', description: 'Registry(s) - a registry or comma separated list of registries (dockerhub and/or rhcc)')
+        string(name: 'CHECKS', defaultValue: '', description: 'Check(s) to run - a check or comma-separated list of checks (base and/or packages). Empty runs both. Base image checks are cheap; package checks pull and run every image')
+        string(name: 'SHARD', defaultValue: '', description: 'Restrict package checks to a subset of images, as N/M with N zero-based, or auto/M to derive N from the day of the week. Base image checks always cover every image')
     }
 
     stages {
@@ -19,6 +21,9 @@ pipeline {
                     // Get the code
                     checkout scm
 
+                    // Single-quote free-text params so they reach the script as one argument
+                    def q = { value -> "'" + value.toString().replace("'", "'\\''") + "'" }
+
                     // Compose command + parameters
                     def cmd = "uv run ./dockerhub/update-unofficial-images/generate_trigger_files.py"
 
@@ -27,16 +32,22 @@ pipeline {
                     }
 
                     if (params.PRODUCT) {
-                        cmd += " --product ${params.PRODUCT}"
+                        cmd += " --product ${q(params.PRODUCT)}"
                     }
                     if (params.EDITION) {
-                        cmd += " --edition ${params.EDITION}"
+                        cmd += " --edition ${q(params.EDITION)}"
                     }
                     if (params.VERSION) {
-                        cmd += " --version ${params.VERSION}"
+                        cmd += " --version ${q(params.VERSION)}"
                     }
                     if (params.REGISTRY) {
-                        cmd += " --registry ${params.REGISTRY}"
+                        cmd += " --registry ${q(params.REGISTRY)}"
+                    }
+                    if (params.CHECKS) {
+                        cmd += " --checks ${q(params.CHECKS)}"
+                    }
+                    if (params.SHARD) {
+                        cmd += " --shard ${q(params.SHARD)}"
                     }
 
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -47,6 +58,12 @@ pipeline {
         }
         // clean up docker images and containers that were used to determine product rebuild status
         stage('Docker prune') {
+            // Only package checks touch the docker daemon, so there is nothing to prune.
+            when {
+                expression {
+                    !params.CHECKS || params.CHECKS.split(',').any { it.trim() == 'packages' }
+                }
+            }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     sh 'docker system prune -a --volumes -f'

@@ -27,7 +27,36 @@ All arguments are optional, and if not provided will be targeted broadly (e.g. i
 - **-e, --edition**: Specify the edition(s) (e.g. community, enterprise).
 - **-v, --version**: Specify the version(s) to check.
 - **-r, --registry**: Specify the registries to be checked (available options are `docker` and `redhat`)
+- **-c, --checks**: Specify which checks may flag an image for rebuild (`base` and/or `packages`). Defaults to both.
+- **-s, --shard**: Restrict package checks to a subset of images (see [Checks and sharding](#checks-and-sharding)).
 - **-l, --log-level**: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Defaults to INFO.
+
+### Checks and sharding
+
+Two independent checks can flag an image for rebuild:
+
+- **base** - compares the create date of the image against its base image. This only needs `skopeo` and `git`, so it is cheap and never touches the Docker daemon.
+- **packages** - boots each image and asks its package manager whether updates are available, then does the same for the base image so that only *product-specific* updates trigger a rebuild. This pulls and runs every image, so it is by far the more expensive of the two.
+
+`--checks` selects which of these run, and `--shard N/M` restricts the package checks (only) to a stable 1-in-M subset of images, with `N` zero-based. Passing `auto` in place of `N` derives the index from the day of the week, so a single daily job gives each image one package check per week (`auto` therefore needs an `M` of at most 7):
+
+```python
+./generate_trigger_files.py --checks base                       # cheap: base image drift only
+./generate_trigger_files.py --checks base,packages --shard auto/7  # base image drift daily, package checks for 1/7 of images
+./generate_trigger_files.py --checks packages --shard 3/7        # package checks for one specific shard
+```
+
+Shard membership is a hash of `registry/product/edition/version`, so it is stable between runs and rebalances on its own as products and versions come and go. Images excluded by `--checks` or `--shard` are reported in the rebuild skips summary with the reason, and anything a disabled check stopped us acting on (a newer base image seen during a `--checks packages` run, say) is reported as a `Note:` against that image, so a cheap run never looks like a clean bill of health.
+
+Note that a base image check which flags a rebuild short-circuits the package check for that image - there is no duplicated work when both checks run.
+
+### Failures
+
+An image we could not check is never reported as an image that needs nothing done. Anything that stops a check completing - a tag that is listed by the registry but fails to pull, an image whose package manager cannot reach its repos, a base image we could not compare against - is reported under **Processing Failures** in the run summary and makes the script exit non-zero, which fails the Jenkins job. Trigger files for the images that *were* checked are still written, and the trigger stage still runs, so a failure here is advisory rather than blocking.
+
+The same applies to enumerating a registry: if `skopeo list-tags` fails after its retries, that registry is reported as a failure for the affected product rather than contributing zero tags to an otherwise clean run. The other registry is still checked.
+
+Note that only the **packages** check pulls images, so a `--checks base` run will not notice a tag that has become unpullable, and under `--shard N/M` a broken tag may take up to M runs to be picked up.
 
 ### Skipping Rebuilds
 

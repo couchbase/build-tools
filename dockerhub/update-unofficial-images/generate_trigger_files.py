@@ -11,7 +11,7 @@ import logging
 import os
 import shutil
 import sys
-from src.wrappers.registry import analyze_images
+from src.wrappers.registry import analyze_images, CHECKS
 from src.wrappers.logging import setup_logging
 from src.wrappers.collections import defaultdict
 from src.wrappers import git
@@ -40,6 +40,53 @@ parameters = {
         "version": "VERSION"
     }
 }
+
+
+def parse_shard(value):
+    """
+    Parse a --shard argument of the form N/M, or auto/M to derive N from the
+    current day of the week.
+
+    Returns an (index, total) tuple, or None if no sharding was requested.
+    """
+    if not value:
+        return None
+
+    index_str, sep, total_str = value.partition("/")
+    if not sep:
+        raise ValueError(
+            f"Invalid shard '{value}' - must be of the form N/M or auto/M")
+
+    try:
+        total = int(total_str)
+    except ValueError:
+        raise ValueError(
+            f"Invalid shard '{value}' - '{total_str}' is not a number")
+
+    if total < 1:
+        raise ValueError(f"Invalid shard '{value}' - M must be at least 1")
+
+    if index_str == "auto":
+        if total > 7:
+            raise ValueError(
+                f"Invalid shard '{value}' - 'auto' derives N from the day of "
+                f"the week, so M must be at most 7")
+        # Monday is 0, so auto/7 gives each image one package check per week
+        index = datetime.now().weekday() % total
+        logger.info(
+            f"Derived package check shard {index}/{total} from the day of week")
+    else:
+        try:
+            index = int(index_str)
+        except ValueError:
+            raise ValueError(
+                f"Invalid shard '{value}' - '{index_str}' is neither a number "
+                f"nor 'auto'")
+        if not 0 <= index < total:
+            raise ValueError(
+                f"Invalid shard '{value}' - N must be between 0 and {total - 1}")
+
+    return (index, total)
 
 
 def clone_repos():
@@ -116,9 +163,49 @@ def main() -> int:
         help="Registry(s) - a registry or comma separated list of registries "
         "(dockerhub and/or rhcc)"
     )
+    parser.add_argument(
+        "-c",
+        "--checks",
+        help="Check(s) to run - a check or comma separated list of checks "
+        "(base and/or packages). Base image checks are cheap; package checks "
+        "pull and run every image. Defaults to both.",
+        default=",".join(CHECKS)
+    )
+    parser.add_argument(
+        "-s",
+        "--shard",
+        help="Restrict package checks to a subset of images, given as N/M "
+        "with N zero-based, or auto/M (M at most 7) to derive N from the day "
+        "of the week. Shard membership is stable between runs. Base image "
+        "checks always cover every image."
+    )
 
     args = parser.parse_args()
     logging.getLogger().setLevel(args.log_level.upper())
+
+    checks = [c.strip() for c in args.checks.split(",") if c.strip()]
+    for check in checks:
+        if check not in CHECKS:
+            logger.error(
+                f"Invalid check '{check}' specified - must be one of: "
+                f"{', '.join(CHECKS)}")
+            return 1
+    if not checks:
+        logger.error(
+            f"No checks specified - must include at least one of: "
+            f"{', '.join(CHECKS)}")
+        return 1
+
+    try:
+        shard = parse_shard(args.shard)
+    except ValueError as e:
+        logger.error(str(e))
+        return 1
+
+    shard_note = (
+        f", package checks restricted to shard {shard[0]}/{shard[1]}"
+        if shard and "packages" in checks else "")
+    logger.info(f"Running checks: {', '.join(checks)}{shard_note}")
 
     # Clone repos before importing metadata
     clone_repos()
@@ -139,12 +226,15 @@ def main() -> int:
 
     logger.debug(
         f"Analyzing with parameters - registries: {registries}, "
-        f"products: {products}, editions: {editions}, versions: {versions}")
+        f"products: {products}, editions: {editions}, versions: {versions}, "
+        f"checks: {checks}, shard: {shard}")
     image_update_info = analyze_images(
         registries=registries,
         products=products,
         editions=editions,
-        versions=versions
+        versions=versions,
+        checks=checks,
+        shard=shard
     )
 
     # Ensure triggers directory exists and is empty
@@ -176,6 +266,8 @@ def main() -> int:
                         details.append(f"  Floating tags: {', '.join(floating_tags)}")
                     if base_image:
                         details.append(f"  Base image: {base_image}")
+                    if info.get('suppressed_finding'):
+                        details.append(f"  Note: {info['suppressed_finding']}")
 
                     if info.get('processing_failed', False):
                         skipped_reason = info.get('skipped_reason', 'unknown processing error')
@@ -191,9 +283,8 @@ def main() -> int:
                         ineffective_rebuilds[registry].append(heading)
                         ineffective_rebuilds[registry].extend(details)
                     elif info.get('rebuild_needed', False):
-                        if ('base_created' in info and 'product_created' in info
-                                and info['base_created'] > info['product_created']):
-                            details.append("  Status: Rebuild needed (newer base image)")
+                        if info.get('rebuild_reason'):
+                            details.append(f"  Status: Rebuild needed ({info['rebuild_reason']})")
                         elif info.get('packages_to_update'):
                             details.append(f"  Product-specific updates: {', '.join(info['packages_to_update'])}")
                             details.append("  Status: Rebuild needed (product-specific package updates)")

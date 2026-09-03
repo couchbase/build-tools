@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -10,13 +11,17 @@ from typing import Dict, List, Tuple, Optional
 from src.metadata import image_info, lifecycle_dates, REGISTRIES
 from src.wrappers import skopeo
 from src.wrappers.skopeo import SkopeoCommandError
-from src.wrappers.dockerfile import base_image
+from src.wrappers.dockerfile import base_image, DockerfileNotFoundError
 from src.wrappers.collections import defaultdict
 from src.wrappers.docker import check_image_for_updates
 
 logger = logging.getLogger(__name__)
 
 semver_pattern = r'([0-9]+\.[0-9]+\.[0-9]+)'
+
+CHECKS = ("base", "packages")
+
+TAG_LISTING_FAILURE_KEY = "all versions"
 
 # Cache for floating tag digests to avoid repeated inspections
 # Key format: f"{registry}:{product}:{tag}"
@@ -171,9 +176,8 @@ def redhat_tags(product: str, edition: str) -> dict:
         return filtered_tags
 
     except SkopeoCommandError as e:
-        logger.error(f"Failed to get RedHat tags for {product}-{edition}: {e}")
-        logger.info(f"Returning empty tag list for {product}-{edition} on rhcc")
-        return defaultdict()
+        logger.error(f"Failed to list RedHat tags for {product}-{edition}: {e}")
+        raise
 
 
 def docker_tags(product: str, edition: str) -> Dict:
@@ -220,9 +224,9 @@ def docker_tags(product: str, edition: str) -> Dict:
         return filtered_versions
 
     except SkopeoCommandError as e:
-        logger.error(f"Failed to get Docker Hub tags for {product}-{edition}: {e}")
-        logger.info(f"Returning empty tag list for {product}-{edition} on dockerhub")
-        return defaultdict()
+        logger.error(
+            f"Failed to list Docker Hub tags for {product}-{edition}: {e}")
+        raise
 
 
 def github_tags(product: str, edition: str) -> Dict:
@@ -244,23 +248,29 @@ def github_tags(product: str, edition: str) -> Dict:
 
 def get_product_tags(registries: List[str],
                      product: str,
-                     edition: str) -> Dict:
+                     edition: str) -> Tuple[Dict, Dict]:
     """
     Get all rhcc+github+dockerhub tags (eol filtered) for a given edition of
     a product.
+
+    Returns a (tags, listing_failures) tuple. Registries in listing_failures
+    could not be enumerated and are absent from tags, for the caller to report.
     """
     logger.debug(
         f"Getting product tags for {product} {edition} on registries: "
         f"{registries}")
 
     tags = defaultdict()
+    listing_failures = {}
     if edition in image_info(product)['editions']:
-        if "dockerhub" in registries:
-            logger.debug("Getting Docker Hub tags")
-            tags["dockerhub"] = docker_tags(product, edition)
-        if "rhcc" in registries:
-            logger.debug("Getting RedHat tags")
-            tags["rhcc"] = redhat_tags(product, edition)
+        listers = {"dockerhub": docker_tags, "rhcc": redhat_tags}
+        for registry, lister in listers.items():
+            if registry in registries:
+                logger.debug(f"Getting {registry} tags")
+                try:
+                    tags[registry] = lister(product, edition)
+                except SkopeoCommandError as e:
+                    listing_failures[registry] = str(e)
 
         logger.debug("Getting GitHub tags")
         tags["github"] = github_tags(product, edition)
@@ -269,8 +279,8 @@ def get_product_tags(registries: List[str],
             logger.debug(f"Filtering versions for {registry}")
             tags[registry] = filter_versions(tags[registry], product=product)
 
-    logger.debug(f"Returning tags: {tags}")
-    return tags
+    logger.debug(f"Returning tags: {tags}, listing failures: {listing_failures}")
+    return tags, listing_failures
 
 
 def get_floating_tags(registry: str, product: str, tag: str, image_info=None) -> List[str]:
@@ -459,7 +469,34 @@ def has_norebuild_file(product: str, version: str) -> bool:
         raise
 
 
-def process_single_tag(registry, product, edition, semver, tag):
+def in_package_check_shard(registry: str,
+                           product: str,
+                           edition: str,
+                           semver: str,
+                           shard: Optional[Tuple[int, int]]) -> bool:
+    """
+    Determine whether an image falls within the requested package check shard.
+
+    Membership is hashed from the image identity, so it is stable between runs
+    and rebalances as products and versions come and go.
+
+    `shard` is an (index, total) tuple, or None to check every image.
+    """
+    if shard is None:
+        return True
+
+    index, total = shard
+    identity = f"{registry}/{product}/{edition}/{semver}"
+    digest = hashlib.sha256(identity.encode()).hexdigest()
+    in_shard = int(digest, 16) % total == index
+    logger.debug(
+        f"{identity} is{' ' if in_shard else ' not '}in package check shard "
+        f"{index}/{total}")
+    return in_shard
+
+
+def process_single_tag(registry, product, edition, semver, tag,
+                       checks=CHECKS, shard=None):
     """
     Process a single tag and return its metadata.
 
@@ -468,6 +505,10 @@ def process_single_tag(registry, product, edition, semver, tag):
     2. Check if base image is newer (rebuild if yes)
     3. Check for package updates (rebuild if updates in product image
        which are not available in base image)
+
+    `checks` selects which of steps 2 and 3 may flag a rebuild, and `shard`
+    optionally restricts step 3 to a subset of images - see
+    in_package_check_shard.
     """
     tag_data = {'queried_tag': tag, 'rebuild_needed': False, 'processing_failed': False}
 
@@ -482,13 +523,20 @@ def process_single_tag(registry, product, edition, semver, tag):
         # STEP 2: Check if base image is newer
         logger.debug(f"Checking if base image is newer for {product}/{semver}")
         tag_data.update(get_base_image_and_dates(registry, product, edition, tag))
+        base_is_newer = tag_data['rebuild_needed']
 
-        if tag_data['rebuild_needed']:
-            if 'base_created' in tag_data and 'product_created' in tag_data:
-                if tag_data['base_created'] > tag_data['product_created']:
-                    logger.info(
-                        f"Rebuild needed for {registry}/{product}/{edition}/{semver}: "
-                        f"Base image {tag_data['base_image']} is newer")
+        if "base" not in checks:
+            # Resolved it anyway - step 3 and the trigger files need base_image,
+            # build_job and floating_tags from it
+            tag_data['rebuild_needed'] = False
+            if base_is_newer:
+                tag_data['suppressed_finding'] = (
+                    "base image is newer, but base image checks are not enabled")
+        elif base_is_newer:
+            logger.info(
+                f"Rebuild needed for {registry}/{product}/{edition}/{semver}: "
+                f"Base image {tag_data['base_image']} is newer")
+            tag_data['rebuild_reason'] = "newer base image"
             return tag_data
 
         # Skip package checks for distroless images
@@ -498,11 +546,33 @@ def process_single_tag(registry, product, edition, semver, tag):
             return tag_data
 
         # STEP 3: Check for package updates
+        if "packages" not in checks:
+            logger.debug(
+                f"Skipping package update check for {product}/{semver} - "
+                f"package checks are not enabled")
+            tag_data['skipped_reason'] = "package checks not enabled"
+            return tag_data
+
+        if not in_package_check_shard(registry, product, edition, semver, shard):
+            logger.debug(
+                f"Skipping package update check for {product}/{semver} - "
+                f"not in shard {shard[0]}/{shard[1]}")
+            tag_data['skipped_reason'] = (
+                f"not in package check shard {shard[0]}/{shard[1]}")
+            return tag_data
+
         update_data = check_package_updates(registry, product, semver, tag, tag_data)
         tag_data.update(update_data)
 
         return tag_data
 
+    except DockerfileNotFoundError as e:
+        logger.error(
+            f"No Dockerfile for {registry}/{product}/{edition}/{semver}: {e}")
+        logger.info(f"Continuing with next image")
+        tag_data['processing_failed'] = True
+        tag_data['skipped_reason'] = f"dockerfile not found: {str(e)}"
+        return tag_data
     except SkopeoCommandError as e:
         logger.error(f"Skopeo command failed for {registry}/{product}/{edition}/{semver}: {e}")
         logger.info(f"Continuing with next image")
@@ -583,24 +653,42 @@ def check_package_updates(registry, product, semver, tag, tag_data):
 
 
         except Exception as e:
-            # Fallback to rebuilding if base image check fails
-            logger.warning(f"Error checking base image packages: {e}")
-            update_data['rebuild_needed'] = True
-            update_data['packages_to_update'] = product_packages
+            logger.error(
+                f"Failed to check base image packages for {product}/{semver}: {e}")
+            update_data['rebuild_needed'] = False
+            update_data['processing_failed'] = True
+            update_data['skipped_reason'] = f"base image package check failed: {str(e)}"
     except Exception as e:
-        logger.warning(f"Error in package update checking process: {e}")
-        # On any other error, assume no updates needed
-        logger.info(f"Assuming no updates needed for {product}/{semver} due to error in update process")
+        logger.error(
+            f"Failed to check for package updates in {product}/{semver}: {e}")
+        update_data['processing_failed'] = True
+        update_data['skipped_reason'] = f"package update check failed: {str(e)}"
 
     return update_data
 
 
-def process_product_edition(registries, product, edition, versions=None):
+def process_product_edition(registries, product, edition, versions=None,
+                            checks=CHECKS, shard=None):
     """Process all tags for a specific product/edition combination."""
     results = defaultdict()
-    product_tags = get_product_tags(registries, product, edition)
+    product_tags, listing_failures = get_product_tags(
+        registries, product, edition)
     tag_count = 0
     rebuild_count = 0
+
+    for registry, reason in listing_failures.items():
+        logger.error(
+            f"Could not list tags for {product} ({edition}) on {registry}: "
+            f"{reason}")
+        results.setdefault(registry, defaultdict())
+        results[registry].setdefault(product, defaultdict())
+        results[registry][product].setdefault(edition, defaultdict())
+        results[registry][product][edition][TAG_LISTING_FAILURE_KEY] = {
+            'queried_tag': TAG_LISTING_FAILURE_KEY,
+            'rebuild_needed': False,
+            'processing_failed': True,
+            'skipped_reason': f"could not list tags on {registry}: {reason}",
+        }
 
     for registry in product_tags:
         if registry in registries:
@@ -618,7 +706,8 @@ def process_product_edition(registries, product, edition, versions=None):
                     semver = re.search(semver_pattern, tag).group(1)
 
                     tag_data = process_single_tag(
-                        registry, product, edition, semver, tag)
+                        registry, product, edition, semver, tag,
+                        checks=checks, shard=shard)
                     results[registry][product][edition][semver] = tag_data
 
                     if tag_data['rebuild_needed']:
@@ -634,7 +723,9 @@ def process_product_edition(registries, product, edition, versions=None):
 def analyze_images(registries: List[str],
                    products: List[str],
                    editions: List[str],
-                   versions: List[str] = None) -> Dict:
+                   versions: List[str] = None,
+                   checks: Tuple[str, ...] = CHECKS,
+                   shard: Optional[Tuple[int, int]] = None) -> Dict:
     """
     Retrieve info for any number of registries, products, editions and versions.
 
@@ -649,6 +740,8 @@ def analyze_images(registries: List[str],
               "base_created": [timestamp],
               "product_created": [timestamp],
               "rebuild_needed": [bool],
+              "rebuild_reason": [str, only when flagged by the base image check],
+              "suppressed_finding": [str, something found but not acted on],
               "queried_tag": [image:tag],
               "architectures": [list],
               "registry": [registry_name],
@@ -661,7 +754,8 @@ def analyze_images(registries: List[str],
     """
     logger.debug(
         f"Analyzing images for registries: {registries}, products: {products}, "
-        f"editions: {editions}, versions: {versions}")
+        f"editions: {editions}, versions: {versions}, checks: {checks}, "
+        f"shard: {shard}")
 
     tags = defaultdict()
     for product in products:
@@ -672,7 +766,8 @@ def analyze_images(registries: List[str],
         for edition in editions:
             logger.debug(f"Processing edition: {edition}")
             edition_results, tag_count, rebuild_count = process_product_edition(
-                registries, product, edition, versions)
+                registries, product, edition, versions, checks=checks,
+                shard=shard)
 
             # Merge results
             for registry in edition_results:
