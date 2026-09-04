@@ -4,6 +4,7 @@
         "detect.required.detector.types": "CARGO",
         "detect.cargo.dependency.types.excluded": "DEV,BUILD",
         "detect.excluded.directories": "**/tests,**/rosetta-mdb-crs",
+        "detect.tools.excluded": "SIGNATURE_SCAN",
         "logging.level.detect": "DEBUG"
     }
 }

@@ -5,10 +5,10 @@
 RUST_VERSION=$(grep '^channel' rosetta-mdb/rust-toolchain.toml | sed -E 's/.*"(.*)".*/\1/')
 chk_set RUST_VERSION
 
-TOOLDIR=$(mktemp -d -q --tmpdir=$(pwd) toolsXXXXX)
+TOOL_DIR=$(mktemp -d -q --tmpdir="${WORKSPACE}" toolsXXXXX)
 
-cbdep install -d ${TOOLDIR} rust ${RUST_VERSION}
-export PATH=${TOOLDIR}/rust-${RUST_VERSION}/bin:${PATH}
+cbdep install -d ${TOOL_DIR} rust ${RUST_VERSION}
+export PATH=${TOOL_DIR}/rust-${RUST_VERSION}/bin:${PATH}
 
 # Require at least 11.5.1 (needed for detect.cargo.dependency.types.excluded
 # to be honored), but don't clobber a newer version the Jenkins job may have
