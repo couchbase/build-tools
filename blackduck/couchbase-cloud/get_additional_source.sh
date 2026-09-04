@@ -30,6 +30,17 @@ do
     fi
 
     export PATH="${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
-    npm install
+
+    # cp-ui-v3 ships .npmrc.example rather than .npmrc
+    if [ ! -f .npmrc -a -f .npmrc.example ]; then
+        cp .npmrc.example .npmrc
+    fi
+
+    # .npmrc interpolates ${GITHUB_TOKEN} for @couchbasecloud packages on
+    # npm.pkg.github.com. Passed per-command with xtrace off so it neither
+    # hits the build log nor run_script's .env dump.
+    set +x
+    GITHUB_TOKEN=$(cat ~/.ssh/blackduck-cloud-package-read) npm install
+    set -x
     popd
 done
