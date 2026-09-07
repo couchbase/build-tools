@@ -9,11 +9,6 @@
             "__comment": "This version points to the upcoming release",
             "release": "master",
             "interval": 1440
-        },
-        "dev": {
-            "__comment": "This version points to the future release",
-            "release": "dev",
-            "interval": 1440
         }
     }
 }
