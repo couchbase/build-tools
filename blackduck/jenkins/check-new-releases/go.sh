@@ -13,6 +13,7 @@ usage() {
 
 MODE=report
 DEBUG_FLAG=
+GERRIT_REVIEWER_GROUP=${GERRIT_REVIEWER_GROUP:-build_team}
 for arg in "$@"; do
     case "$arg" in
         --push)    MODE=push ;;
@@ -48,7 +49,11 @@ case "$MODE" in
     push)
         git remote add gerrit ssh://${GERRIT_USER}@review.couchbase.org:29418/build-tools
         git commit -am "Blackduck: add missing versions"
-        git push gerrit HEAD:refs/for/master
+        PUSH_OPTS=()
+        if [ -n "$GERRIT_REVIEWER_GROUP" ]; then
+            PUSH_OPTS=(-o "r=${GERRIT_REVIEWER_GROUP}")
+        fi
+        git push "${PUSH_OPTS[@]}" gerrit HEAD:refs/for/master
         echo "Changes have been pushed to Gerrit. Please review the changes at https://review.couchbase.org"
         exit 1
         ;;

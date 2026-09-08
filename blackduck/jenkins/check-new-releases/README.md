@@ -61,4 +61,8 @@ place, and `--push` commits with `git commit -am`):
 ./go.sh --debug     # pass debug logging through to check_new_releases.py
 ```
 
+`--push` adds `$GERRIT_REVIEWER_GROUP` (default `build_team`) as a reviewer so the
+change is notified rather than only being visible via the job's failure state;
+set it empty to push without a reviewer.
+
 Cloned repos land in `./build/` and can be deleted freely.
