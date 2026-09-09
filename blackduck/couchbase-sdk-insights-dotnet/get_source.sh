@@ -1,0 +1,18 @@
+#!/bin/bash -ex
+
+PRODUCT=$1
+RELEASE=$2
+VERSION=$3
+BLD_NUM=$4
+
+git clone ssh://git@github.com/couchbase/operational-insights-dotnet-client.git
+pushd operational-insights-dotnet-client
+if git rev-parse --verify --quiet $VERSION >& /dev/null
+then
+    echo "Tag $VERSION exists, checking it out"
+    git checkout $VERSION
+else
+    echo "No tag $VERSION, assuming master"
+fi
+
+popd

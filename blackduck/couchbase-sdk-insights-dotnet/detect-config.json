@@ -1,0 +1,10 @@
+{
+    "detect_opts": {
+        "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.nuget.excluded.modules": [
+            "^Couchbase.OperationalInsights.FunctionalTests$",
+            "^Couchbase.OperationalInsights.UnitTests$",
+            "^Couchbase.OperationalInsights.Performer$"],
+        "detect.detector.search.depth": 9
+    }
+}
