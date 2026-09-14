@@ -24,7 +24,35 @@ cocoa_push() {
             echo "Skipping publish: ${pod_name} version ${VERSION} already published"
         else
             echo "Publish ${podspec}"
-            pod trunk push "${podspec}"
+            # pod trunk push intermittently fails with a transient
+            # "internal server error" from the CocoaPods trunk service even
+            # though the push completed server-side; a naive retry then hits
+            # a 409 "duplicate entry" for a version that's actually already
+            # published. Treat that response as success instead of retrying.
+            local max_attempts=5
+            local attempt=1
+            local log_file
+            log_file="$(mktemp)"
+            while true; do
+                pod trunk push "${podspec}" --verbose 2>&1 | tee "${log_file}"
+                push_status=${PIPESTATUS[0]}
+                if (( push_status == 0 )); then
+                    break
+                fi
+                if grep -q "Unable to accept duplicate entry" "${log_file}"; then
+                    echo "${pod_name} version ${VERSION} is already published on trunk, treating as success"
+                    break
+                fi
+                if (( attempt >= max_attempts )); then
+                    echo "Failed to publish ${podspec} after ${attempt} attempts"
+                    rm -f "${log_file}"
+                    exit 1
+                fi
+                echo "pod trunk push failed (attempt ${attempt}/${max_attempts}), retrying in 30s..."
+                sleep 30
+                ((attempt++))
+            done
+            rm -f "${log_file}"
         fi
     else
         echo "DRYRUN mode: ${podspec}"
