@@ -18,10 +18,7 @@ case ${PRODUCT} in
 esac
 
 for fl in ${!CARTHAGE_PKGS[@]}; do
-    curl --fail -L \
-        -H 'Cache-Control: no-cache, no-store' \
-        -o "${fl}" \
-        "http://packages.couchbase.com/releases/${PRODUCT}/carthage/${fl}" || exit 1
+    aws s3 cp "s3://packages.couchbase.com/releases/${PRODUCT}/carthage/${fl}" "${fl}" || exit 1
     python3 ${WORKSPACE}/build-tools/release/carthage/carthage_json.py --product ${PRODUCT} \
         --version ${VERSION} \
         --file ${fl} \
@@ -35,6 +32,11 @@ if [[ ${DRYRUN} == 'false' ]]; then
         cat ${fl}
         echo ""
     done
+    if [[ -n ${CLOUDFRONT_DISTRIBUTION_ID} ]]; then
+        aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} --paths "/releases/${PRODUCT}/carthage/*" || exit 1
+    else
+        echo "CLOUDFRONT_DISTRIBUTION_ID is not set, skipping CloudFront invalidation"
+    fi
 else
     echo "Dryrun mode is on.  Print Json content instead of publishing to s3"
     for fl in ${!CARTHAGE_PKGS[@]}; do
