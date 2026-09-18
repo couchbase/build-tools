@@ -1,0 +1,31 @@
+// These are all the necessary Go module replace directives for
+// Couchbase Server projects currently. We need to append these
+// to the corresponding "stub" go.mod files so that "go mod why"
+// (which is invoked by Black Duck when scanning the source)
+// knows where to look.
+
+replace github.com/couchbase/cbauth => ../cbauth
+
+replace github.com/couchbase/cbft => ../../../../../cbft
+
+replace github.com/couchbase/cbftx => ../../../../../cbftx
+
+replace github.com/couchbase/cbgt => ../../../../../cbgt
+
+replace github.com/couchbase/eventing-ee => ../eventing-ee
+
+replace github.com/couchbase/go-couchbase => ../go-couchbase
+
+replace github.com/couchbase/go_json => ../go_json
+
+replace github.com/couchbase/gomemcached => ../gomemcached
+
+replace github.com/couchbase/indexing => ../indexing
+
+replace github.com/couchbase/n1fty => ../n1fty
+
+replace github.com/couchbase/plasma => ../plasma
+
+replace github.com/couchbase/query => ../query
+
+replace github.com/couchbase/query-ee => ../query-ee

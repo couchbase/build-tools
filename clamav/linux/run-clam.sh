@@ -10,7 +10,9 @@ case "${PRODUCT}" in
         PKG_NAME=couchbase-sync-gateway-${EDITION}_${VERSION}-${BLD_NUM}_${ARCHITECTURE}.rpm
         SUDO=sudo
         ;;
-    "enterprise-analytics")
+    "enterprise-analytics"|"operational-insights")
+        # Neither carries an edition in its package filename; falling through to
+        # the default below would insert -${EDITION} and 404 the download.
         PKG_NAME=${PRODUCT}-${VERSION}-${BLD_NUM}-${PLATFORM}.${ARCHITECTURE}.rpm
         SUDO=
         ;;

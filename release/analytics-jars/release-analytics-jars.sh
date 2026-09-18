@@ -14,8 +14,14 @@ elif [ "${PRODUCT}" = "couchbase-server" ]; then
 elif [ "${PRODUCT}" = "enterprise-analytics" ]; then
   JAR_PREFIX=columnar
   unset PACKAGE_SUFFIX
+elif [ "${PRODUCT}" = "operational-insights" ]; then
+  # The rebrand of enterprise-analytics.  JAR_PREFIX stays columnar: it names
+  # the published cbdeps jarball, not the product, and changing it would rename
+  # the artifact underneath its consumers.
+  JAR_PREFIX=columnar
+  unset PACKAGE_SUFFIX
 else
-  echo PRODUCT must be one of 'couchbase-columnar', 'couchbase-server', or 'enterprise-analytics' but was $PRODUCT
+  echo PRODUCT must be one of 'couchbase-columnar', 'couchbase-server', 'enterprise-analytics', or 'operational-insights' but was $PRODUCT
   exit 1
 fi
 
