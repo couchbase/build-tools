@@ -77,6 +77,6 @@ vine==5.0.0
 virtualenv==20.4.4
 wcmatch==8.4
 wcwidth==0.2.5
-Werkzeug==2.0.1
+Werkzeug==2.2.3
 wrapt==1.13.3
 zipp==3.8.0
