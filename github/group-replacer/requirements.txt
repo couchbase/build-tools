@@ -36,7 +36,7 @@ Jinja2==3.0.1
 jsonschema==4.7.2
 kombu==5.1.0
 lazy-object-proxy==1.7.1
-Mako==1.2.0
+Mako==1.2.2
 Markdown==3.3.7
 MarkupSafe==2.0.1
 mccabe==0.7.0
