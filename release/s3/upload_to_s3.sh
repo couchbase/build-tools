@@ -155,6 +155,16 @@ case "${PRODUCT}" in
         EXTRA_POSITIVE_WILDCARDS+=('couchbase-analytics-tableau-connector*')
         EXTRA_POSITIVE_WILDCARDS+=('enterprise-analytics-tableau-connector*')
         ;;
+    rosetta-mdb)
+        # rosetta-mdb uploads raw executables,
+        # which are called "cbmcd*"
+        EXTRA_POSITIVE_WILDCARDS+=('cbmcd*')
+        ;;
+    rosetta-mcsync)
+        # rosetta-mcsync uploads raw executables,
+        # which are called "mcsync*"
+        EXTRA_POSITIVE_WILDCARDS+=('mcsync*')
+        ;;
 esac
 
 # Compute target filename components
