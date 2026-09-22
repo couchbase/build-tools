@@ -76,3 +76,4 @@ if command -v objcopy >/dev/null 2>&1; then
 else
 	warn "objcopy not found - shipping ${DIST_BIN} with full debug symbols"
 fi
+chmod +x "${DIST_BIN}"
