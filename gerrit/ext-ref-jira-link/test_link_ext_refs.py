@@ -15,8 +15,8 @@ import json
 import sys
 
 from link_ext_refs import (
-    find_ext_refs, join_entries, link_text, remove_entry, same_change,
-    split_entries, update_entries,
+    drop_aliases, find_entry, find_ext_refs, join_entries, link_text,
+    remove_entry, same_change, split_entries, update_entries,
 )
 
 MESSAGE = """\
@@ -30,6 +30,10 @@ Change-Id: I5fd91dea980b02fc478787a6175a63d09534ac90
 """
 
 SUBJECT = MESSAGE.split("\n", 1)[0]
+
+# AsterixDB change 21858's subject, the case that made us keep the tags:
+# the issue key is in there and nowhere else
+TAGGED = "[ASTERIXDB-3878][HYR][MISC] Replace @AiProvenance with terse markers"
 
 CBAS = "\trepo:cbas-core\tbranch:trinity"
 LIVE = "\\\\".join([
@@ -74,20 +78,95 @@ def test_ext_refs():
 
 
 def test_link_text():
-    check("AsterixDB tags dropped, first five words kept",
-          link_text(SUBJECT, 5), "Update Dependencies to address CVEs")
-    check("tags kept on request, but made bracket-safe",
-          link_text(SUBJECT, 5, strip_tags=False),
-          "(NO ISSUE)(MISC) Update Dependencies to")
+    check("tags kept, transliterated, and not counted against the words",
+          link_text(TAGGED, 5),
+          "(ASTERIXDB-3878)(HYR)(MISC) "
+          "Replace @AiProvenance with terse markers")
+    check("tags kept on the fixture's subject too",
+          link_text(SUBJECT, 5),
+          "(NO ISSUE)(MISC) Update Dependencies to address CVEs")
+    check("tags dropped on request",
+          link_text(SUBJECT, 5, keep_tags=False),
+          "Update Dependencies to address CVEs")
     check("a pipe in the subject cannot end the link",
           link_text("fix a|b handling", 5), "fix a/b handling")
-    check("a subject that is nothing but tags keeps them",
+    check("nor can a backslash, which pairs up into a line break",
+          link_text("fix a\\b handling", 5), "fix a/b handling")
+    check("a subject that is nothing but tags keeps them as its text",
           link_text("[NO ISSUE]", 5), "(NO ISSUE)")
+    check("and still does with tags dropped",
+          link_text("[NO ISSUE]", 5, keep_tags=False), "(NO ISSUE)")
     check("a Couchbase subject is left alone",
           link_text("MB-73268: build core-io 1.x's shaded jars", 5),
           "MB-73268: build core-io 1.x's shaded")
     check("zero words means the whole subject",
-          link_text(SUBJECT, 0), "Update Dependencies to address CVEs")
+          link_text(TAGGED, 0),
+          "(ASTERIXDB-3878)(HYR)(MISC) "
+          "Replace @AiProvenance with terse markers")
+    check("a bracket later in the subject goes the same way",
+          link_text("fix [x] handling", 5, keep_tags=False),
+          "fix (x) handling")
+
+
+def test_tagged_entries():
+    """
+    An entry whose text carries transliterated tags has to parse, match
+    and rewrite like any other, or we append a second entry for a change
+    we already linked
+    """
+    text = link_text(TAGGED, 5)
+    entries = [f"[{text}|{URL}]{SUFFIX}"]
+    check("a tagged entry survives a round trip",
+          split_entries(join_entries(entries)), entries)
+    check("and is found by its URL", find_entry(entries, URL), entries[0])
+    check("re-running changes nothing",
+          update_entries(entries, text, URL, SUFFIX), False)
+    check("so it is not appended twice", len(entries), 1)
+    check("a moved subject is still rewritten in place",
+          (update_entries(entries, link_text(TAGGED, 3), URL, SUFFIX),
+           len(entries)),
+          (True, 1))
+    check("with the new text",
+          entries[0],
+          f"[{link_text(TAGGED, 3)}|{URL}]{SUFFIX}")
+    check("and it can still be removed", remove_entry(entries, URL), True)
+    check("leaving nothing behind", entries, [])
+
+
+class FakeJira:
+    """
+    Issue keys mapped to ids, as Jira resolves them: a moved issue
+    answers to its old key and its new one with the same id
+    """
+
+    def __init__(self, ids):
+        self.ids = ids
+
+    def issue_id(self, key):
+        return self.ids.get(key)
+
+
+def test_drop_aliases():
+    moved = FakeJira({"CBD-6889": "545950", "MB-74113": "545950"})
+    check("an old key for the issue we're linking is not unlinked",
+          drop_aliases(moved, ["MB-74113"], ["CBD-6889"]), [])
+
+    two = FakeJira({"MB-1": "1", "MB-2": "2"})
+    check("a genuinely dropped Ext-ref still is",
+          drop_aliases(two, ["MB-1"], ["MB-2"]), ["MB-2"])
+    check("nothing to link means nothing is spared",
+          drop_aliases(two, [], ["MB-2"]), ["MB-2"])
+    check("a key that names no issue has no link to remove",
+          drop_aliases(FakeJira({"MB-1": "1"}), ["MB-1"], ["MB-9"]), [])
+    check("even with nothing being linked",
+          drop_aliases(FakeJira({}), [], ["MB-9"]), [])
+    check("and doesn't take a real removal with it",
+          drop_aliases(two, ["MB-1"], ["MB-9", "MB-2"]), ["MB-2"])
+    check("one of several stale keys can be an alias",
+          drop_aliases(
+              FakeJira({"MB-1": "1", "CBD-1": "1", "MB-2": "2"}),
+              ["MB-1"], ["CBD-1", "MB-2"]),
+          ["MB-2"])
 
 
 def test_same_change():
@@ -234,9 +313,10 @@ def test_legacy():
 
 
 def main():
-    for test in (test_ext_refs, test_link_text, test_same_change,
-                 test_round_trip, test_separator, test_update, test_remove,
-                 test_stale, test_legacy):
+    for test in (test_ext_refs, test_link_text, test_tagged_entries,
+                 test_drop_aliases, test_same_change, test_round_trip,
+                 test_separator, test_update, test_remove, test_stale,
+                 test_legacy):
         print(f"\n{test.__name__}")
         test()
 

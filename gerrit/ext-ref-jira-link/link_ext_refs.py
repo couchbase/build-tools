@@ -86,7 +86,8 @@ ISSUE_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9]{1,8}-[0-9]{1,6}(?![-0-9])\b")
 # trailing slash, whatever the host puts in front of it
 CHANGE_URL_RE = re.compile(r"^https?://([^/]+)/.*?([0-9]+)/?$")
 
-# Leading "[NO ISSUE][MISC]"-style tags, as AsterixDB subjects begin with
+# Leading "[ASTERIXDB-3878][HYR][MISC]"-style tags, as AsterixDB subjects
+# begin with
 TAG_PREFIX_RE = re.compile(r"^(?:\s*\[[^\]]*\])+\s*")
 
 
@@ -94,7 +95,14 @@ class HttpError(Exception):
     """
     A request that didn't come back, or came back something other than
     a 2xx
+
+    `status` is the HTTP status if there was one, and None if the
+    request never got that far.
     """
+
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
 
 
 def http_json(url, params=None, data=None, method=None, auth=None,
@@ -129,7 +137,8 @@ def http_json(url, params=None, data=None, method=None, auth=None,
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace").strip()[:200]
         raise HttpError(f"{exc.code} {exc.reason} for {url}"
-                        + (f": {detail}" if detail else "")) from None
+                        + (f": {detail}" if detail else ""),
+                        status=exc.code) from None
     except (urllib.error.URLError, OSError) as exc:
         raise HttpError(f"{url}: {exc}") from None
 
@@ -174,27 +183,50 @@ def find_ext_refs(message, projects):
     return keys
 
 
-def link_text(subject, words, strip_tags=True):
+def link_text(subject, words, keep_tags=True):
     """
     Return the link text to use for a change with this subject
 
-    Square brackets and pipes end a wiki markup link, so they can't
-    survive in the text of one.  An AsterixDB subject leads with
-    "[NO ISSUE][MISC]"-style tags, which are dropped whole rather than
-    mangled; anything left is replaced, so a stray bracket can't break
-    the rest of the field.
+    An AsterixDB subject leads with "[ASTERIXDB-3878][HYR][MISC]"-style
+    tags, and they are worth keeping: the issue key in there is the only
+    part of the subject that says what the change is filed against.
+
+    What they can't do is keep their square brackets.  A "[", "]" or "|"
+    ends a wiki markup link, and the brackets have no escape that works
+    where it counts: Jira renders this field two ways, and while the
+    HTML renderer does honour "\\[", the wiki-to-ADF conversion the issue
+    view goes through drops the backslash and is then left with a link
+    it can't parse - so the entry shows as raw "[text|url]" on the page
+    that matters.  They are transliterated to "(" and ")" instead, which
+    no renderer can misread.  A backslash goes the same way as a pipe,
+    since two of them in a row are wiki markup's forced line break and
+    would split the entry in two.
+
+    The tags don't count against `words`.  They're an identifier rather
+    than the opening of a description, and letting them eat the budget
+    leaves the subject itself cut off after a word or two.
     """
     subject = " ".join(subject.split())
-    if strip_tags:
+    tags = ""
+    if keep_tags:
+        match = TAG_PREFIX_RE.match(subject)
+        # A subject that is nothing but tags keeps them as its text,
+        # rather than counting them as tags and becoming an empty link
+        if match and match.group().strip() != subject:
+            tags = match.group().strip()
+            subject = subject[match.end():]
+    else:
         stripped = TAG_PREFIX_RE.sub("", subject)
-        # A subject that is nothing but tags keeps them, mangled or not,
-        # rather than becoming an empty link
         if stripped:
             subject = stripped
-    subject = subject.translate(str.maketrans({"[": "(", "]": ")", "|": "/"}))
+
     if words > 0:
         subject = " ".join(subject.split(" ")[:words])
-    return subject
+    if tags:
+        subject = f"{tags} {subject}".rstrip()
+    return subject.translate(
+        str.maketrans({"[": "(", "]": ")", "|": "/", "\\": "/"})
+    )
 
 
 def gerrit_base(args, url):
@@ -279,6 +311,45 @@ def stale_ext_refs(args, url, current):
     if previous is None:
         return set()
     return set(find_ext_refs(previous, set(args.jira_projects))) - set(current)
+
+
+def drop_aliases(jira, keys, stale):
+    """
+    Return `stale` without the keys that name an issue we're linking to
+    anyway, under a name it has since outgrown
+
+    An issue moved between projects keeps answering to its old key, so a
+    patchset that swaps CBD-6889 for MB-74113 across such a move looks
+    like it dropped one issue and picked up another when it did neither.
+    Left alone the unlink undoes the link, because both keys lead to the
+    same field: the entry added is the entry then taken away.
+
+    A key that comes back 404 is dropped as well.  That is an issue that
+    doesn't exist - a mistyped Ext-ref put right in the next patchset,
+    usually - or one behind a security level this account can't see, and
+    either way there is no field for us to take a link out of.  Left in
+    the list it would be reported as an issue that can't be updated,
+    and under --strict fail the build over a typo already fixed.
+    """
+    linked = {}
+    for key in keys:
+        issue = jira.issue_id(key)
+        if issue is not None:
+            linked.setdefault(issue, key)
+
+    kept = []
+    for key in stale:
+        issue = jira.issue_id(key)
+        if issue is None:
+            print(f"{key} is not an issue this account can see; "
+                  f"there is no link to remove from it")
+            continue
+        if issue in linked:
+            print(f"{key} is {linked[issue]} under an older key; "
+                  f"leaving its link where it is")
+            continue
+        kept.append(key)
+    return kept
 
 
 def change_url(args):
@@ -429,6 +500,25 @@ class Jira:
             "GET", f"/issue/{key}", params={"fields": field_id}
         )
         return issue["fields"].get(field_id) or ""
+
+    def issue_id(self, key):
+        """
+        Return the issue's id, or None if there is no such issue
+
+        The id is what identifies an issue; the key only names it.  An
+        issue moved between projects answers to its old key as well as
+        its new one, so two keys can look unrelated and be one issue -
+        and the id is the thing that doesn't change when the key does.
+        """
+        try:
+            issue = self._request(
+                "GET", f"/issue/{key}", params={"fields": "id"}
+            )
+        except HttpError as exc:
+            if exc.status == 404:
+                return None
+            raise
+        return issue.get("id")
 
     def set_field(self, key, field_id, value):
         self._request(
@@ -614,9 +704,9 @@ def parse_args():
              "Gerrit integration does; 0 for all of it"
     )
     source.add_argument(
-        "--keep-tags", action="store_true",
-        help="Keep the leading [NO ISSUE][MISC]-style tags of the "
-             "subject in the link text, rather than dropping them"
+        "--strip-tags", action="store_true",
+        help="Drop the subject's leading [ASTERIXDB-3878][MISC]-style "
+             "tags from the link text, rather than keeping them"
     )
     source.add_argument(
         "--change-url", metavar="URL",
@@ -727,18 +817,12 @@ def main():
         return
 
     subject = args.subject or message.strip().split("\n", 1)[0]
-    text = link_text(subject, args.subject_words, not args.keep_tags)
+    text = link_text(subject, args.subject_words, not args.strip_tags)
     suffix = ""
     if args.project:
         suffix += f"\trepo:{args.project}"
     if args.branch:
         suffix += f"\tbranch:{args.branch}"
-
-    if keys:
-        print(f"Linking {url} to {', '.join(keys)}")
-    if stale:
-        print(f"Unlinking {url} from {', '.join(stale)}, no longer named "
-              f"by an Ext-ref:")
 
     jira = connect_jira(args)
     try:
@@ -746,8 +830,27 @@ def main():
     except HttpError as exc:
         sys.exit(f"Unable to look up the {args.field_name!r} field: {exc}")
 
-    work = ([(key, link_issue, (text, url, suffix, args)) for key in keys]
-            + [(key, unlink_issue, (url, args)) for key in stale])
+    if stale:
+        try:
+            stale = drop_aliases(jira, keys, stale)
+        except HttpError as exc:
+            # Same reasoning as stale_ext_refs: a removal we can't be
+            # sure of isn't made
+            print(f"Not checking for removed Ext-refs: can't tell whether "
+                  f"{', '.join(stale)} has been renamed: {exc}",
+                  file=sys.stderr)
+            stale = []
+
+    if keys:
+        print(f"Linking {url} to {', '.join(keys)}")
+    if stale:
+        print(f"Unlinking {url} from {', '.join(stale)}, no longer named "
+              f"by an Ext-ref:")
+
+    # Unlinks first: should two keys still turn out to be one issue, a
+    # link that survives beats an entry silently removed
+    work = ([(key, unlink_issue, (url, args)) for key in stale]
+            + [(key, link_issue, (text, url, suffix, args)) for key in keys])
     failed = []
     for key, action, extra in work:
         try:

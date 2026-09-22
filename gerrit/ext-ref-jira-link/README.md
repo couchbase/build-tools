@@ -22,17 +22,29 @@ That is worth knowing for two reasons. Read through REST v3 the field
 arrives as ADF converted from that markup, which is lossy both ways -
 so this talks to **v2**, which hands the text over and takes it back
 unchanged. And square brackets and pipes end a wiki link, which matters
-because AsterixDB subjects begin `[NO ISSUE][MISC]`. Those leading tags
-are dropped (`--keep-tags` to keep them), and any bracket or pipe left
-in the subject is replaced, so a subject can't corrupt the rest of the
-field.
+because AsterixDB subjects begin `[ASTERIXDB-3878][HYR][MISC]`.
 
-The link text is the first few words of the subject (`--subject-words`,
-5 to match the Gerrit integration), and the `repo:` and `branch:`
-annotations come from the trigger, giving:
+Those leading tags are kept, because the issue key in them is the only
+part of the subject that says what the change is filed against;
+`--strip-tags` drops them instead. What they can't keep is their square
+brackets. There is no escape that works where it counts: Jira renders
+this field two ways, and while the HTML renderer behind
+`?expand=renderedFields` does honour `\[`, the wiki-to-ADF conversion
+the issue view goes through drops the backslash and is then left with a
+link it can't parse - so the entry shows as raw `[text|url]` on the page
+that matters. Brackets are transliterated to `(` and `)` instead, which
+no renderer can misread, and a pipe goes the same way. So does a
+backslash, since two in a row are wiki markup's `\\` forced line break
+and would split the entry in two.
+
+The link text is the tags plus the first few words of the subject
+(`--subject-words`, 5 to match the Gerrit integration; the tags don't
+count against it, being an identifier rather than the start of a
+description). The `repo:` and `branch:` annotations come from the
+trigger, giving:
 
 ```
-[Update Dependencies to address CVEs|https://asterix-gerrit.ics.uci.edu/c/asterixdb/+/21540]<TAB>repo:asterixdb<TAB>branch:trinity
+[(NO ISSUE)(MISC) Update Dependencies to address CVEs|https://asterix-gerrit.ics.uci.edu/c/asterixdb/+/21540]<TAB>repo:asterixdb<TAB>branch:trinity
 ```
 
 ### Entries are separated by newlines
@@ -102,6 +114,21 @@ Deliberately, this only ever acts on a removal it can see:
 - If the previous patchset can't be fetched, it says so and removes
   nothing. A link left behind is untidy; one deleted in error is worse.
 - On patchset 1 there is nothing to compare, so nothing is removed.
+- Two keys can be one issue. An issue moved between projects goes on
+  answering to its old key, so a patchset swapping `CBD-6889` for
+  `MB-74113` across such a move reads as one issue dropped and another
+  picked up when it was neither. Both keys are resolved to the issue id
+  - which a move doesn't change - and a "removal" that lands on an
+  issue being linked anyway is not made. Without that the unlink undoes
+  the link, since both keys lead to the same field.
+- If those ids can't be fetched, nothing is removed, for the same
+  reason as above. And unlinks run before links, so that should two
+  keys still prove to be one issue, what survives is the link.
+- A dropped key that comes back 404 is skipped. That is a mistyped
+  `Ext-ref:` put right in the next patchset, or an issue behind a
+  security level the account can't see, and either way there is no
+  field to take a link out of - so it is not reported as an issue that
+  couldn't be updated, and `--strict` doesn't fail a build over it.
 
 `--no-prune` turns it off. `--previous-message-file` supplies the
 previous message directly, which is how to try it out locally.
