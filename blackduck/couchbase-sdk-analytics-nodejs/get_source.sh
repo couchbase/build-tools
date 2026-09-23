@@ -14,37 +14,32 @@ VERSION=$3
 # Set to 9999, ignored in this script as it is not useful for SDK scans.
 BLD_NUM=$4
 
-TARBALL="couchbase-analytics-${VERSION}.tgz"
+PACKAGE=couchbase-analytics
+REPO=https://github.com/couchbase/analytics-nodejs-client
 SOURCE_DIR=couchbase-analytics
+TARBALL="${PACKAGE}-${VERSION}.tgz"
 
 NODE_VER=20.9.0
 
-# Make sure node and conan are present
+# Make sure node is present
 cbdep install -d "${WORKSPACE}/extra" nodejs ${NODE_VER}
 export PATH="${WORKSPACE}/extra/nodejs-${NODE_VER}/bin:$PATH"
 
-# Lets only use git if we cannot find the source tarball on npm.
-npm pack couchbase-analytics@$VERSION || true
+# Only build from git if the version is not on npm yet.
+npm pack "${PACKAGE}@${VERSION}" || true
 if [ ! -f "${TARBALL}" ]; then
-    if [ "$RELEASE" == "$VERSION" ] || [ "$RELEASE" == "master" ]; then
-        RELEASE="main"
+    # A version key without its own release (an upcoming version) scans main.
+    if [ "${RELEASE}" == "${VERSION}" ]; then
+        RELEASE=main
     fi
-    echo "Version $VERSION does not exist on npm, checking out git repository and building tarball."
-    git clone https://github.com/couchbase/analytics-nodejs-client $SOURCE_DIR
-    pushd $SOURCE_DIR
-    git checkout $RELEASE
-    npm install --ignore-scripts
-    mkdir packDestination
-    npm pack --pack-destination packDestination
-    TARBALL=$(find packDestination -type f -name "*.tgz")
-    TARBALL=$(echo $TARBALL | cut -c 17-)
-    popd
-    mv $SOURCE_DIR/packDestination/$TARBALL .
-    rm -rf $SOURCE_DIR
+    echo "Version ${VERSION} does not exist on npm, building a tarball from ${RELEASE}."
+    git clone --depth 1 --branch "${RELEASE}" "${REPO}" "${SOURCE_DIR}"
+    # npm pack runs the prepare script, which builds with the dev dependencies.
+    (cd "${SOURCE_DIR}" && npm install --ignore-scripts && npm pack --pack-destination ..)
+    rm -rf "${SOURCE_DIR}"
+    TARBALL=$(ls "${PACKAGE}"-*.tgz)
 fi
 
-tar -xvf $TARBALL
-mkdir $SOURCE_DIR
-mv package/* $SOURCE_DIR
-rm -rf package
-rm $TARBALL
+tar -xf "${TARBALL}"
+mv package "${SOURCE_DIR}"
+rm "${TARBALL}"

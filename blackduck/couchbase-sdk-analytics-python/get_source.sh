@@ -1,53 +1,45 @@
 #!/bin/bash -ex
 
 # example usage
-# get_source.sh couchbase-analytics-sdk-python 1.0.0 1.0.0 9999
+# get_source.sh couchbase-sdk-analytics-python 1.0.0 1.0.0 9999
 
-# Set to "couchbase-analytics-sdk-python", ignored in this script.
+# Set to "couchbase-sdk-analytics-python", ignored in this script.
 PRODUCT=$1
 # By default this will be the same as VERSION; however, if your scan-config.json specified a release key for this version,
 # that value will be passed here
 RELEASE=$2
-# Onee of the version keys from scan-config.json.
+# One of the version keys from scan-config.json.
 VERSION=$3
 # Set to 9999, ignored in this script as it is not useful for SDK scans.
 BLD_NUM=$4
 
-TARBALL="couchbase-analytics-${VERSION}.tar.gz"
+PACKAGE=couchbase-analytics
+REPO=https://github.com/couchbase/analytics-python-client
 SOURCE_DIR=analytics-python-client
+# PyPI normalizes sdist filenames (PEP 625), so the dashes become underscores.
+TARBALL="${PACKAGE//-/_}-${VERSION}.tar.gz"
 
-# Lets only use git if we cannot find the source tarball on PyPI.
+# Only build from git if the version is not on PyPI yet.
 # Would be nice to ignore build isolation (--no-build-isolation), but the pip resolver
 # does not want to play nice and it does not impact the scan.  Maybe a nice-to-have in the future.
-python -m pip download --no-deps --no-binary couchbase-analytics --no-cache-dir couchbase-analytics==$VERSION || true
+python -m pip download --no-deps --no-binary "${PACKAGE}" --no-cache-dir "${PACKAGE}==${VERSION}" || true
 if [ ! -f "${TARBALL}" ]; then
-    if [ "$RELEASE" == "$VERSION" ] || [ "$RELEASE" == "master" ]; then
-        RELEASE="main"
+    # A version key without its own release (an upcoming version) scans main.
+    if [ "${RELEASE}" == "${VERSION}" ]; then
+        RELEASE=main
     fi
-    echo "Version $VERSION does not exist on PyPI, checking out git repository and building sdist."
-    git clone https://github.com/couchbase/analytics-python-client $SOURCE_DIR
-    pushd $SOURCE_DIR
-    git checkout $RELEASE
+    echo "Version ${VERSION} does not exist on PyPI, building an sdist from ${RELEASE}."
+    # Full clone: the SDK's version file is generated from git describe.
+    git clone --branch "${RELEASE}" "${REPO}" "${SOURCE_DIR}"
     python -m pip install --upgrade setuptools
-    mkdir sdist
-    python setup.py sdist -d sdist
-    TARBALL=$(find sdist -type f -name "*.tar.gz")
-    TARBALL=$(echo $TARBALL | cut -c 7-)
-    popd
-    mv $SOURCE_DIR/sdist/$TARBALL .
-    rm -rf $SOURCE_DIR
+    (cd "${SOURCE_DIR}" && python setup.py sdist -d ..)
+    rm -rf "${SOURCE_DIR}"
+    TARBALL=$(ls "${PACKAGE//-/_}"-*.tar.gz)
 fi
 
-tar -xvf $TARBALL
-mkdir $SOURCE_DIR
-TARBALL_CONTENTS_DIR=$(echo $TARBALL | rev | cut -c 8- | rev)
-mv $TARBALL_CONTENTS_DIR/* $SOURCE_DIR
-
-# Since our source tarball includes a setup.py and requirements.txt the BD
-# detector search will satisfy the HIGH accuracy requirement
+# The sdist includes setup.py and pyproject.toml, so the BD detector search
+# will satisfy the HIGH accuracy requirement.
 # SEE: https://documentation.blackduck.com/bundle/detect/page/components/detectors.html
-rm -rf $TARBALL_CONTENTS_DIR
-rm $TARBALL
-
-# Need to keep git for SDK's version file to work
-export KEEP_GIT=true
+tar -xf "${TARBALL}"
+mv "${TARBALL%.tar.gz}" "${SOURCE_DIR}"
+rm "${TARBALL}"
