@@ -2,6 +2,7 @@
     "detect_opts": {
         "detect.detector.search.depth": 9,
         "detect.tools.excluded": "SIGNATURE_SCAN",
+        "detect.required.detector.types": "NPM",
         "logging.level.detect": "DEBUG",
         "detect.npm.dependency.types.excluded": "DEV,PEER"
     }
