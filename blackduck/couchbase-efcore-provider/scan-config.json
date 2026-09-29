@@ -3,6 +3,9 @@
         "main": {
             "interval": 1440
         },
+        "2.0.0-beta.3":{
+            "interval": 1440
+        },
         "1.0.1": {
             "interval": 1440
         },
