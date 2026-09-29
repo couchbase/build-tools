@@ -68,7 +68,7 @@ if [ ! -e ${LB_MOUNT} ]; then
 fi
 
 RELEASES_MOUNT=/releases
-if [ ! -e ${REL_MOUNT} ]; then
+if [ ! -e ${RELEASES_MOUNT} ]; then
     echo "'releases' directory is not mounted"
     exit 3
 fi
@@ -147,7 +147,10 @@ upload()
 }
 
 cd ${SRC_DIR}
-FILES=$(ls -Iblackduck -Iunfinished | egrep -v 'source|\.xml|\.json|\.properties|\.md5|\.sha|coverage|CHANGELOG|changes\.log|unsigned|logtest|litetest|Package.swift')
+FILES=$(ls -Iblackduck -Iunfinished | egrep -v 'source|\.xml|\.json|\.properties|\.md5|\.sha|coverage|CHANGELOG|changes\.log|unsigned|logtest|litetest|Package.swift' || true)
+if [ -z "${FILES}" ]; then
+    echo "No binaries found in ${SRC_DIR}; only manifest and notices will be uploaded"
+fi
 UPLOAD_TMP_DIR=/tmp/${RELEASE}-${BLD_NUM}
 rm -rf ${UPLOAD_TMP_DIR} && mkdir -p ${UPLOAD_TMP_DIR}
 cd ${UPLOAD_TMP_DIR}
