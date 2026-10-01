@@ -22,11 +22,12 @@ Group=fleetmanager
 
 EnvironmentFile=-/etc/couchbase/fleetmanager/fleetmanager.env
 
-# --credentials-path is required: the built-in default is /var/lib/fleetmanager. $FM_ARGS
-# is unbraced so systemd splits it into separate arguments.
+# --credentials-dir is required: the built-in default is outside the tree this package
+# owns. It is a directory; the server appends credentials.json itself. $FM_ARGS is
+# unbraced so systemd splits it into separate arguments.
 ExecStart=/opt/couchbase/fleetmanager/bin/fleetmanager-server \
     --ui-dir /opt/couchbase/fleetmanager/ui \
-    --credentials-path /opt/couchbase/var/lib/fleetmanager/credentials.json \
+    --credentials-dir /opt/couchbase/var/lib/fleetmanager \
     $FM_ARGS
 
 Restart=on-failure

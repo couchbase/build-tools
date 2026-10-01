@@ -1,4 +1,4 @@
-# Packages the payload tree assembled by fleetmanager-rpm-build.sh, which passes it in as
+# Packages the payload tree assembled by fleetmanager-build.sh, which passes it in as
 # fm_stage along with fm_version and fm_release. Nothing is compiled here.
 
 # No source is present, so leaving debuginfo generation on fails the build.
@@ -15,10 +15,6 @@ Release:        %{fm_release}%{?dist}
 Summary:        Couchbase Fleet Manager
 License:        Proprietary
 URL:            https://www.couchbase.com/
-Source0:        couchbase-fleetmanager.service
-Source1:        fleetmanager.env
-Source2:        credentials.json.example
-Source3:        README.md
 BuildRequires:  systemd-rpm-macros
 Requires(pre):  shadow-utils
 
@@ -43,15 +39,9 @@ alongside a cluster node or on a separate host. See
 rm -rf %{buildroot}
 mkdir -p %{buildroot}
 
+# build_payload assembles a complete filesystem image so the deb build can share it, so
+# nothing is added here and there are no Source: tags.
 cp -a %{fm_stage}/. %{buildroot}/
-
-install -Dpm 0644 %{SOURCE0} %{buildroot}%{_unitdir}/%{name}.service
-install -Dpm 0644 %{SOURCE1} %{buildroot}%{_sysconfdir}/couchbase/fleetmanager/fleetmanager.env
-install -Dpm 0644 %{SOURCE2} %{buildroot}%{_docdir}/%{name}/credentials.json.example
-install -Dpm 0644 %{SOURCE3} %{buildroot}%{_docdir}/%{name}/README.md
-
-# Created at install time so an operator can pre-seed credentials.json before first start.
-mkdir -p %{buildroot}/opt/couchbase/var/lib/fleetmanager
 
 %files
 # /opt/couchbase, /opt/couchbase/var and /opt/couchbase/var/lib are deliberately unowned:
@@ -64,6 +54,8 @@ mkdir -p %{buildroot}/opt/couchbase/var/lib/fleetmanager
 
 %{_unitdir}/%{name}.service
 
+# The modes duplicate the stage tree; ownership is what these %attr directives carry,
+# since the fleetmanager uid only exists at install time.
 %dir %attr(0750,root,fleetmanager) %{_sysconfdir}/couchbase/fleetmanager
 %config(noreplace) %attr(0640,root,fleetmanager) %{_sysconfdir}/couchbase/fleetmanager/fleetmanager.env
 

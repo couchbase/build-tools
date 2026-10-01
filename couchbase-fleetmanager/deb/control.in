@@ -1,0 +1,18 @@
+Package: couchbase-fleetmanager
+Version: @@VERSION@@
+Architecture: @@ARCH@@
+Section: database
+Priority: optional
+Maintainer: Couchbase Build and Release Team <build-team@couchbase.com>
+Homepage: https://www.couchbase.com/
+Installed-Size: @@INSTALLED_SIZE@@
+Depends: adduser, init-system-helpers (>= 1.54)
+Description: Couchbase Fleet Manager
+ Couchbase Fleet Manager provides centralised fleet-wide visibility and
+ management for self-managed Couchbase Server deployments, including cluster
+ inventory, entitlement tracking and an activity log. It serves both the REST
+ API and the web UI.
+ .
+ Fleet Manager connects to Couchbase Server over the network and may be
+ installed either alongside a cluster node or on a separate host. See
+ /usr/share/doc/couchbase-fleetmanager/README.md for configuration.

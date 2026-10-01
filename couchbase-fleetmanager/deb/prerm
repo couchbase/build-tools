@@ -1,0 +1,10 @@
+#!/bin/sh
+# Replaces the stop half of the spec's %systemd_preun.
+set -e
+
+# Nothing on 'upgrade': postinst's try-restart keeps the service running across one.
+if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
+    deb-systemd-invoke stop couchbase-fleetmanager.service >/dev/null || true
+fi
+
+exit 0

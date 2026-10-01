@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+UNIT=couchbase-fleetmanager.service
+
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null 2>&1 || true
+fi
+
+if [ "$1" = remove ] && [ -x /usr/bin/deb-systemd-helper ]; then
+    # Masked, not disabled: enablement symlinks survive 'remove' so a reinstall restores
+    # the operator's choice.
+    deb-systemd-helper mask ${UNIT} >/dev/null || true
+fi
+
+if [ "$1" = purge ] && [ -x /usr/bin/deb-systemd-helper ]; then
+    deb-systemd-helper purge ${UNIT} >/dev/null || true
+    deb-systemd-helper unmask ${UNIT} >/dev/null || true
+fi
+
+# Nothing else, even on purge: credentials.json holds the only copy of the Couchbase
+# passwords, and the fleetmanager user is kept so it can't end up owned by a recycled uid.
+# Neither is shipped by this package, so dpkg leaves both alone - as the rpm does.
+
+exit 0

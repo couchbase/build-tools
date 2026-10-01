@@ -1,0 +1,57 @@
+#!/bin/sh
+set -e
+
+UNIT=couchbase-fleetmanager.service
+
+case "$1" in
+configure)
+    getent group fleetmanager >/dev/null || addgroup --system fleetmanager
+    getent passwd fleetmanager >/dev/null || \
+        adduser --system --ingroup fleetmanager --no-create-home \
+                --home /opt/couchbase/var/lib/fleetmanager \
+                --shell /usr/sbin/nologin \
+                --gecos "Couchbase Fleet Manager" fleetmanager
+
+    # dpkg re-applies the archive's root:root on every unpack, so this runs on every
+    # configure, not just first install.
+    chown root:fleetmanager /etc/couchbase/fleetmanager
+    chmod 0750 /etc/couchbase/fleetmanager
+    chown root:fleetmanager /etc/couchbase/fleetmanager/fleetmanager.env
+    chmod 0640 /etc/couchbase/fleetmanager/fleetmanager.env
+
+    # Parents belong to couchbase-server and are not in the archive; mkdir -p leaves them.
+    mkdir -p /opt/couchbase/var/lib/fleetmanager
+    chown fleetmanager:fleetmanager /opt/couchbase/var/lib/fleetmanager
+    chmod 0700 /opt/couchbase/var/lib/fleetmanager
+    ;;
+
+abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+*)
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+    ;;
+esac
+
+if [ -x /usr/bin/deb-systemd-helper ]; then
+    # Undoes the mask postrm sets on 'remove'.
+    deb-systemd-helper unmask ${UNIT} >/dev/null || true
+
+    # Deliberately NOT enabled, unlike Debian convention: the rpm doesn't enable either
+    # (el's preset policy is "disable *"), and the service has no usable config until
+    # fleetmanager.env is edited. Both formats leave "enable --now" to the operator.
+    deb-systemd-helper update-state ${UNIT} >/dev/null || true
+fi
+
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null 2>&1 || true
+
+    # No start: $2 is set only on upgrade, and try-restart is a no-op on a stopped unit,
+    # which together mirror %systemd_postun_with_restart.
+    if [ -n "$2" ]; then
+        deb-systemd-invoke try-restart ${UNIT} >/dev/null || true
+    fi
+fi
+
+exit 0
