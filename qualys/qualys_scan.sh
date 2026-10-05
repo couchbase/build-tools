@@ -40,6 +40,10 @@ case $PRODUCT in
     WEB_URL="https://${TEST_VM_IP}:8091"
     WEBAPP_ID=894694750
     ;;
+  operational-insights)
+    WEB_URL="https://${TEST_VM_IP}:8091"
+    WEBAPP_ID=894694750
+    ;;
   couchbase-server)
     WEB_URL="https://${TEST_VM_IP}:18091"
     WEBAPP_ID=4900290

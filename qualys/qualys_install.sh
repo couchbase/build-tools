@@ -15,21 +15,18 @@ mkdir /home/${PRODUCT}/data"
     CLEAN_UP_CMD="dpkg --remove --force-all ${PKG_NAME}"
     INSTALL_CMD="dpkg -i /tmp/${PKG_FILE_NAME}"
   ;;
-  enterprise-analytics)
+  enterprise-analytics|operational-insights)
     PKG_NAME=${PRODUCT}
     PKG_FILE_NAME=${PKG_NAME}_${VERSION}-${BLD_NUM}-linux_amd64.deb
-    # couchbase-server and enterprise-analytics step on each other sometimes
-    # extra commands to ensure they are removed cleanly
-    CLEAN_UP_CMD="dpkg --remove --force-all ${PKG_NAME}
-dpkg --remove --force-all couchbase-server
-dpkg --purge ${PKG_NAME}
-dpkg --purge couchbase-server
-rm -rf /opt/enterprise-analytics
+    # couchbase-server, enterprise-analytics and operational-insights step on
+    # each other sometimes; extra commands to ensure they are removed cleanly
+    CLEAN_UP_CMD="dpkg --remove --force-all couchbase-server enterprise-analytics operational-insights
+dpkg --purge couchbase-server enterprise-analytics operational-insights
 rm -rf /opt/couchbase
 rm -rf /opt/enterprise-analytics
 rm -f /etc/couchbase.d/*"
     INSTALL_CMD="dpkg -i /tmp/${PKG_FILE_NAME}
-systemctl restart enterprise-analytics"
+systemctl restart ${PKG_NAME}"
 
     CONFIGURE_CMD="mkdir -p /etc/couchbase.d
 echo 'analytics_provisioned' > /etc/couchbase.d/config_profile
@@ -44,12 +41,10 @@ curl --fail http://${TEST_VM_IP}:8091/clusterInit \
   couchbase-server)
     PKG_NAME=${PRODUCT}
     PKG_FILE_NAME=${PKG_NAME}-enterprise_${VERSION}-${BLD_NUM}-linux_amd64.deb
-    # couchbase-server and enterprise-analytics step on each other sometimes
-    # extra commands to ensure they are removed cleanly
-    CLEAN_UP_CMD="dpkg --remove --force-all ${PKG_NAME}
-dpkg --remove --force-all enterprise-analytics
-dpkg --purge ${PKG_NAME}
-dpkg --purge enterprise-analytics
+    # couchbase-server, enterprise-analytics and operational-insights step on
+    # each other sometimes; extra commands to ensure they are removed cleanly
+    CLEAN_UP_CMD="dpkg --remove --force-all couchbase-server enterprise-analytics operational-insights
+dpkg --purge couchbase-server enterprise-analytics operational-insights
 rm -rf /opt/couchbase
 rm -rf /opt/enterprise-analytics
 rm -rf /etc/couchbase.d/*"

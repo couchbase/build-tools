@@ -14,6 +14,7 @@ downloads reports once they are available
   couchbase-server
   couchbase-edge-server
   enterprise-analytics
+  operational-insights
   sync-gateway
 
 ## Required Environment Variables for qualys_install.sh
