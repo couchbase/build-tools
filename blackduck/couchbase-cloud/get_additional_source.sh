@@ -10,19 +10,23 @@ do
     pushd $dir
     # Try to identify an appropriate version of node from build-and-deliver-predev.yml
     # based on the contents of package.json
-    REQUIRED_NODE_VERSION=$(jq -re '.engines.node // ""' package.json | sed 's/[^0-9.]//g')
+    REQUIRED_NODE_VERSION=$(jq -re '.engines.node // ""' package.json | tr -d ' ')
     if [[ "${REQUIRED_NODE_VERSION}" == \>=* ]]; then
-      MIN_VERSION=$(echo "${REQUIRED_NODE_VERSION}" | cut -d ' ' -f 2)
-      NODE_VER=$(echo "${NODE_VERSIONS}" | awk -v min_ver="${MIN_VERSION}" -F. '$1 >= min_ver' | sort -V | head -n 1)
+      MIN_VERSION=${REQUIRED_NODE_VERSION#>=}
+      NODE_VER=$(echo "${NODE_VERSIONS}" | awk -v min_ver="${MIN_VERSION%%.*}" -F. '$1 >= min_ver' | sort -V | head -n 1)
     elif [[ "${REQUIRED_NODE_VERSION}" == \<=* ]]; then
-      MAX_VERSION=$(echo "${REQUIRED_NODE_VERSION}" | cut -d ' ' -f 2)
-      NODE_VER=$(echo "${NODE_VERSIONS}" | awk -v max_ver="${MAX_VERSION}" -F. '$1 <= max_ver' | sort -V | tail -n 1)
+      MAX_VERSION=${REQUIRED_NODE_VERSION#<=}
+      NODE_VER=$(echo "${NODE_VERSIONS}" | awk -v max_ver="${MAX_VERSION%%.*}" -F. '$1 <= max_ver' | sort -V | tail -n 1)
     elif [[ "${REQUIRED_NODE_VERSION}" == ==* ]]; then
-      NODE_VER=${REQUIRED_NODE_VERSION}
+      NODE_VER=${REQUIRED_NODE_VERSION#==}
     else
       # If we got here package.json either specified a raw version number or nothing at all
       # so we just match what it expects (i.e. full version or latest)
-      NODE_VER=$(echo "${NODE_VERSIONS}" | grep "^${REQUIRED_NODE_VERSION}" | tail -n 1)
+      NODE_VER=$(echo "${NODE_VERSIONS}" | grep "^${REQUIRED_NODE_VERSION//[^0-9.]/}" | tail -n 1)
+    fi
+    if [ -z "${NODE_VER}" ]; then
+      echo "No node version in [${NODE_VERSIONS//$'\n'/ }] satisfies '${REQUIRED_NODE_VERSION}' for ${dir}"
+      exit 1
     fi
 
     if [ ! -d "${WORKSPACE}/extra/nodejs-${NODE_VER}" ]; then
