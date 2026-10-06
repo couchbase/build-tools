@@ -64,29 +64,41 @@ python3 ${SCRIPT_DIR}/was_scan.py \
   --debug
 
 # cleanup old scans
-UTC_DATE_FROM=${UTC_DATE_FROM}'T00:00:00Z'
-if [[ -z ${UTC_DATE_TO} ]]; then
-  DELETE_DATE=`date --date='14 day ago' +%Y-%m-%d`
-  UTC_DATE_TO=${DELETE_DATE}'T00:00:00Z'
-else
-  UTC_DATE_TO=${UTC_DATE_TO}'T00:00:00Z'
+if [[ -z ${UTC_DATE_DELETE_FROM} ]]; then
+  UTC_DATE_DELETE_FROM='2017-01-01T00:00:00Z'
 fi
-echo "DELETE_DATE: ${DELETE_DATE}"
+if [[ -z ${UTC_DATE_DELETE_TO} ]]; then
+  UTC_DATE_DELETE_TO="$(date --date='14 day ago' +%Y-%m-%d)T00:00:00Z"
+fi
+echo "Remove older scans from ${UTC_DATE_DELETE_FROM} to ${UTC_DATE_DELETE_TO}"
 sed -i.bak \
-  "s/\(.*operator=\"LESSER\">\).*\(<\/Criteria>\)/\1${UTC_DATE_TO}\2/" \
+  "s/\(.*operator=\"LESSER\">\).*\(<\/Criteria>\)/\1${UTC_DATE_DELETE_TO}\2/" \
   ./qualys/file_delete_scan.xml
 sed -i.bak \
-  "s/\(.*operator=\"GREATER\">\).*\(<\/Criteria>\)/\1${UTC_DATE_FROM}\2/" \
+  "s/\(.*operator=\"GREATER\">\).*\(<\/Criteria>\)/\1${UTC_DATE_DELETE_FROM}\2/" \
   ./qualys/file_delete_scan.xml
-curl -u "cuchb3ws:${QUALYS_PASSWORD}" \
+DELETE_OK=true
+if ! DELETE_RESPONSE=$(curl -sS -u "cuchb3ws:${QUALYS_PASSWORD}" \
   -H "content-type: text/xml" \
   -X "POST" \
   --data-binary @- \
   "https://qualysapi.qg3.apps.qualys.com/qps/rest/3.0/delete/was/wasscan" \
-  < ./qualys/file_delete_scan.xml
+  < ./qualys/file_delete_scan.xml); then
+  DELETE_OK=false
+fi
+echo "${DELETE_RESPONSE}"
+# Qualys returns errors in the response body, not via HTTP status
+if ! grep -q '<responseCode>SUCCESS</responseCode>' <<< "${DELETE_RESPONSE}"; then
+  DELETE_OK=false
+fi
 
 # deactivate virtualenv
 echo "Deactivating virtualenv ..."
 deactivate
 rm -rf ${QUALYS_CONFIG}
 rm -rf /tmp/${VIRTUALENV_NAME}
+
+if [[ ${DELETE_OK} != true ]]; then
+  echo "ERROR: failed to delete old scans"
+  exit 1
+fi
