@@ -36,12 +36,15 @@ alongside a cluster node or on a separate host. See
 %build
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}
+rm -rf "%{buildroot}"
+mkdir -p "%{buildroot}"
 
 # build_payload assembles a complete filesystem image so the deb build can share it, so
 # nothing is added here and there are no Source: tags.
-cp -a %{fm_stage}/. %{buildroot}/
+cp -a "%{fm_stage}/." "%{buildroot}/"
+
+%clean
+rm -rf "%{buildroot}"
 
 %files
 # /opt/couchbase, /opt/couchbase/var and /opt/couchbase/var/lib are deliberately unowned:
