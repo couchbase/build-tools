@@ -1,0 +1,12 @@
+diff --git a/BUILD b/BUILD
+index 266ede6..992e9c8 100644
+--- a/BUILD
++++ b/BUILD
+@@ -12,7 +12,6 @@ gerrit_plugin(
+     srcs = glob(["src/main/java/**/*.java"]),
+     manifest_entries = [
+         "Gerrit-PluginName: uploadvalidator",
+-        "Gerrit-ApiVersion: 3.0-SNAPSHOT",
+         "Gerrit-Module: com.googlesource.gerrit.plugins.uploadvalidator.Module",
+     ],
+     resources = glob(["src/main/resources/**/*"]),

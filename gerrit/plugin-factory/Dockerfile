@@ -3,6 +3,10 @@ FROM eclipse-temurin:${JDK_VERSION}-jdk
 
 ARG GERRIT_MAJOR_VERSION
 ARG GERRIT_MINOR_VERSION
+ARG GERRIT_BRANCH
+# ENV rather than ARG alone, so ad-hoc `docker run` builds resolve the same way
+ENV GERRIT_MAJOR_VERSION=${GERRIT_MAJOR_VERSION}
+ENV GERRIT_BRANCH=${GERRIT_BRANCH}
 ENV PLUGIN_MINOR_VERSION=${GERRIT_MINOR_VERSION}
 
 RUN set -x \
@@ -50,16 +54,23 @@ RUN build-plugin plugin-manager
 RUN build-plugin replication
 RUN build-plugin reviewnotes
 RUN build-plugin singleusergroup
+# upstream BUILD hardcodes a second Gerrit-ApiVersion; copied per plugin so a
+# patch change only invalidates layers from here on
+COPY patches/uploadvalidator /patches/uploadvalidator
 RUN build-plugin uploadvalidator
 RUN build-plugin webhooks
 
 # Community plugins
-RUN build-plugin checks
+# master needs aspect_rules_* and a newer bazlets than 3.14 pins; a8e36ec is
+# the last commit before that. Revisit if checks cuts a stable-3.14.
+RUN PLUGIN_BRANCH=a8e36eca9ca3f1900d0a511c0f1ff6942f867ff8 build-plugin checks
 RUN build-plugin checks-jenkins
 RUN build-plugin events-log
 RUN build-plugin oauth
 RUN build-plugin readonly
-RUN build-plugin reviewers
+# master needs aspect_rules_*; stable-3.13 differs only in formatting
+RUN PLUGIN_BRANCH=stable-3.13 build-plugin reviewers
 RUN build-plugin admin-console
+RUN build-plugin rename-project
 
 ENTRYPOINT ["bash"]

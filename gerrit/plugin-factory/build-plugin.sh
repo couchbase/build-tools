@@ -51,13 +51,30 @@ function checkout_source_tree() {
     git submodule update --init --recursive
 }
 
+function apply_patches() {
+    # must follow checkout_source_tree, whose submodule update resets core plugins
+    PATCHES=""
+    [ -d /patches/${PLUGIN} ] || return 0
+    for p in /patches/${PLUGIN}/*.patch; do
+        [ -f "${p}" ] || continue
+        git -C /gerrit/plugins/${PLUGIN} apply -v "${p}"
+        PATCHES="${PATCHES:+${PATCHES} }$(basename ${p})@$(git hash-object ${p} | cut -c1-12)"
+    done
+}
+
 function replace_deps_file() {
     # See "Plugins With External Dependencies" section at:
     # https://gerrit-review.googlesource.com/Documentation/dev-build-plugins.html
     cd /gerrit/plugins
-    if [ -f "${PLUGIN}/external_plugin_deps.bzl" ]; then
-        rm external_plugin_deps.bzl
-        ln -s ${PLUGIN}/external_plugin_deps.bzl .
+    if [ -f "${PLUGIN}/external_plugin_deps.MODULE.bazel" ]; then
+        rm -f external_plugin_deps.MODULE.bazel
+        ln -s ${PLUGIN}/external_plugin_deps.MODULE.bazel external_plugin_deps.MODULE.bazel
+        # the plugin's deps change the module graph, and .bazelrc sets
+        # --lockfile_mode=error, so refresh the lockfile before building
+        cd /gerrit && bazel mod deps --lockfile_mode=update
+    elif [ -f "${PLUGIN}/external_plugin_deps.bzl" ]; then
+        rm -f external_plugin_deps.bzl
+        ln -s ${PLUGIN}/external_plugin_deps.bzl external_plugin_deps.bzl
     fi
 }
 
@@ -65,8 +82,22 @@ function build_plugin() {
     cd /gerrit
     bazel build plugins/${PLUGIN}:${PLUGIN}
     mv /gerrit/bazel-bin/plugins/${PLUGIN}/${PLUGIN}.jar /plugins
-    [ ! -f /plugins/versions.txt ] && echo "plugin name,plugin branch,gerrit branch" >> /plugins/versions.txt
-    echo "${PLUGIN},${PLUGIN_BRANCH},${GERRIT_BRANCH}" >> /plugins/versions.txt
+    # branch names alone don't identify a build - master moves, and core
+    # plugins are pinned by the superproject's submodule, not by the branch
+    PLUGIN_COMMIT=$(git -C /gerrit/plugins/${PLUGIN} rev-parse HEAD)
+    GERRIT_COMMIT=$(git -C /gerrit rev-parse HEAD)
+    [ ! -f /plugins/versions.txt ] && echo "plugin name,plugin branch,plugin commit,gerrit branch,gerrit commit,patches" >> /plugins/versions.txt
+    echo "${PLUGIN},${PLUGIN_BRANCH},${PLUGIN_COMMIT},${GERRIT_BRANCH},${GERRIT_COMMIT},${PATCHES}" >> /plugins/versions.txt
+}
+
+function test_plugin() {
+    [ -z "${RUN_TESTS}" ] && return 0
+    cd /gerrit
+    if bazel query plugins/${PLUGIN}:${PLUGIN}_tests > /dev/null 2>&1; then
+        bazel test plugins/${PLUGIN}:${PLUGIN}_tests
+    else
+        echo "no plugins/${PLUGIN}:${PLUGIN}_tests target, skipping tests"
+    fi
 }
 
 function tidy_up() {
@@ -78,6 +109,8 @@ function tidy_up() {
 
 clone_plugin
 checkout_source_tree
+apply_patches
 replace_deps_file
 build_plugin
+test_plugin
 tidy_up
