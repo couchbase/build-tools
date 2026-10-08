@@ -20,10 +20,30 @@ SDK=$(
     sed -E 's/.*value="([^"]+)".*/\1/' | head -1
 )
 
+# The analytics flavor's profile was renamed in 3.0.0 (TACO-32), so pick
+# whichever name this checkout's cbas/pom.xml defines:
+#   1.x/2.x: flavor-enterprise-analytics
+#   3.x+:    flavor-couchbase-operational-insights
+# Maven only warns about an unknown -P profile and then builds no taco (hence
+# no BOM), so fail here instead if neither exists.
+flavor_profile() {
+    local p
+    for p in "$@"; do
+        if grep -q "<id>${p}</id>" cbas/pom.xml; then
+            echo "${p}"
+            return
+        fi
+    done
+    echo "ERROR: none of the Maven profiles '$*' exist in cbas/pom.xml" >&2
+    exit 1
+}
+ANALYTICS_PROFILE=$(flavor_profile flavor-couchbase-operational-insights flavor-enterprise-analytics)
+OPERATIONAL_PROFILE=$(flavor_profile flavor-couchbase-analytics)
+
 case "${SDK}" in
-    operational) PROFILES="flavor-couchbase-analytics" ;;
-    both|all)    PROFILES="flavor-enterprise-analytics,flavor-couchbase-analytics" ;;
-    *)           PROFILES="flavor-enterprise-analytics" ;;  # analytics / default
+    operational) PROFILES="${OPERATIONAL_PROFILE}" ;;
+    both|all)    PROFILES="${ANALYTICS_PROFILE},${OPERATIONAL_PROFILE}" ;;
+    *)           PROFILES="${ANALYTICS_PROFILE}" ;;  # analytics / default
 esac
 echo "Manifest SDK='${SDK:-<unset>}' -> Maven profile(s): ${PROFILES}"
 
