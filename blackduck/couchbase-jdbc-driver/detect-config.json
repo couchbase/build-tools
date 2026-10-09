@@ -1,0 +1,10 @@
+{
+    "source_paths": ["driver-boms"],
+    "detect_opts": {
+        "logging.level.detect": "DEBUG",
+        "detect.detector.search.depth": 9,
+        "detect.excluded.detector.types": "GRADLE,NPM,NUGET,PIP",
+        "detect.accuracy.required": "MAVEN",
+        "detect.maven.build.command": "--batch-mode"
+    }
+}
