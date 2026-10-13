@@ -60,30 +60,39 @@ cocoa_push() {
     fi
 }
 
-# Create PR to update couchbase-lite-ios CE podspecs
+# Install gh via cbdep
+install_gh() {
+    local tool_dir
+    tool_dir=$(mktemp -d -q --tmpdir=${SCRIPT_DIR} toolsXXXXX)
+    cbdep install -d ${tool_dir} gh ${GH_VERSION}
+    export PATH=${tool_dir}/gh-${GH_VERSION}/bin:${PATH}
+}
+
+# Create PR to update podspecs
+# Usage: create_pr <owner/repo> <podspec>...
+# Must be run from the directory holding the podspecs
 create_pr() {
     local repo="${1}"
-    pushd ${SCRIPT_DIR}/${repo}
-    git checkout ${BRANCH}
-    git branch podspecs_update
-    git checkout podspecs_update
-    for podspec in *.podspec; do
+    shift
+    local pr_branch="podspecs/${VERSION}-$(date +%Y%m%d%H%M%S)"
+    git checkout -B ${pr_branch}
+    for podspec in "$@"; do
         sed -i \
             -e "/^\s*s\.version/ s/'[^']*'/'${VERSION}'/" \
             -e "/s\.ios\.deployment_target/ s/'[^']*'/'${ios_target}'/" \
             -e "/s\.osx\.deployment_target/ s/'[^']*'/'${osx_target}'/" \
             ${podspec}
     done
-    if [[ -z $(git status -s) ]]; then
+    if [[ -z $(git status -s -uno) ]]; then
         echo "Podspecs are up-to-date.  No need to raise PR."
     else
         git commit -a -m "Update pod specs for ${PRODUCT} ${VERSION}"
 
         if [[ "${DRYRUN}" == 'false' ]]; then
-            gh pr create --repo "${repo}" --base "${BRANCH}" -f
+            git push origin ${pr_branch}
+            gh pr create --repo "${repo}" --base "${BRANCH}" --head ${pr_branch} -f
         fi
     fi
-    popd
 }
 
 # set environment variables for Ruby
@@ -147,7 +156,16 @@ couchbase_lite_ios_publish() {
     for file in ${files}; do
         cocoa_push "${file}"
     done
+    if [[ "${CREATE_PR}" == "true" ]]; then
+        create_pr couchbaselabs/couchbase-lite-ios-ee ${files}
+    fi
     popd
+
+    if [[ "${CREATE_PR}" == "true" && "${COMMUNITY}" != "no" ]]; then
+        pushd couchbase-lite-ios
+        create_pr couchbase/couchbase-lite-ios *.podspec
+        popd
+    fi
 }
 
 couchbase_lite_vector_search_publish() {
@@ -165,6 +183,12 @@ couchbase_lite_vector_search_publish() {
 
 # Predefined params from Jenkins job:
 # ${PRODUCT}, ${VERSION}, ${DRYRUN}, ${BRANCH}, ${COMMUNITY}, ${RUBY_VERSION}
+# Optional:
+# ${CREATE_PR} - "true" to raise PRs with the updated podspecs (couchbase-lite-ios only)
+# ${GITHUB_TOKEN} - required by gh when CREATE_PR is "true"
+# ${GH_VERSION} - gh version to install when CREATE_PR is "true"
+
+GH_VERSION=${GH_VERSION:-2.79.0}
 
 set_ruby_env
 
@@ -173,6 +197,14 @@ verify_pod_session
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd ${SCRIPT_DIR}
+
+if [[ "${CREATE_PR}" == "true" ]]; then
+    if [[ -z "${GITHUB_TOKEN}" ]]; then
+        echo "GITHUB_TOKEN must be set when CREATE_PR is true"
+        exit 1
+    fi
+    install_gh
+fi
 
 case "${PRODUCT}" in
     couchbase-lite-ios)
