@@ -3,6 +3,9 @@
         "master": {
             "interval": 1500
         },
+        "3.13.0": {
+            "interval": 1440
+        },
         "3.12.3": {
             "interval": 1440
         },
