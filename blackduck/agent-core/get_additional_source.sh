@@ -24,7 +24,7 @@ export UV_BIN_PATH
 # uv invocation for the rest of this pipeline, not just Detect's scan of
 # this product -- which is exactly what broke update-manual-manifest.py's
 # own 3.11-pinned project last time.
-UV_PYTHON="$(grep 'requires-python' ${SOURCE_DIR}/pyproject.toml | grep -oE '[0-9]+\.[0-9]+')"
+UV_PYTHON="$(grep 'requires-python' ${SOURCE_DIR}/pyproject.toml | grep -oE '[0-9]+\.[0-9]+' | head -n1)"
 UV_PYTHON="${UV_PYTHON:-3.13}"
 "${UV_BIN_PATH}" python install "${UV_PYTHON}"
 "${UV_BIN_PATH}" --directory "${SOURCE_DIR}" python pin "${UV_PYTHON}"
