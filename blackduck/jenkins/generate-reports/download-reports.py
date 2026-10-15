@@ -48,13 +48,20 @@ class ReportsDownloader:
         logger.info(f"Connecting to Black Duck hub {creds['url']}")
         self.client = Client(base_url=creds["url"], token=creds["token"])
 
+        # Black Duck's q filter is a substring match, so filter for exact names
         try:
-            self.product = next(self.client.get_resource('projects', params={"q": f"name:{product}"}))
+            self.product = next(
+                p for p in self.client.get_resource('projects', params={"q": f"name:{product}"})
+                if p["name"] == product
+            )
         except StopIteration:
             raise Exception(f"Unknown product {product}")
 
         try:
-            self.version = next(self.client.get_resource('versions', self.product, params={"q": f"versionName:{version}"}))
+            self.version = next(
+                v for v in self.client.get_resource('versions', self.product, params={"q": f"versionName:{version}"})
+                if v["versionName"] == version
+            )
         except StopIteration:
             raise Exception(f"Unknown version {version} for product {product}")
 
