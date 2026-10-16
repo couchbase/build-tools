@@ -154,6 +154,7 @@ case "${PRODUCT}" in
         # couchbase-tableau-connector'zip files have different names
         EXTRA_POSITIVE_WILDCARDS+=('couchbase-analytics-tableau-connector*')
         EXTRA_POSITIVE_WILDCARDS+=('enterprise-analytics-tableau-connector*')
+        EXTRA_POSITIVE_WILDCARDS+=('couchbase-operational-insights-tableau-connector*')
         ;;
     rosetta-mdb)
         # rosetta-mdb uploads raw executables,
