@@ -267,13 +267,12 @@ for local_product in *; do
     pushd ${local_product} &> /dev/null
     short_product=${local_product/couchbase-/}
 
-    if building_vanilla; then
+    if building_vanilla && product_publishes_to "${PRODUCT}" dockerhub; then
         build-image cb-vanilla ${short_product} ${tag} \
             ${external_registry}
     fi
 
-    # Some projects don't do RHCC
-    if building_redhat && product_in_rhcc "${PRODUCT}"; then
+    if building_redhat && product_publishes_to "${PRODUCT}" rhcc; then
 
         # Need to determine OPENSHIFT_BUILD. This is always "1" for a
         # pre-GA build. For a post-GA rebuild, compute it from the RHCC

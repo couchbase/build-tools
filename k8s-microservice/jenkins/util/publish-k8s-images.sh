@@ -12,7 +12,8 @@
 # on Docker Hub and RHCC - for RHCC it will also append the OPENSHIFT_BUILD
 # number to the public tag. If OPENSHIFT_BUILD is omitted or '0', this script
 # will skip the upload to RHCC. It will also automatically skip uploading to
-# RHCC if PRODUCT is not known to be a RHCC image.
+# RHCC (or Docker Hub) if PRODUCT is listed under that registry in
+# products-without-images.json.
 #
 # The REGISTRY argument can be used to limit which registry to publish to:
 # 'dockerhub', 'rhcc', or 'all' (default) if omitted.
@@ -109,7 +110,7 @@ rhcc_registry=registry.connect.redhat.com
 
 ################ VANILLA
 
-if publishing_vanilla; then
+if publishing_vanilla && product_publishes_to "${PRODUCT}" dockerhub; then
     status Publishing to Docker Hub...
     internal_image=${internal_repo}/cb-vanilla/${short_product}:${INTERNAL_TAG}
     if ! internal_key=$(image_key ${internal_image}); then
@@ -136,7 +137,7 @@ fi
 
 ################## RHCC
 
-if publishing_redhat && product_in_rhcc "${PRODUCT}"; then
+if publishing_redhat && product_publishes_to "${PRODUCT}" rhcc; then
     internal_image=${internal_repo}/cb-rhcc/${short_product}:${INTERNAL_TAG}
     external_base=${rhcc_registry}/couchbase/${short_product}:${PUBLIC_TAG}
 

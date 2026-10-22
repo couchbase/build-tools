@@ -9,6 +9,12 @@ chk_set PRODUCT
 chk_set VERSION
 chk_set BLD_NUM
 
+if ! product_publishes_to "${PRODUCT}" dockerhub \
+        && ! product_publishes_to "${PRODUCT}" rhcc; then
+    status "${PRODUCT} has no Docker images; skipping"
+    exit 0
+fi
+
 # Figure out if this is the highest version of the product; if so,
 # also push :latest tag
 highest_version=$(

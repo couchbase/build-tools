@@ -10,7 +10,7 @@ chk_set BLD_NUM
 
 GOVERSION=$(gover_from_manifest)
 
-# If the manifest doesn't specify a Go version, use the exact one the
+# If the manifest doesn't specify a Go version, use the one the
 # product's go.mod asks for - a "toolchain" directive if present,
 # otherwise the "go" directive.
 if [ -z "${GOVERSION}" -a -f "${PRODUCT}/go.mod" ]; then
@@ -18,8 +18,20 @@ if [ -z "${GOVERSION}" -a -f "${PRODUCT}/go.mod" ]; then
     if [ -z "${GOVERSION}" ]; then
         GOVERSION=$(awk '$1 == "go" { print $2; exit }' "${PRODUCT}/go.mod")
     fi
+    # go.mod may specify just a major.minor version (eg. "1.27"); if so,
+    # use the latest stable patch release of it from the Go downloads API.
+    if [[ ${GOVERSION} =~ ^[0-9]+\.[0-9]+$ ]]; then
+        REQUESTED_GOVERSION=${GOVERSION}
+        GOVERSION=$(
+            curl --silent --show-error --fail "https://go.dev/dl/?mode=json&include=all" \
+            | jq --raw-output '.[].version' \
+            | grep -E "^go${REQUESTED_GOVERSION//./\\.}\.[0-9]+$" \
+            | sed 's/^go//' | sort -V | tail -1
+        )
+        status "Resolved Go ${REQUESTED_GOVERSION} from go.mod to ${GOVERSION}"
+    fi
     if [[ ! ${GOVERSION} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        error "${PRODUCT}/go.mod must specify an exact Go version (eg. 1.26.6), found '${GOVERSION}'"
+        error "Could not determine an exact Go version from ${PRODUCT}/go.mod, found '${GOVERSION}'"
     fi
 fi
 

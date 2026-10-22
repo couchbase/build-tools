@@ -1,16 +1,18 @@
 # General utilities shell functions for k8s-microservice scripts
 
-function product_in_rhcc {
+funclib_dir=$(dirname $(readlink -e -- "${BASH_SOURCE[0]}"))
+
+# Succeeds if PRODUCT publishes images to REGISTRY ("dockerhub" or "rhcc"),
+# ie. if PRODUCT is not listed under REGISTRY in products-without-images.json.
+# A product listed under both has no images at all (eg. it only ships
+# binaries, which the build uploads to latestbuilds).
+function product_publishes_to {
     local PRODUCT=$1
+    local REGISTRY=$2
 
-    if [ "${PRODUCT}" = "couchbase-service-broker" -o \
-         "${PRODUCT}" = "couchbase-observability-stack" -o \
-         "${PRODUCT}" = "couchbase-goldfish-nebula" -o \
-         "${PRODUCT}" = "couchbase-elasticsearch-connector" ]; then
-        return 1
-    fi
-
-    return 0
+    ! jq -e --arg p "${PRODUCT}" --arg r "${REGISTRY}" \
+        '.[$r] // [] | index($p)' \
+        "${funclib_dir}/products-without-images.json" > /dev/null
 }
 
 # Returns the external private pre-GA registry for a specific product.

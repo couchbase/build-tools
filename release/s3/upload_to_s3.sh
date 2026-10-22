@@ -156,15 +156,15 @@ case "${PRODUCT}" in
         EXTRA_POSITIVE_WILDCARDS+=('enterprise-analytics-tableau-connector*')
         EXTRA_POSITIVE_WILDCARDS+=('couchbase-operational-insights-tableau-connector*')
         ;;
-    rosetta-mdb)
-        # rosetta-mdb uploads raw executables,
+    couchbase-converge-mongodb)
+        # couchbase-converge-mongodb uploads raw executables,
         # which are called "cbmcd*"
         EXTRA_POSITIVE_WILDCARDS+=('cbmcd*')
         ;;
-    rosetta-mcsync)
-        # rosetta-mcsync uploads raw executables,
-        # which are called "mcsync*"
-        EXTRA_POSITIVE_WILDCARDS+=('mcsync*')
+    couchbase-converge-mcsync)
+        # couchbase-converge-mcsync uploads raw executables,
+        # which are called "cbmcsync*"
+        EXTRA_POSITIVE_WILDCARDS+=('cbmcsync*')
         ;;
 esac
 
