@@ -158,13 +158,13 @@ case "${PRODUCT}" in
         ;;
     couchbase-converge-mongodb)
         # couchbase-converge-mongodb uploads raw executables,
-        # which are called "cbmcd*"
-        EXTRA_POSITIVE_WILDCARDS+=('cbmcd*')
+        # which are called "cbcmwd*"
+        EXTRA_POSITIVE_WILDCARDS+=('cbcmwd*')
         ;;
-    couchbase-converge-mcsync)
-        # couchbase-converge-mcsync uploads raw executables,
-        # which are called "cbmcsync*"
-        EXTRA_POSITIVE_WILDCARDS+=('cbmcsync*')
+    couchbase-converge-cbcmsync)
+        # couchbase-converge-cbcmsync uploads raw executables,
+        # which are called "cbcmsync*"
+        EXTRA_POSITIVE_WILDCARDS+=('cbcmsync*')
         ;;
 esac
 

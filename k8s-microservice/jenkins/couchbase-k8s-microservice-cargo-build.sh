@@ -26,11 +26,9 @@
 # Sets ARCH to this machine's architecture, as Docker names it (amd64,
 # arm64), and PRODUCT's settings. Paths are relative to ${PRODUCT}, where
 # the manifest checks out its source:
-#   DIST_BINARY   the name the binary ships as; required
-#   CARGO_BINARY  the name cargo builds the binary as, used when cargo
-#                 doesn't already build it as DIST_BINARY
+#   DIST_BINARY   the name of the binary cargo builds and the product
+#                 ships; required
 product_settings() {
-    CARGO_BINARY=
     DIST_BINARY=
     case "$(uname -m)" in
         x86_64) ARCH=amd64 ;;
@@ -39,8 +37,7 @@ product_settings() {
     esac
     case "${PRODUCT}" in
         couchbase-converge-mongodb)
-            CARGO_BINARY=stellar-rosetta-rs
-            DIST_BINARY=cbmcd
+            DIST_BINARY=cbcmwd
             ;;
         *)
             error "${PRODUCT} is not a known cargo-built product"
@@ -85,15 +82,10 @@ cargo_build() {
     PROD_VERSION=${VERSION} BLD_NUM=${BLD_NUM} cargo build --release --locked
     popd
     mkdir -p ${PRODUCT}/dist
-    # Ship the binary as DIST_BINARY: as is if cargo already names it so,
-    # otherwise renamed from CARGO_BINARY (eg. stellar-rosetta-rs).
     local built=${PRODUCT}/target/release/${DIST_BINARY}
     local versioned_binary=${DIST_BINARY}-${ARCH}_${VERSION}-${BLD_NUM}
     if [ ! -f "${built}" ]; then
-        built=${PRODUCT}/target/release/${CARGO_BINARY}
-    fi
-    if [ ! -f "${built}" ]; then
-        error "Could not find ${DIST_BINARY} or ${CARGO_BINARY} in ${PRODUCT}/target/release"
+        error "Could not find ${DIST_BINARY} in ${PRODUCT}/target/release"
     fi
     cp "${built}" ${PRODUCT}/dist/${versioned_binary}
     if command -v objcopy >/dev/null 2>&1; then
