@@ -88,10 +88,12 @@ if not os.path.exists(detect_jar):
             os.remove(detect_jar)
         raise
 
+# Passed via env rather than argv so it can't leak via ps or a traceback
+os.environ["BLACKDUCK_API_TOKEN"] = creds["token"]
+
 # Start with default properties, then update with config-file-provided
 # ones; this allows config file to override defaults
 properties = {
-    "blackduck.api.token": creds["token"],
     "blackduck.url": creds["url"],
     "blackduck.trust.cert": "true",
     "detect.project.name": "${PRODUCT}",
