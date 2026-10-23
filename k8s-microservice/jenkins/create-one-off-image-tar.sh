@@ -9,11 +9,11 @@
 #     ghcr.io/cb-rhcc/${short_product}:${VERSION}-${BLD_NUM}     (-r rhcc)
 #     ghcr.io/cb-vanilla/${short_product}:${VERSION}-${BLD_NUM}  (-r dockerhub)
 #
-# where short_product is PRODUCT with the leading "couchbase-" removed.
+# where short_product is product_image_name PRODUCT (see util/funclib.sh).
 # All of the image's architectures are kept in the one tarball, which is
 # named after the image's public name, so "docker load" (with the
 # containerd image store) or "podman load" gives e.g.
-# registry.connect.redhat.com/couchbase/converge-redis:0.9.0. It writes
+# registry.connect.redhat.com/couchbase/couchbase-converge-redis:0.9.0. It writes
 # e.g. couchbase-converge-redis_0.9.0-linux-rhcc.tar (plus a .sha256) in
 # the current directory.
 
@@ -29,6 +29,7 @@ usage() {
 script_dir=$(dirname $(readlink -e -- "${BASH_SOURCE}"))
 
 source ${script_dir}/../../utilities/shell-utils.sh
+source ${script_dir}/util/funclib.sh
 
 PUBLISH_TO_S3=false
 while getopts ":p:v:b:r:x:Ph" opt; do
@@ -73,7 +74,7 @@ else
     PUBLIC_TAG=${VERSION}-${SUFFIX}
 fi
 
-short_product=${PRODUCT/couchbase-/}
+short_product=$(product_image_name ${PRODUCT})
 IMAGE="${internal_registry}/${short_product}:${VERSION}-${BLD_NUM}"
 public_image="${public_base}/${short_product}:${PUBLIC_TAG}"
 filename="${PRODUCT}_${PUBLIC_TAG}-linux-${REGISTRY}.tar"

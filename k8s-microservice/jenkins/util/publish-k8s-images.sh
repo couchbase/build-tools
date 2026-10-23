@@ -6,7 +6,7 @@
 # It presumes that the following images are available:
 #    build-docker.couchbase.com/cb-vanilla/${short_product}:${INTERNAL_TAG}
 #    build-docker.couchbase.com/cb-rhcc/${short_product}:${INTERNAL_TAG}
-# where short_product is PRODUCT with the leading "couchbase-" removed.
+# where short_product is product_image_name PRODUCT (see funclib.sh).
 #
 # Those images will be copied from the source registry to their destinations
 # on Docker Hub and RHCC - for RHCC it will also append the OPENSHIFT_BUILD
@@ -96,7 +96,7 @@ chk_set PUBLIC_TAG
 chk_set LATEST
 
 internal_repo=build-docker.couchbase.com
-short_product=${PRODUCT/couchbase-/}
+short_product=$(product_image_name ${PRODUCT})
 
 vanilla_registry=index.docker.io
 rhcc_registry=registry.connect.redhat.com

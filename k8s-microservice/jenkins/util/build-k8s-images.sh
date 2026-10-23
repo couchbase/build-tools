@@ -39,7 +39,7 @@
 #     build-docker.couchbase.com/cb-vanilla/${short_product}:${tag}
 #     build-docker.couchbase.com/cb-rhcc/${short_product}:${tag}
 #
-# where short_product is PRODUCT with the leading "couchbase-" removed,
+# where short_product is product_image_name PRODUCT (see funclib.sh),
 # and tag is either VERSION-BLD_NUM (pre-GA build) or just VERSION
 # (post-GA republish). Some products aren't intended to be available via
 # RHCC and so they will not be pushed to cb-rhcc.
@@ -265,7 +265,7 @@ fi
 external_registry=$(product_external_registry ${PRODUCT})
 for local_product in *; do
     pushd ${local_product} &> /dev/null
-    short_product=${local_product/couchbase-/}
+    short_product=$(product_image_name ${local_product})
 
     if building_vanilla && product_publishes_to "${PRODUCT}" dockerhub; then
         build-image cb-vanilla ${short_product} ${tag} \

@@ -15,6 +15,22 @@ function product_publishes_to {
         "${funclib_dir}/products-without-images.json" > /dev/null
 }
 
+# Returns the image name (repository) for a specific product: PRODUCT
+# with the leading "couchbase-" removed, except for Couchbase Converge
+# products (eg. couchbase-converge-redis), which keep it.
+function product_image_name {
+    local PRODUCT=$1
+
+    case "${PRODUCT}" in
+        couchbase-converge-*)
+            echo "${PRODUCT}"
+            ;;
+        *)
+            echo "${PRODUCT/couchbase-/}"
+            ;;
+    esac
+}
+
 # Returns the external private pre-GA registry for a specific product.
 function product_external_registry {
     local PRODUCT=$1
