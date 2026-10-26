@@ -37,6 +37,9 @@ ignorelist = [
 # Note: keys are based on directory names, rather than repository names
 tag_prefixes = {
     "couchbase-sdk-go": "v",
+    "couchbase-sdk-columnar-go": "v",
+    "couchbase-sdk-analytics-go": "v",
+    "couchbase-sdk-insights-go": "v",
     "couchbase-sdk-java": "java-client-",
     "couchbase-sdk-kotlin": "kotlin-client-",
     "couchbase-sdk-nodejs": "v",
