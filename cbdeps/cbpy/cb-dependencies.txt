@@ -4,13 +4,16 @@
 # Note! Don't list "python" itself here - that has to be specified prior
 # to the creation of the environment, so it is defined in the manifest.
 
-cryptography==48.0.0; sys_platform == "darwin"
-cryptography>=50.0.0; sys_platform != "darwin"
+cryptography==48.0.0; sys_platform == "darwin" and platform_machine == "x86_64"
+cryptography>=50.0.0; sys_platform != "darwin" or platform_machine != "x86_64"
 msgpack>=1.0.2
 natsort>=7.1.1
 pycryptodome>=3.20.0
 # Lock to this version of snappy so we get precompiled wheels
 python-snappy==0.7.2
+# snappy's cramjam dependency only has manylinux_2_28 (glibc 2.28+) wheels
+# from 2.13.0 on, which our Linux build agents can't install
+cramjam<2.13.0; sys_platform == "linux"
 pyzipper>=0.4.0
 requests>=2.28.2
 requests-toolbelt>=0.9.1
