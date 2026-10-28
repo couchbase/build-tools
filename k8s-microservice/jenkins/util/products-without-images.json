@@ -1,9 +1,9 @@
 {
     "dockerhub": [
-        "couchbase-converge-mcsync"
+        "couchbase-converge-cbcmsync"
     ],
     "rhcc": [
-        "couchbase-converge-mcsync",
+        "couchbase-converge-cbcmsync",
         "couchbase-elasticsearch-connector",
         "couchbase-goldfish-nebula",
         "couchbase-observability-stack",
