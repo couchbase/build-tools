@@ -13,8 +13,9 @@
 #   package  after the matrix cells have completed: downloads both
 #            architectures' binaries from BIN_BASE_URL (by default this
 #            build's latestbuilds directory) into artifacts/bin/linux, adds
-#            the product's LICENSE, Dockerfile and Dockerfile.rhel, and
-#            writes ${PRODUCT}/dist/${PRODUCT}-image_VERSION-BLD_NUM.tgz of
+#            the product's LICENSE, NOTICE (if any), Dockerfile and
+#            Dockerfile.rhel, and writes
+#            ${PRODUCT}/dist/${PRODUCT}-image_VERSION-BLD_NUM.tgz of
 #            them for util/build-k8s-images.sh to build the images from.
 #
 # Each product is described in product_settings below. The
@@ -112,6 +113,10 @@ package_image() {
             || error "Failed to download ${BIN_BASE_URL}/${DIST_BINARY}-${arch}_${VERSION}-${BLD_NUM}"
     done
     cp LICENSE artifacts/.
+    # Newer Dockerfiles also copy NOTICE into the image
+    if [ -f NOTICE ]; then
+        cp NOTICE artifacts/.
+    fi
     cp docker/Dockerfile artifacts/.
     cp docker/Dockerfile.rhel artifacts/.
     tar -C artifacts -czf dist/${PRODUCT}-image_${VERSION}-${BLD_NUM}.tgz .
