@@ -4,7 +4,7 @@ set PROFILE=%4
 
 rem Download the right OpenSSL package depending on profile
 if %PROFILE% == server (
-  set OPENSSL_VER=3.5.5-1
+  set OPENSSL_VER=3.5.9-1
   set CBDEP_PLATFORM=windows
 ) else (
   set OPENSSL_VER=1.1.1g-sdk1
