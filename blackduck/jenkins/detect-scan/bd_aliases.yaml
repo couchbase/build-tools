@@ -10,6 +10,37 @@
 #    Black Duck Knowledgebase. update-manual-manifests will fall
 #    back to the value version if the key version is not found when
 #    attempting to add it to the project.
+#
+#    A key may instead be a glob pattern (using *, ? or [...]), eg.
+#    "1.18.1-*", to cover several versions with one fallback. Patterns
+#    are only tried if no key matches the version exactly, in the order
+#    they're listed.
+
+# Microsoft Azure Java Core Library
+"0256aea8-6b56-48ff-8025-879428bf9004":
+  fallback-versions:
+    "1.60.0": "1.59.1"
+
+# Microsoft Azure client library for Identity
+"ea2ea544-c9a7-474a-8858-a33e9208fd91":
+  fallback-versions:
+    "1.18.6": "1.18.5"
+
+# Microsoft Azure Netty HTTP Client Library
+"b38c85ac-f1f4-451c-85d4-a947892c7829":
+  fallback-versions:
+    "1.16.8": "1.16.6"
+    "1.16.7": "1.16.6"
+
+# Couchbase JVM Core IO
+"72ed568b-e849-4f92-a4d1-df220cb2a423":
+  fallback-versions:
+    "3.12.3": "3.12.2"
+
+# Apache Parquet Jackson
+"0a80ef0d-524f-4f0c-82a5-466640607df5":
+  fallback-versions:
+    "1.18.1-*": "1.18.1"
 
 # Python Programming Language
 "87993177-f099-4a8c-b962-3958dc3e3a3a":

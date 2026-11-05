@@ -187,10 +187,34 @@ if [ "x${DRY_RUN}" = "xtrue" ]; then
   exit
 fi
 
+# Report any dependencies Black Duck silently dropped from the BOM because
+# their version isn't in the Knowledgebase, and write a Black Duck manifest of
+# stand-in versions for them, which update-manual-manifest.py below then adds.
+# Stand-ins are chosen, and their vulnerabilities checked against the real
+# versions, by BDSA affected ranges.
+echo "Checking for dependencies dropped from the BOM"
+DROPPED_DIR="${WORKSPACE}/dropped-components"
+DROPPED_MANIFEST="${DROPPED_DIR}/${PRODUCT}-black-duck-manifest.yaml"
+rm -f "${DROPPED_MANIFEST}" "${DROPPED_DIR}/dropped-components.json"
+mkdir -p "${DROPPED_DIR}"
+uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
+  "${DETECT_SCRIPT_DIR}/stand-in-silently-dropped-components.py" \
+    --credentials ~/.ssh/blackduck-creds.json \
+    -p ${PRODUCT} -v ${VERSION} \
+    --bdsa-stand-ins \
+    --output "${DROPPED_DIR}/dropped-components.json" \
+    --manifest "${DROPPED_MANIFEST}" \
+  || echo "WARNING: could not check for dropped dependencies"
+KEEP_UNLISTED_ARG=
+if [ ! -e "${DROPPED_MANIFEST}" ]; then
+  echo "WARNING: no stand-in manifest, so keeping any stand-ins earlier scans added"
+  KEEP_UNLISTED_ARG="--keep-unlisted"
+fi
+
 # If there's product-specific manual Black Duck manifests, load that as well
 echo "Loading product-specific Black Duck manifests"
 uv run --project "${DETECT_SCRIPT_DIR}" --quiet \
-  "${DETECT_SCRIPT_DIR}/update-manual-manifest.py" -d \
+  "${DETECT_SCRIPT_DIR}/update-manual-manifest.py" -d ${KEEP_UNLISTED_ARG} \
     --credentials ~/.ssh/blackduck-creds.json \
     --operation update --src-root "${WORKSPACE}" \
     -p ${PRODUCT} -v ${VERSION}

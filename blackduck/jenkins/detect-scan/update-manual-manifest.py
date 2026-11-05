@@ -3,6 +3,7 @@
 import argparse
 import collections
 import dictdiffer
+import fnmatch
 import json
 import logging
 import os
@@ -274,9 +275,14 @@ class UpdateComponents(ManifestWalker):
     #    (lowercased) or, if that doesn't exist, the key of the component
     #    itself.
 
-    def __init__(self, credentials_file, project, version, dryrun):
+    def __init__(self, credentials_file, project, version, dryrun,
+                 keep_unlisted=False):
 
         super().__init__(project, version, dryrun)
+
+        # If set, leave manually-added components that no manifest lists in
+        # the BOM, rather than removing them
+        self.keep_unlisted = keep_unlisted
 
         logging.info(f"Preparing to update components for {project} {version}")
 
@@ -320,8 +326,11 @@ class UpdateComponents(ManifestWalker):
         self.bd_comp_id_aliases = {}
 
         # "Fallback versions" are those we experimentally determined to be
-        # necessary and saved in bd_aliases.yaml. These should be 1:1.
+        # necessary and saved in bd_aliases.yaml. These should be 1:1, except
+        # for glob patterns such as "1.18.1-*", which are kept per component
+        # ID in file order and only tried if no exact version matches.
         self.bd_comp_version_fallbacks = collections.defaultdict(str)
+        self.bd_comp_version_fallback_patterns = collections.defaultdict(list)
 
         # "Alt-canonical versions" are alternate spellings of canonical version
         # names that are sometimes used by the Knowledgebase. By definition,
@@ -372,17 +381,24 @@ class UpdateComponents(ManifestWalker):
                 "fallback-versions", {}
             ).items():
                 canon_ver = self.canonicalize_version(
-                    comp_name, comp_id, canon_ver
+                    comp_name, comp_id, str(canon_ver)
                 )
-                self.bd_comp_version_fallbacks[
-                    f"{comp_id}::{canon_ver}"
-                ] = fallback_ver
+                if is_version_pattern(canon_ver):
+                    self.bd_comp_version_fallback_patterns[comp_id].append(
+                        (canon_ver, fallback_ver)
+                    )
+                else:
+                    self.bd_comp_version_fallbacks[
+                        f"{comp_id}::{canon_ver}"
+                    ] = fallback_ver
 
         logging.debug(
             f"Loaded {len(self.bd_comp_id_aliases)} "
             "Black Duck component aliases and "
             f"{len(self.bd_comp_version_fallbacks)} "
-            "component fallback versions"
+            "component fallback versions and "
+            f"{sum(len(p) for p in self.bd_comp_version_fallback_patterns.values())} "
+            "fallback version patterns"
         )
 
 
@@ -636,6 +652,13 @@ class UpdateComponents(ManifestWalker):
         fallback_version = self.bd_comp_version_fallbacks.get(
             f"{comp_id}::{version}"
         )
+        if fallback_version is None:
+            fallback_version = next(
+                (fallback for pattern, fallback
+                 in self.bd_comp_version_fallback_patterns.get(comp_id, [])
+                 if fnmatch.fnmatchcase(version, pattern)),
+                None
+            )
         if fallback_version is None:
             # No fallback versions available; do nothing
             return version
@@ -893,6 +916,12 @@ class UpdateComponents(ManifestWalker):
             if action != "change":
                 logging.debug(f"Executing '{action}' '{target}' '{value}'")
 
+            if action == "remove" and self.keep_unlisted:
+                logging.warning(
+                    f"Keeping unlisted manually-added components: {target} {value}"
+                )
+                continue
+
             if action == "remove" or action == "add":
                 if target == '':
                     # Adding or removing entire components. In this case we
@@ -956,6 +985,15 @@ class UpdateComponents(ManifestWalker):
             logging.info(f"Updated {actions_taken} components")
 
 
+def is_version_pattern(version):
+    """
+    Returns whether a bd_aliases.yaml fallback version key is a glob pattern
+    (eg. "1.18.1-*") rather than a single version.
+    """
+
+    return any(c in version for c in "*?[")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Get components from hub"
@@ -975,6 +1013,9 @@ if __name__ == "__main__":
         help="Whether to prune source dirs or update Black Duck")
     parser.add_argument('-n', '--dryrun', action='store_true',
         help="Dry run - don't update Black Duck, just report actions")
+    parser.add_argument('-k', '--keep-unlisted', action='store_true',
+        help="Don't remove manually-added components that no manifest lists "
+             "(eg. when a generated manifest couldn't be written)")
     args = parser.parse_args()
 
     if args.debug:
@@ -1002,7 +1043,8 @@ if __name__ == "__main__":
             args.credentials,
             args.project,
             args.version,
-            args.dryrun
+            args.dryrun,
+            keep_unlisted=args.keep_unlisted
         )
 
     actor.set_source_root(src_root)
