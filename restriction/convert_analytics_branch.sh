@@ -17,6 +17,7 @@ case ${UPSTREAM_BRANCH} in
   stabilization-c8b0f90c72) echo "7.6.5";;
   stabilization-0cde515801) echo "7.6.6";;
   stabilization-b4f3098763) echo "8.0.2";;
+  stabilization-e7ae62cba6) echo "8.0.4";;
   stabilization-1cffa2bc98) echo "columnar-1.0.5";;
   stabilization-27a661be67) echo "columnar-1.1.1";;
   stabilization-0795ad31de) echo "ea-2.0.0";;
