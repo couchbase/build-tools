@@ -87,6 +87,15 @@ Entries it doesn't recognise are left alone, text and URL both,
 including the `(/)` merged markers the integration puts ahead of a link.
 Only the separators between them are rewritten, for the reason above.
 
+When the change merges, its entry gets the same `(/) ` prefix the
+integration gives its own merged changes, so the field reads the same
+whichever Gerrit a change came from. That happens on a `change-merged`
+trigger (`GERRIT_EVENT_TYPE=change-merged`, or `--merged` by hand): the
+existing entry is marked in place, or written already marked if it was
+never added. A run on `patchset-created` never takes a marker away, and
+marking an entry that already has one changes nothing, so a replayed or
+out-of-order event is harmless.
+
 An entry someone added by hand for the same change is recognised rather
 than duplicated - several MB issues carry AsterixDB links pasted in as
 a bare URL, and those get the subject as their link text on the first
@@ -202,9 +211,10 @@ The field is found by name (`--field-name`, default `Gerrit Reviews`);
 ## In a Jenkins job
 
 Add the outside Gerrit as a server in the Gerrit Trigger plugin's
-configuration, trigger the job on patchset-created for the projects that
-matter, and turn off the plugin's own voting - this job doesn't review
-anything. Then:
+configuration, trigger the job on Patchset Created and Change Merged
+for the projects that matter, and turn off the plugin's own voting -
+this job doesn't review anything. Leave concurrent builds off, for the
+reason under [Concurrent writes](#concurrent-writes). Then:
 
 ```bash
 export JIRA_URL=https://couchbasecloud.atlassian.net
@@ -218,8 +228,9 @@ issue comes back 404. The command line wins over both.
 Without `--update` the script is read-only and exits 0 having written
 nothing, so a job missing it looks like a job that worked.
 
-Triggering on ref-updated as well as patchset-created will catch changes
-that were merged without the job ever having run on them.
+Change Merged is what adds the `(/)` marker; without it entries never
+show as merged. It also catches a change merged without the job ever
+having run on it, since a missing entry is written then.
 
 ## The field has other writers
 
@@ -263,3 +274,21 @@ Jira offers no compare-and-swap on a field update, so two changes naming
 the same issue at once can lose one another's entry. After writing, the
 job re-reads the field and retries if its entry didn't survive
 (`--attempts`).
+
+That re-read catches a write that got in ahead of ours, not one behind
+it: a run that read the field before our write and writes its copy back
+after our check takes our edit with it. For an entry that mends itself,
+since the next patchset writes it again. A merged marker has no next
+patchset - a stack sharing one issue, submitted bottom-up, sends several
+Change Merged runs at that issue within seconds, and whichever marker is
+overwritten stays gone. So a run that marks a change merged looks once
+more a few seconds later (`--merged-recheck`, 3 by default, 0 to skip)
+and writes the marker again if it has been lost.
+
+That narrows the window rather than closing it. Not running the job
+concurrently with itself closes it against the job's own runs, so leave
+"Execute concurrent builds if necessary" unticked. It does nothing about
+the field's [other writers](#the-field-has-other-writers), which are
+busiest at the same moment - the Couchbase half of a set merges
+alongside the outside one - and against those the second look is all
+there is.

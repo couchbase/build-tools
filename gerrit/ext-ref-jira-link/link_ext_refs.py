@@ -17,6 +17,7 @@ the Gerrit Trigger plugin everything comes from the environment:
   GERRIT_CHANGE_SUBJECT                   the link text
   GERRIT_CHANGE_URL                       what we link to
   GERRIT_PROJECT, GERRIT_BRANCH           the repo:/branch: annotation
+  GERRIT_EVENT_TYPE                       change-merged marks it merged
 
 Any of those can be overridden on the command line, and the message can
 be read from a file or stdin instead, which is how to try it out
@@ -39,6 +40,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -54,6 +56,13 @@ DEFAULT_SUBJECT_WORDS = 5
 # How many times to re-read and re-apply if someone else writes the
 # field between our read and our write
 DEFAULT_ATTEMPTS = 3
+
+# How long to wait before looking a second time at a merged marker we
+# have just written.  The check straight after a write only catches a
+# writer that got in ahead of us; one that read the field before our
+# write and writes it back after that check takes the marker with it,
+# and a merged change never triggers us again to put it back
+DEFAULT_MERGED_RECHECK = 3.0
 
 # The field holds Jira Server wiki markup, one entry per line:
 #
@@ -74,6 +83,12 @@ DEFAULT_ATTEMPTS = 3
 ENTRY_SEPARATOR = "\n"
 ENTRY_SPLIT_RE = re.compile(r"\\\\|\r?\n")
 ENTRY_RE = re.compile(r"\[(?P<text>[^\]|]*)\|(?P<url>[^\]|]+)\]")
+
+# What the Gerrit integration puts ahead of the link of a merged change,
+# and the Gerrit Trigger event that says ours has merged
+MERGED_MARKER = "(/)"
+MERGED_PREFIX = MERGED_MARKER + " "
+MERGED_EVENT = "change-merged"
 
 EXT_REF_RE = re.compile(r"^Ext-ref:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE)
 
@@ -397,7 +412,16 @@ def format_entry(text, url, suffix):
     return f"[{text}|{url}]{suffix}"
 
 
-def update_entries(entries, text, url, suffix):
+def is_merged(entry):
+    """
+    Returns true if an entry carries the "(/)" merged marker ahead of
+    its link
+    """
+    match = ENTRY_RE.search(entry)
+    return match is not None and MERGED_MARKER in entry[:match.start()]
+
+
+def update_entries(entries, text, url, suffix, merged=False):
     """
     Add an entry for `url` to `entries` in place, or bring an existing
     one's link text up to date, and return whether anything changed
@@ -408,18 +432,27 @@ def update_entries(entries, text, url, suffix):
     integration marks merged changes with - is left where it is, as is
     the URL already recorded, which saves rewriting the field just
     because Gerrit handed us a different spelling of the same change.
+
+    With `merged`, the entry is given that "(/)" marker too, as the
+    integration does for its own changes, unless it already has one.
+    Without it a marker is never taken away: a merged change can't be
+    un-merged, so a late or replayed patchset-created leaves it be.
     """
     for index, entry in enumerate(entries):
         match = ENTRY_RE.search(entry)
         if match is None or not same_change(match.group("url"), url):
             continue
-        replacement = (entry[:match.start()]
+        prefix = entry[:match.start()]
+        if merged and MERGED_MARKER not in prefix:
+            prefix = MERGED_PREFIX + prefix.lstrip()
+        replacement = (prefix
                        + format_entry(text, match.group("url"), suffix))
         if replacement == entry:
             return False
         entries[index] = replacement
         return True
-    entries.append(format_entry(text, url, suffix))
+    entries.append((MERGED_PREFIX if merged else "")
+                   + format_entry(text, url, suffix))
     return True
 
 
@@ -604,7 +637,8 @@ def connect_jira(args):
     return Jira(url, user, token, args.timeout)
 
 
-def edit_issue(jira, key, field_id, args, apply_edit, settled, done, noop):
+def edit_issue(jira, key, field_id, args, apply_edit, settled, done, noop,
+               recheck=0):
     """
     Read one issue's Gerrit Reviews field, apply `apply_edit` to its
     entries and write it back, re-reading and re-applying if the field
@@ -614,6 +648,11 @@ def edit_issue(jira, key, field_id, args, apply_edit, settled, done, noop):
     written whole, so a blind read-modify-write can drop the other one's
     entry.  Re-reading until `settled` holds of what we wrote is the
     closest thing to a compare and swap the REST API offers.
+
+    That re-read only sees a write that beat ours.  With `recheck`, a
+    number of seconds, the field is read once more after that long, to
+    catch a writer that read before our write and wrote after our
+    check; if what we wrote is gone by then, we go round again.
     """
     for attempt in range(1, args.attempts + 1):
         entries = split_entries(jira.get_field(key, field_id))
@@ -632,8 +671,12 @@ def edit_issue(jira, key, field_id, args, apply_edit, settled, done, noop):
                        join_entries(entries, args.separator))
 
         if settled(split_entries(jira.get_field(key, field_id))):
-            print(f"{key}: {done}")
-            return True
+            if recheck > 0:
+                time.sleep(recheck)
+            if recheck <= 0 or settled(
+                    split_entries(jira.get_field(key, field_id))):
+                print(f"{key}: {done}")
+                return True
         print(f"{key}: field changed under us, retrying "
               f"({attempt}/{args.attempts})", file=sys.stderr)
 
@@ -643,13 +686,21 @@ def edit_issue(jira, key, field_id, args, apply_edit, settled, done, noop):
 
 def link_issue(jira, key, field_id, text, url, suffix, args):
     """
-    Add this change to one issue's Gerrit Reviews field
+    Add this change to one issue's Gerrit Reviews field, marked merged
+    if it has
     """
+    def settled(entries):
+        entry = find_entry(entries, url)
+        return entry is not None and (not args.merged or is_merged(entry))
+
+    merged = " as merged" if args.merged else ""
     return edit_issue(
         jira, key, field_id, args,
-        lambda entries: update_entries(entries, text, url, suffix),
-        lambda entries: find_entry(entries, url) is not None,
-        f"added {url}", f"already links to {url}",
+        lambda entries: update_entries(entries, text, url, suffix,
+                                       args.merged),
+        settled,
+        f"added {url}{merged}", f"already links to {url}{merged}",
+        recheck=args.merged_recheck if args.merged else 0,
     )
 
 
@@ -737,6 +788,20 @@ def parse_args():
         "--no-prune", action="store_true",
         help="Don't remove links to issues the previous patchset named "
              "and this one doesn't"
+    )
+    source.add_argument(
+        "--merged", action="store_true",
+        default=os.environ.get("GERRIT_EVENT_TYPE") == MERGED_EVENT,
+        help="Mark the change merged with a \"(/)\" ahead of its link, "
+             "as the Gerrit integration does; on by default when "
+             f"$GERRIT_EVENT_TYPE is {MERGED_EVENT}"
+    )
+    source.add_argument(
+        "--merged-recheck", type=float, default=DEFAULT_MERGED_RECHECK,
+        metavar="SECONDS",
+        help="With --merged, look again this long after writing the "
+             "marker and write it back if a concurrent run on the same "
+             "issue has overwritten it; 0 to skip"
     )
     source.add_argument(
         "--project", default=os.environ.get("GERRIT_PROJECT"),
@@ -842,7 +907,8 @@ def main():
             stale = []
 
     if keys:
-        print(f"Linking {url} to {', '.join(keys)}")
+        print(f"Linking {url}{' as merged' if args.merged else ''} "
+              f"to {', '.join(keys)}")
     if stale:
         print(f"Unlinking {url} from {', '.join(stale)}, no longer named "
               f"by an Ext-ref:")

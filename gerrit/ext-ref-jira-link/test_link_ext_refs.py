@@ -11,12 +11,14 @@ field's wiki markup exactly as the Gerrit integration writes it, and
 that a subject full of square brackets can't corrupt it.
 """
 
+import argparse
 import json
 import sys
 
 from link_ext_refs import (
-    drop_aliases, find_entry, find_ext_refs, join_entries, link_text,
-    remove_entry, same_change, split_entries, update_entries,
+    drop_aliases, find_entry, find_ext_refs, is_merged, join_entries,
+    link_issue, link_text, remove_entry, same_change, split_entries,
+    update_entries,
 )
 
 MESSAGE = """\
@@ -312,11 +314,129 @@ def test_legacy():
           split_entries(join_entries(entries)), entries)
 
 
+def test_merged():
+    """
+    A change-merged event marks the entry with "(/) ", the way the Gerrit
+    integration marks its own, as on MB-75130:
+
+      [subj|asterix-gerrit/22232]...\\\\(/) [MB-75130: ...|review/...]...
+    """
+    text = link_text(SUBJECT, 5)
+    plain = f"[{text}|{URL}]{SUFFIX}"
+    marked = f"(/) {plain}"
+
+    entries = split_entries(LIVE)
+    update_entries(entries, text, URL, SUFFIX)
+    check("not merged yet", is_merged(entries[-1]), False)
+    check("change-merged marks the existing entry",
+          update_entries(entries, text, URL, SUFFIX, merged=True), True)
+    check("with the integration's prefix", entries[-1], marked)
+    check("in place, not appended", len(entries), 5)
+    check("and now reads as merged", is_merged(entries[-1]), True)
+    check("the other entries are untouched",
+          join_entries(entries[:4], "\\\\"), LIVE)
+
+    check("a second change-merged changes nothing",
+          update_entries(entries, text, URL, SUFFIX, merged=True), False)
+    check("nor does a URL spelled differently",
+          update_entries(entries, text, URL + "/", SUFFIX, merged=True),
+          False)
+    check("a late patchset-created keeps the marker",
+          (update_entries(entries, text, URL, SUFFIX), entries[-1]),
+          (False, marked))
+    check("as does one with a new subject",
+          (update_entries(entries, "Bump deps", URL, SUFFIX), entries[-1]),
+          (True, f"(/) [Bump deps|{URL}]{SUFFIX}"))
+    check("still one entry for it", len(entries), 5)
+
+    entries = split_entries(LIVE)
+    check("a missing entry is written already marked",
+          (update_entries(entries, text, URL, SUFFIX, merged=True),
+           entries[-1]),
+          (True, marked))
+    check("and only once",
+          update_entries(entries, text, URL, SUFFIX, merged=True), False)
+
+    entries = [f"(x) {plain}"]
+    update_entries(entries, text, URL, SUFFIX, merged=True)
+    check("another marker ahead of it stays, behind the merged one",
+          entries, [f"(/) (x) {plain}"])
+
+    entries = [f"(/){plain}"]
+    check("a marker without the space is still a marker",
+          (update_entries(entries, text, URL, SUFFIX, merged=True),
+           is_merged(entries[0])),
+          (False, True))
+
+    check("an entry with no link is not merged", is_merged("(/) text"), False)
+    check("nor is a link with (/) after it",
+          is_merged(f"{plain} (/)"), False)
+
+
+class RacingJira:
+    """
+    A Jira whose field has a second writer: one that read the field
+    before our first write, and writes that stale copy back straight
+    after we have checked ours took - the order two change-merged runs
+    for a stack sharing one issue fall into
+    """
+
+    def __init__(self, value, stale_writes):
+        self.value = value
+        self.stale = value
+        self.stale_writes = stale_writes
+        self.reads = self.writes = 0
+
+    def get_field(self, key, field_id):
+        self.reads += 1
+        value = self.value
+        if self.reads % 3 == 2 and self.stale_writes:
+            # The read that verifies our write; the other run's lands
+            # behind it
+            self.stale_writes -= 1
+            self.value = self.stale
+        return value
+
+    def set_field(self, key, field_id, value):
+        self.writes += 1
+        self.value = value
+
+
+def test_merged_race():
+    """
+    A marker overwritten after our own check is put back, which matters
+    because nothing triggers us again once a change has merged
+    """
+    text = link_text(SUBJECT, 5)
+    plain = f"[{text}|{URL}]{SUFFIX}"
+    start = f"{LIVE}\n{plain}"
+
+    def run(stale_writes, recheck, attempts=3):
+        jira = RacingJira(start, stale_writes)
+        args = argparse.Namespace(
+            attempts=attempts, dry_run=False, update=True, separator="\n",
+            merged=True, merged_recheck=recheck,
+        )
+        result = link_issue(jira, "MB-73268", "customfield_11243", text,
+                            URL, SUFFIX, args)
+        return (result, is_merged(split_entries(jira.value)[-1]),
+                jira.writes)
+
+    check("unraced, the marker goes on in one write",
+          run(0, 0.001), (True, True, 1))
+    check("overwritten behind our check, it is written again",
+          run(1, 0.001), (True, True, 2))
+    check("without the second look the loss goes unnoticed",
+          run(1, 0), (True, False, 1))
+    check("and a marker that never sticks is reported as a failure",
+          run(9, 0.001, attempts=2), (False, False, 2))
+
+
 def main():
     for test in (test_ext_refs, test_link_text, test_tagged_entries,
                  test_drop_aliases, test_same_change, test_round_trip,
                  test_separator, test_update, test_remove, test_stale,
-                 test_legacy):
+                 test_legacy, test_merged, test_merged_race):
         print(f"\n{test.__name__}")
         test()
 
