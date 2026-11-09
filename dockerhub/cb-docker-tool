@@ -13,9 +13,13 @@ import tempfile
 from typing import List, Optional
 
 
+# Companion udf images. Only operational-insights has one: no
+# enterprise-analytics release ever shipped a udf image (its would-be 2.3.0
+# became operational-insights 3.0.0).
+UDF_PRODUCTS = ("operational-insights-udf",)
+
 # Products whose images are named after the product itself, and which share
 # the same platform and edition rules.
-UDF_PRODUCTS = ("enterprise-analytics-udf", "operational-insights-udf")
 ANALYTICS_PRODUCTS = ("enterprise-analytics", "operational-insights", *UDF_PRODUCTS)
 
 
