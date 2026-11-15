@@ -34,7 +34,7 @@ if [ -z "${FLAVOR}" ]; then
         "${SCRIPT_DIR}/../scripts/create-maven-boms.py" \
             --outdir driver-boms \
             --file "${LEGACY_BOM}"
-    exit 0
+    return 0
 fi
 
 MODULE=${FLAVOR}-jdbc-driver
