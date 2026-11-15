@@ -12,7 +12,31 @@ export PATH=${WORKSPACE}/extra/mvn-${MAVEN_VERSION}/bin:$PATH
 # couchbase-jdbc-driver/jdbc-driver-build.sh). The caller already did repo
 # init/sync and wrote a resolved manifest.xml into cwd, the source root.
 FLAVOR=$(annot_from_manifest FLAVOR)
-[ -n "${FLAVOR}" ] || error "no FLAVOR annotation in the build manifest"
+
+# Releases shipped before the flavor split (<= 1.1.1, published to Maven
+# Central as com.couchbase.client:couchbase-jdbc-driver) are a single root
+# module with no BOM generation, so they can't produce a bom.txt. Their
+# manifests carry no FLAVOR annotation. Instead, legacy-boms/<version>.txt
+# holds that release's BOM, generated once and checked in, and
+# <version>.commit names the driver commit it was generated from (see
+# legacy-boms/README.md). A shipped release never changes, so a fixed list
+# stays exact. This script is called as
+# get_additional_source.sh <release> <version> <bld_num>.
+if [ -z "${FLAVOR}" ]; then
+    LEGACY_BOM="${SCRIPT_DIR}/legacy-boms/$2.txt"
+    [ -f "${LEGACY_BOM}" ] || error "no FLAVOR annotation in the build manifest, and no legacy BOM ${LEGACY_BOM}"
+    want=$(cat "${SCRIPT_DIR}/legacy-boms/$2.commit")
+    have=$(git -C couchbase-jdbc-driver rev-parse HEAD)
+    [ "${have}" = "${want}" ] || error "legacy BOM for $2 was generated from driver ${want}, but the manifest checks out ${have}"
+    echo "Pre-flavor driver $2 at ${have}: using checked-in BOM ${LEGACY_BOM}"
+    rm -rf driver-boms && mkdir driver-boms
+    uv run --project "${SCRIPT_DIR}/../scripts" --quiet \
+        "${SCRIPT_DIR}/../scripts/create-maven-boms.py" \
+            --outdir driver-boms \
+            --file "${LEGACY_BOM}"
+    exit 0
+fi
+
 MODULE=${FLAVOR}-jdbc-driver
 DRIVER_DIR=couchbase-jdbc-driver
 [ -f "${DRIVER_DIR}/${MODULE}/pom.xml" ] || error "flavor '${FLAVOR}' has no module ${DRIVER_DIR}/${MODULE}"
