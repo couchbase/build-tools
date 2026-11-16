@@ -14,8 +14,8 @@
 # named after the image's public name, so "docker load" (with the
 # containerd image store) or "podman load" gives e.g.
 # registry.connect.redhat.com/couchbase/couchbase-converge-redis:0.9.0. It writes
-# e.g. couchbase-converge-redis_0.9.0-linux-rhcc.tar (plus a .sha256) in
-# the current directory.
+# e.g. couchbase-converge-redis_0.9.0-linux-rhcc.tar (or -linux-docker.tar
+# for -r dockerhub), plus a .sha256, in the current directory.
 
 usage() {
     echo "Usage: $(basename $0) -p PRODUCT -v VERSION -b BLD_NUM -r rhcc|dockerhub [ -x SUFFIX ] [ -P ]"
@@ -57,10 +57,12 @@ case "${REGISTRY}" in
     rhcc)
         internal_registry=ghcr.io/cb-rhcc
         public_base=registry.connect.redhat.com/couchbase
+        file_suffix=rhcc
         ;;
     dockerhub)
         internal_registry=ghcr.io/cb-vanilla
         public_base=docker.io/couchbase
+        file_suffix=docker
         ;;
     *)
         echo "-r must be rhcc or dockerhub, not '${REGISTRY}'"
@@ -77,7 +79,7 @@ fi
 short_product=$(product_image_name ${PRODUCT})
 IMAGE="${internal_registry}/${short_product}:${VERSION}-${BLD_NUM}"
 public_image="${public_base}/${short_product}:${PUBLIC_TAG}"
-filename="${PRODUCT}_${PUBLIC_TAG}-linux-${REGISTRY}.tar"
+filename="${PRODUCT}_${PUBLIC_TAG}-linux-${file_suffix}.tar"
 
 # The ghcr.io orgs are private; use the same Docker credentials as
 # publish-k8s-images.sh
