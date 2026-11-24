@@ -5,6 +5,9 @@
             "release": "master",
             "interval": 1440
         },
+        "4.7.0": {
+            "interval": 1440
+        },
         "4.6.4": {
             "interval": 1440
         },
