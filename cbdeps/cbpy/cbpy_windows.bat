@@ -6,7 +6,7 @@ set VERSION=%6
 
 rem cbpy version == included python version
 set PYTHON_VERSION=%VERSION%
-set UV_VERSION=0.12.20
+set UV_VERSION=0.13.10
 set SRC_DIR=%ROOT_DIR%\build-tools\cbdeps\cbpy
 
 rem Install UV

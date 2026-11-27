@@ -14,7 +14,7 @@ VERSION=$6
 
 # cbpy version == included python version
 PYTHON_VERSION=${VERSION}
-UV_VERSION=0.12.20
+UV_VERSION=0.13.10
 SRC_DIR=${ROOT_DIR}/build-tools/cbdeps/cbpy
 
 if [ $(uname -s) = "Darwin" ]; then
